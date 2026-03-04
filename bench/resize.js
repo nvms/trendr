@@ -37,7 +37,7 @@ function p99(arr) {
   return sorted[Math.floor(sorted.length * 0.99)]
 }
 
-const ITERATIONS = 1000
+const ITERATIONS = 10000
 const WARMUP = 50
 
 const SIZES = [

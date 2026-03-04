@@ -56,7 +56,7 @@ fastest: trend
 
 ## resize storm (resize.js)
 
-cycles through 6 terminal sizes (40x12 up to 160x50) over 1000 frames. every
+cycles through 6 terminal sizes (40x12 up to 160x50) over 10000 frames. every
 frame is a full resize - new buffers, fresh layout, complete repaint. this is
 the worst case for frameworks that cache layout since every cache invalidates
 at once. trend's gap widens here because its layout pass has nothing to
@@ -66,17 +66,17 @@ the React tree, and re-serialize everything. blessed reallocates its screen
 buffer and recomputes all widget positions.
 
 ```bash
-resize benchmark: 1000 resizes across 6 sizes, 50 warmup
+resize benchmark: 10000 resizes across 6 sizes, 50 warmup
 
 library      median(ms)  p99(ms)  mean(ms)  min(ms)  max(ms)      fps    bytes
 -------------------------------------------------------------------------------------
-trend            0.026    0.131    0.032    0.010    0.358    39056    269KB
-ink              0.406    0.960    0.435    0.362     2.29     2463      4KB
-neo-blessed      0.149    0.797    0.192    0.061     1.60     6696      0KB
+trend            0.018    0.089    0.022    0.009    0.303    56072   2692KB
+ink              0.398    0.606    0.408    0.352     1.89     2512      4KB
+neo-blessed      0.144    0.775    0.171    0.058     2.11     6934      0KB
 
 fastest: trend
-  ink is 15.9x slower
-  neo-blessed is 5.9x slower
+  ink is 22.3x slower
+  neo-blessed is 8.1x slower
 ```
 
 ## single-cell I/O (single-cell.js)
