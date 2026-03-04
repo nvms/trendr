@@ -1,16 +1,12 @@
-<p align="center">
-  <img src=".github/trend.png" alt="trend" width="400" />
-</p>
-
-<p align="center">4-16x faster than ink and neo-blessed - <a href="bench/README.md">benchmarks</a></p>
+<pre align="center">
+▗        ▌
+▜▘▛▘█▌▛▌▛▌
+▐▖▌ ▙▖▌▌▙▌
 
 Direct-mode TUI renderer with JSX, signals, and per-cell diffing.
+</pre>
 
-ESM only. Requires esbuild (or similar) for JSX transformation.
-
-```json
-{ "jsx": "automatic", "jsxImportSource": "trend" }
-```
+<p align="center">4-16x faster than ink and neo-blessed - <a href="bench/README.md">benchmarks</a></p>
 
 https://github.com/user-attachments/assets/d307ba1e-2b21-4f7d-8b1b-56252820db6c
 
@@ -19,6 +15,12 @@ https://github.com/user-attachments/assets/a5984747-f365-4fe3-a161-93101682ca42
 https://github.com/user-attachments/assets/9c357c93-0299-4480-a969-61a54b49ec33
 
 ## Usage
+
+Requires esbuild (or similar) for JSX transformation.
+
+```json
+{ "jsx": "automatic", "jsxImportSource": "trend" }
+```
 
 ```jsx
 import { mount, createSignal, useInput } from 'trend'
