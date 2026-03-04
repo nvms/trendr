@@ -1,0 +1,9 @@
+{
+  "name": "trend-examples",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "@shikijs/cli": "^3.0.0"
+  }
+}

@@ -1,0 +1,14 @@
+{
+  "name": "trend-bench",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "bench": "node run.js"
+  },
+  "dependencies": {
+    "ink": "^5.2.0",
+    "react": "^18.3.1",
+    "neo-blessed": "^0.2.0"
+  }
+}

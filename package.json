@@ -1,0 +1,35 @@
+{
+  "name": "@trendr/core",
+  "version": "0.1.0",
+  "description": "direct-mode TUI renderer with JSX, signals, and per-cell diffing",
+  "license": "MIT",
+  "type": "module",
+  "main": "./index.js",
+  "files": [
+    "src",
+    "index.js",
+    "jsx-runtime.js"
+  ],
+  "exports": {
+    ".": "./index.js",
+    "./jsx-runtime": "./jsx-runtime.js",
+    "./jsx-dev-runtime": "./jsx-runtime.js"
+  },
+  "scripts": {
+    "test": "node test/test.js && node test/test-e2e.js && node test/test-mount.js && node test/test-render.js",
+    "build": "node esbuild.config.js",
+    "counter": "node esbuild.config.js && node dist/counter.js",
+    "dashboard": "node esbuild.config.js && node dist/dashboard.js",
+    "chat": "node esbuild.config.js && node dist/chat.js",
+    "explorer": "node esbuild.config.js && node dist/explorer.js",
+    "layout": "node esbuild.config.js && node dist/layout.js",
+    "components": "node esbuild.config.js && node dist/components.js",
+    "reader": "node esbuild.config.js && node dist/reader.js",
+    "focus-demo": "node esbuild.config.js && node dist/focus-demo.js",
+    "modal-form": "node esbuild.config.js && node dist/modal-form.js",
+    "highlight": "node esbuild.config.js && node dist/highlight.js src"
+  },
+  "devDependencies": {
+    "esbuild": "^0.25.0"
+  }
+}
