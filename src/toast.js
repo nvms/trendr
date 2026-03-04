@@ -18,7 +18,7 @@ const POSITIONS = {
 
 let nextId = 0
 
-export function useToast({ duration = 2000, position = 'bottom-right', margin = 1 } = {}) {
+export function useToast({ duration = 2000, position = 'bottom-right', margin = 1, render } = {}) {
   const [items, setItems] = registerHook(() => createSignalRaw([]))
 
   useInterval(() => {
@@ -47,11 +47,9 @@ export function useToast({ duration = 2000, position = 'bottom-right', margin = 
         ...pos,
       },
       children: list.map(t =>
-        jsx('text', {
-          key: t.id,
-          style: { inverse: true },
-          children: ` ${t.message} `,
-        })
+        render
+          ? jsx('box', { key: t.id, children: render(t.message) })
+          : jsx('text', { key: t.id, style: { inverse: true }, children: ` ${t.message} ` })
       ),
     })
     registerOverlay(overlay, { fullscreen: true })

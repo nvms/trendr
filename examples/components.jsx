@@ -1,4 +1,4 @@
-import { mount, createSignal, useInput, useFocus, useTheme } from '../index.js'
+import { mount, createSignal, useInput, useFocus, useTheme, useToast } from '../index.js'
 import { Table } from '../src/table.js'
 import { Select } from '../src/select.js'
 import { Checkbox } from '../src/checkbox.js'
@@ -35,8 +35,18 @@ function App() {
   const [refreshRate, setRefreshRate] = createSignal('1s')
   const [modalOpen, setModalOpen] = createSignal(false)
 
+  const toast = useToast({
+    position: 'bottom-right',
+    render: (message) => (
+      <box style={{ bg: '#1E1E1E', paddingX: 1 }}>
+        <text style={{ color: '#9A9EA3' }}>{message}</text>
+      </box>
+    ),
+  })
+
   useInput(({ key, ctrl }) => {
     if (ctrl && key === 'c') process.exit(0)
+    if (key === 't') toast('settings updated')
     if (key === 'm') {
       if (!fm.is('modal')) { setModalOpen(true); fm.push('modal') }
       else { setModalOpen(false); fm.pop() }
@@ -81,12 +91,12 @@ function App() {
         <text style={{ bold: true }}>components</text>
         <box style={{ flexGrow: 1 }} />
         <text style={{ color: 'gray', dim: true }}>
-          tab: switch  m: modal
+          tab: switch  m: modal  t: toast
         </text>
       </box>
 
       <box style={{ flexDirection: 'row', flexGrow: 1 }}>
-        <box style={{ border: 'round', borderColor: fm.is('table') ? accent : 'gray', flexGrow: 1, flexDirection: 'column' }}>
+        <box style={{ bg: '#0A0A0A', flexGrow: 1, flexDirection: 'column', paddingX: 1 }}>
           <Table
             columns={columns}
             data={sorted}
@@ -96,7 +106,7 @@ function App() {
           />
         </box>
 
-        <box style={{ border: 'round', borderColor: fm.is('settings') ? accent : 'gray', width: 30, flexDirection: 'column', paddingX: 1 }}>
+        <box style={{ bg: '#141414', width: 30, flexDirection: 'column', paddingX: 1 }}>
           <text style={{ bold: true, color: accent }}>settings</text>
           <box style={{ height: 1 }} />
 
