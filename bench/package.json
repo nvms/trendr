@@ -4,7 +4,10 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "bench": "node run.js"
+    "bench": "node run.js",
+    "bench:list": "node list.js",
+    "bench:resize": "node resize.js",
+    "bench:startup": "node startup.js"
   },
   "dependencies": {
     "ink": "^5.2.0",
