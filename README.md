@@ -12,7 +12,7 @@ Most TUI libraries redraw the entire screen every frame - clear everything, writ
 
 trend tracks every character position as a "cell" (character + color + style) and compares the current frame against the previous one. Only cells that actually changed get written to the terminal as escape sequences - the low-level instructions that move the cursor, set colors, and print characters.
 
-A small UI update on a 200x50 terminal: trend writes 17 bytes, ink writes 9,870. The difference matters over SSH, on slow connections, and in high-refresh UIs where every byte costs latency.
+A small UI update on a 200x50 terminal: trend writes 17 bytes, ink writes 9,870. The difference matters over SSH, on slow connections, and in high-refresh UIs where every byte costs latency. Think streaming LLM output, token by token, on a screen full of conversation history - that's a full redraw per token.
 
 https://github.com/user-attachments/assets/d307ba1e-2b21-4f7d-8b1b-56252820db6c
 
