@@ -259,6 +259,11 @@ const toast = useToast({
   duration: 2000,           // ms, default 2000
   position: 'bottom-right', // see positions below
   margin: 1,                // padding from screen edge, default 1
+  render: (message) => (    // optional custom render
+    <box style={{ bg: '#1E1E1E', paddingX: 1 }}>
+      <text style={{ color: '#9A9EA3' }}>{message}</text>
+    </box>
+  ),
 })
 
 toast('saved')
@@ -338,6 +343,22 @@ Scrollable list with keyboard navigation.
 />
 ```
 
+Multi-row items are supported via `itemHeight`. The layout engine sizes each item naturally from its children - `itemHeight` just tells the scroll math how many rows each item occupies:
+
+```jsx
+<List
+  items={data}
+  itemHeight={3}
+  renderItem={(item, { selected, focused }) => (
+    <box style={{ flexDirection: 'column', bg: selected ? accent : null }}>
+      <text style={{ bold: true }}>{item.name}</text>
+      <text style={{ color: 'gray' }}>{item.description}</text>
+      <text style={{ color: 'green' }}>{item.status}</text>
+    </box>
+  )}
+/>
+```
+
 Keys: j/k or up/down, g/G for top/bottom, ctrl-d/u half page, ctrl-f/b full page, pageup/pagedown.
 
 ### Table
@@ -357,6 +378,8 @@ Column-based data table. Uses List internally.
   selected={selectedRow}
   onSelect={setRow}
   focused={fm.is('table')}
+  separator={true}              // horizontal rule below header
+  separatorChars={{ left: '', fill: '─', right: '' }}  // customizable
 />
 ```
 
@@ -389,6 +412,8 @@ Dropdown selector. Can render inline or as overlay.
   focused={fm.is('color')}
   overlay={false}          // true renders as floating overlay
   placeholder="pick one..."
+  openIcon="▲"             // default ▲
+  closedIcon="▼"           // default ▼
   renderItem={(item, { selected, index }) => <text>{item}</text>}
   style={{
     border: 'single', borderColor: 'green', bg: 'black',
@@ -410,10 +435,12 @@ Used in [modal-form](examples/modal-form.jsx), [components](examples/components.
   label="Enable feature"
   onChange={setChecked}  // (newState: boolean) => void
   focused={fm.is('feature')}
+  checkedIcon="[✓]"     // default '[x]'
+  uncheckedIcon="[ ]"   // default '[ ]'
 />
 ```
 
-Keys: space or enter to toggle. Renders `[x]` / `[ ]`.
+Keys: space or enter to toggle.
 
 ### Radio
 
@@ -428,7 +455,7 @@ Used in [modal-form](examples/modal-form.jsx), [components](examples/components.
 />
 ```
 
-Keys: j/k or up/down, enter/space to select. Renders circle symbols.
+Keys: j/k or up/down, enter/space to select. Renders `●` / `○`.
 
 ### ProgressBar
 
@@ -504,6 +531,8 @@ Scrollable text viewer with optional scrollbar. Content can include ANSI escape 
   onScroll={setOffset}
   scrollbar={true}         // default false
   wrap={false}             // default true, set false for horizontal scroll
+  thumbChar="█"            // default █
+  trackChar="░"            // default │
 />
 ```
 
