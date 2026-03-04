@@ -28,7 +28,8 @@
     "focus-demo": "node esbuild.config.js && node dist/focus-demo.js",
     "modal-form": "node esbuild.config.js && node dist/modal-form.js",
     "highlight": "node esbuild.config.js && node dist/highlight.js src",
-    "multi-row-list": "node esbuild.config.js && node dist/multi-row-list.js"
+    "multi-row-list": "node esbuild.config.js && node dist/multi-row-list.js",
+    "plasma": "node esbuild.config.js && node dist/plasma.js"
   },
   "devDependencies": {
     "esbuild": "^0.25.0"
