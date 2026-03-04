@@ -8,6 +8,12 @@ Direct-mode TUI renderer with JSX, signals, and per-cell diffing.
 
 <p align="center">4-16x faster than ink and neo-blessed - <a href="bench/README.md">benchmarks</a></p>
 
+Most TUI libraries redraw the entire screen every frame - clear everything, write everything back. This causes flicker and wastes stdout bandwidth.
+
+trend tracks every character position as a "cell" (character + color + style) and compares the current frame against the previous one. Only cells that actually changed get written to the terminal as escape sequences - the low-level instructions that move the cursor, set colors, and print characters.
+
+A small UI change in a 200x50 terminal writes a handful of bytes instead of ten thousand. No flicker, minimal I/O, performance scales with change size not screen size.
+
 https://github.com/user-attachments/assets/d307ba1e-2b21-4f7d-8b1b-56252820db6c
 
 https://github.com/user-attachments/assets/a5984747-f365-4fe3-a161-93101682ca42
