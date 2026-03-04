@@ -96,7 +96,7 @@ function App() {
       </box>
 
       <box style={{ flexDirection: 'row', flexGrow: 1 }}>
-        <box style={{ bg: '#0A0A0A', flexGrow: 1, flexDirection: 'column', paddingX: 1 }}>
+        <box style={{ bg: '#0A0A0A', flexGrow: 1, flexDirection: 'column' }}>
           <Table
             columns={columns}
             data={sorted}

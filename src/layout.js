@@ -186,8 +186,12 @@ function measureChild(child, cs, isRow, availW, availH) {
 
   if (leaf.type === 'text') {
     const text = extractText(leaf)
+    const overflow = cs.overflow
     if (!text) { w = explicitW ?? 0; h = explicitH ?? 1 }
-    else {
+    else if (overflow === 'nowrap' || overflow === 'truncate') {
+      w = explicitW ?? Math.min(availW, measureText(text))
+      h = explicitH ?? 1
+    } else {
       const maxW = explicitW ?? availW
       const lines = wordWrap(text, maxW)
       const textWidth = Math.min(maxW, Math.max(...lines.map(l => measureText(l))))

@@ -2,7 +2,7 @@ import { jsx } from '../jsx-runtime.js'
 import { createSignal } from './signal.js'
 import { useInput, useLayout } from './hooks.js'
 
-export function List({ items, selected: selectedProp, onSelect, height, renderItem, header, focused = true }) {
+export function List({ items, selected: selectedProp, onSelect, height, renderItem, header, headerHeight = 1, focused = true, itemHeight = 1 }) {
   const [selectedInternal, setSelectedInternal] = createSignal(0)
   const layout = useLayout()
 
@@ -10,7 +10,8 @@ export function List({ items, selected: selectedProp, onSelect, height, renderIt
   const setSelected = onSelect ?? setSelectedInternal
 
   const rawH = height ?? layout.height
-  const visibleH = header && rawH > 0 ? rawH - 1 : rawH
+  const headerH = header ? headerHeight : 0
+  const visibleH = rawH > 0 ? Math.ceil((rawH - headerH) / itemHeight) : rawH
 
   useInput(({ key, ctrl }) => {
     if (!focused) return
@@ -38,7 +39,8 @@ export function List({ items, selected: selectedProp, onSelect, height, renderIt
   const children = []
   if (header) children.push(header)
 
-  for (let i = scrollOffset; i < items.length; i++) {
+  const end = visibleH > 0 ? Math.min(items.length, scrollOffset + visibleH) : items.length
+  for (let i = scrollOffset; i < end; i++) {
     children.push(renderItem(items[i], { selected: i === selected, index: i, focused }))
   }
 
