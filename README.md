@@ -23,7 +23,7 @@ Requires esbuild (or similar) for JSX transformation.
 ```
 
 ```jsx
-import { mount, createSignal, useInput } from 'trend'
+import { mount, createSignal, useInput } 'from ''trend'
 
 function App() {
   const [count, setCount] = createSignal(0)
@@ -57,7 +57,7 @@ mount(App, { theme: { accent: 'green' } })
 Components read the accent with `useTheme()`. Use this in your own components to stay consistent:
 
 ```jsx
-import { useTheme } from 'trend'
+import { useTheme } from '@trendr/core'
 
 const { accent } = useTheme()
 ```
@@ -67,7 +67,7 @@ Individual components still accept explicit color props (e.g. `<Spinner color="m
 ## Signals
 
 ```js
-import { createSignal, createEffect, createMemo, batch, untrack, onCleanup } from 'trend'
+import { createSignal, createEffect, createMemo, batch, untrack, onCleanup } from '@trendr/core'
 
 const [value, setValue] = createSignal(0)
 value()         // read (tracks dependency)
@@ -130,7 +130,7 @@ Two element types: `box` (container) and `text` (leaf).
 `Box`, `Text`, and `Spacer` are convenience wrappers:
 
 ```jsx
-import { Box, Text, Spacer } from 'trend'
+import { Box, Text, Spacer } from '@trendr/core'
 <Box style={{ flexDirection: 'row' }}><Text>hello</Text><Spacer /><Text>right</Text></Box>
 ```
 
@@ -159,7 +159,7 @@ Handlers fire in reverse registration order (innermost component first). Call `s
 Declarative key binding. Parses `'ctrl+s'`, `'alt+enter'`, etc.
 
 ```jsx
-import { useHotkey } from 'trend'
+import { useHotkey } from '@trendr/core'
 
 useHotkey('ctrl+s', () => save())
 useHotkey('alt+enter', () => submit(), { when: () => isFocused })
@@ -208,7 +208,7 @@ Used in [explorer](examples/explorer.jsx), [chat](examples/chat.jsx), [modal-for
 Manages focus across multiple interactive regions. You register named items in the order you want tab to cycle through them. The focus manager tracks which name is currently active - it doesn't know anything about your components or layout.
 
 ```jsx
-import { useFocus } from 'trend'
+import { useFocus } from '@trendr/core'
 
 const fm = useFocus({ initial: 'input' })
 
@@ -253,7 +253,7 @@ fm.pop()          // restore previous focus
 Used in [chat](examples/chat.jsx), [modal-form](examples/modal-form.jsx), [components](examples/components.jsx)
 
 ```jsx
-import { useToast } from 'trend'
+import { useToast } from '@trendr/core'
 
 const toast = useToast({
   duration: 2000,           // ms, default 2000
