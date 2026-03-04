@@ -11,6 +11,7 @@ npm install
 node run.js
 node list.js
 node resize.js
+node single-cell.js
 node startup.js
 ```
 
@@ -77,6 +78,33 @@ fastest: trend
   ink is 15.9x slower
   neo-blessed is 5.9x slower
 ```
+
+## single-cell I/O (single-cell.js)
+
+the per-cell diffing proof point. 200x50 terminal (10,000 cells), 100 frames,
+only a counter in the corner changes each frame. this measures bytes written to
+stdout per render - the raw I/O cost that determines flicker, SSH responsiveness,
+and terminal throughput.
+
+```bash
+single-cell benchmark: 200x50 terminal (10,000 cells), 100 frames
+each frame changes only a counter in the corner. everything else is static.
+
+library          bytes/frame
+-----------------------------------
+trend                    17
+ink                    9870
+
+ink writes 581x more bytes per frame than trend.
+on a 10,000-cell screen where ~4 cells change, per-cell diffing
+skips 99.8% of the stdout output.
+```
+
+trend writes 17 bytes. ink rewrites the entire screen: 9,870 bytes. every frame.
+this is where per-cell diffing matters most - the fewer cells that change, the
+bigger the gap. in real apps (a blinking cursor, a ticking clock, a spinner) most
+frames change very little. over SSH or slow terminals, 580x less I/O is the
+difference between responsive and sluggish.
 
 ## cold start (startup.js)
 

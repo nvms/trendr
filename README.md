@@ -6,13 +6,13 @@
 Direct-mode TUI renderer with JSX, signals, and per-cell diffing.
 </pre>
 
-<p align="center">4-16x faster than ink and neo-blessed - <a href="bench/README.md">benchmarks</a></p>
+<p align="center">4-16x faster frame times, 580x less I/O per render - <a href="bench/README.md">benchmarks</a></p>
 
 Most TUI libraries redraw the entire screen every frame - clear everything, write everything back. This causes flicker and wastes stdout bandwidth.
 
 trend tracks every character position as a "cell" (character + color + style) and compares the current frame against the previous one. Only cells that actually changed get written to the terminal as escape sequences - the low-level instructions that move the cursor, set colors, and print characters.
 
-A small UI change in a 200x50 terminal writes a handful of bytes instead of ten thousand. No flicker, minimal I/O, performance scales with change size not screen size.
+A small UI update on a 200x50 terminal: trend writes 17 bytes, ink writes 9,870. The difference matters over SSH, on slow connections, and in high-refresh UIs where every byte costs latency.
 
 https://github.com/user-attachments/assets/d307ba1e-2b21-4f7d-8b1b-56252820db6c
 
