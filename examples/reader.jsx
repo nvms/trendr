@@ -92,7 +92,7 @@ function App() {
         <text style={{ color: 'gray', dim: true }}>j/k scroll  g/G top/bottom  s: scrollbar ({showScrollbar() ? 'on' : 'off'})  q quit</text>
       </box>
       <box style={{ border: 'round', borderColor: accent, flexGrow: 1, flexDirection: 'column', paddingX: 1 }}>
-        <ScrollableText content={CONTENT} scrollbar={showScrollbar()} />
+        <ScrollableText content={CONTENT} scrollbar={showScrollbar()} thumbChar="█" trackChar="░" />
       </box>
     </box>
   )

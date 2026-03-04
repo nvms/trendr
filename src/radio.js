@@ -34,7 +34,7 @@ export function Radio({ options, selected, onSelect, focused = false }) {
   const children = options.map((option, i) => {
     const isSelected = option === selected
     const isCursor = focused && i === c
-    const icon = isSelected ? '\u25c9' : '\u25cb'
+    const icon = isSelected ? '\u25cf' : '\u25cb'
     const bg = isCursor ? accent : null
     const color = isCursor ? 'black' : null
 

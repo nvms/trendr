@@ -115,12 +115,16 @@ function App() {
             label="auto refresh"
             onChange={setAutoRefresh}
             focused={fm.is('autoRefresh')}
+            checkedIcon="[✓]"
+            uncheckedIcon="[ ]"
           />
           <Checkbox
             checked={showIdle()}
             label="show idle"
             onChange={setShowIdle}
             focused={fm.is('showIdle')}
+            checkedIcon="[✓]"
+            uncheckedIcon="[ ]"
           />
           <box style={{ height: 1 }} />
 

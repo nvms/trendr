@@ -3,7 +3,7 @@ import { createSignal } from './signal.js'
 import { useInput, useTheme } from './hooks.js'
 import { registerOverlay, getInstanceLayout, getContext } from './renderer.js'
 
-export function Select({ items, selected, onSelect, focused = false, overlay = false, maxVisible = 10, placeholder = 'select...', renderItem, style: userStyle }) {
+export function Select({ items, selected, onSelect, focused = false, overlay = false, maxVisible = 10, placeholder = 'select...', renderItem, style: userStyle, openIcon = '\u25b2', closedIcon = '\u25bc' }) {
   const { accent = 'cyan' } = useTheme()
   const defaults = {
     border: 'single',
@@ -49,7 +49,7 @@ export function Select({ items, selected, onSelect, focused = false, overlay = f
       color: focused ? s.focusedColor : (selected ? s.color : 'gray'),
       bold: focused,
     },
-    children: `\u25be ${display}`,
+    children: `${open() ? openIcon : closedIcon} ${display}`,
   })
 
   if (!open()) return collapsed
