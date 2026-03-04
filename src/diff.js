@@ -8,6 +8,7 @@ export function diff(prev, curr) {
   const w = curr.width
   const h = curr.height
   const parts = []
+  let changed = 0
 
   let lastFg = undefined
   let lastBg = undefined
@@ -29,6 +30,7 @@ export function diff(prev, curr) {
         if (cellEq(prev.cells[i], curr.cells[i])) break
 
         const c = curr.cells[i]
+        changed++
 
         if (c.fg !== lastFg || c.bg !== lastBg || c.attrs !== lastAttrs) {
           parts.push(sgr(c.fg, c.bg, c.attrs))
@@ -47,5 +49,5 @@ export function diff(prev, curr) {
     parts.push(sgrReset)
   }
 
-  return parts.join('')
+  return { output: parts.join(''), changed }
 }

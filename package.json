@@ -29,7 +29,8 @@
     "modal-form": "node esbuild.config.js && node dist/modal-form.js",
     "highlight": "node esbuild.config.js && node dist/highlight.js src",
     "multi-row-list": "node esbuild.config.js && node dist/multi-row-list.js",
-    "plasma": "node esbuild.config.js && node dist/plasma.js"
+    "plasma": "node esbuild.config.js && node dist/plasma.js",
+    "rain": "node esbuild.config.js && node dist/rain.js"
   },
   "devDependencies": {
     "esbuild": "^0.25.0"

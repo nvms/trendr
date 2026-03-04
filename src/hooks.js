@@ -1,5 +1,5 @@
 import { onCleanup, createSignal as rawCreateSignal } from './signal.js'
-import { getContext, getTheme, registerHook, getInstanceLayout } from './renderer.js'
+import { getContext, getTheme, registerHook, getInstanceLayout, getFrameStats } from './renderer.js'
 import { setTitle } from './ansi.js'
 
 export function useState(initial) {
@@ -54,6 +54,10 @@ export function useStdout() {
   const ctx = getContext()
   if (!ctx) throw new Error('useStdout must be called within a mounted component')
   return ctx.stream
+}
+
+export function useFrameStats() {
+  return getFrameStats()
 }
 
 export function useTitle(title) {

@@ -1,4 +1,4 @@
-import { mount, createSignal, useInput, useInterval, useResize, useStdout } from '../index.js'
+import { mount, createSignal, useInput, useInterval, useResize, useStdout, useFrameStats } from '../index.js'
 
 const SIN_TABLE_SIZE = 1024
 const SIN = new Float64Array(SIN_TABLE_SIZE)
@@ -11,10 +11,9 @@ function fastSin(v) {
 
 function hueToRgb(hue) {
   const h = ((hue % 360) + 360) % 360
-  const s = 0.8, l = 0.5
-  const c = (1 - Math.abs(2 * l - 1)) * s
+  const c = 0.8
   const x = c * (1 - Math.abs((h / 60) % 2 - 1))
-  const m = l - c / 2
+  const m = 0.1
   let r, g, b
   if (h < 60)       { r = c; g = x; b = 0 }
   else if (h < 120) { r = x; g = c; b = 0 }
@@ -46,6 +45,7 @@ function Plasma() {
   const [cols, setCols] = createSignal(stream.columns || 80)
   const [rows, setRows] = createSignal(stream.rows || 24)
   const [t, setT] = createSignal(0)
+  const stats = useFrameStats()
 
   useResize(({ width, height }) => {
     setCols(width)
@@ -72,8 +72,12 @@ function Plasma() {
     rowElements.push(<text>{row}</text>)
   }
 
+  const pct = stats.total > 0 ? ((stats.changed / stats.total) * 100).toFixed(1) : '0.0'
+  const overlay = `\x1b[48;2;0;0;0m\x1b[38;2;255;255;255m ${stats.fps}fps  ${stats.changed.toLocaleString()} / ${stats.total.toLocaleString()} cells changed (${pct}%)  ${stats.bytes.toLocaleString()} bytes written \x1b[0m`
+
   return (
     <box style={{ flexDirection: 'column' }}>
+      <text>{overlay}</text>
       {rowElements}
     </box>
   )

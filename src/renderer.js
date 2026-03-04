@@ -10,6 +10,9 @@ import * as ansi from './ansi.js'
 
 let activeContext = null
 let overlays = []
+let lastFrameStats = { changed: 0, total: 0, bytes: 0, fps: 0 }
+let frameTimeWindow = []
+let lastFrameTimestamp = 0
 
 export function getContext() {
   return activeContext
@@ -19,6 +22,10 @@ const DEFAULT_THEME = { accent: 'cyan' }
 
 export function getTheme() {
   return activeContext?.theme ?? DEFAULT_THEME
+}
+
+export function getFrameStats() {
+  return lastFrameStats
 }
 
 export function getInstanceLayout() {
@@ -408,8 +415,17 @@ export function mount(rootComponent, { stream, stdin, title, theme } = {}) {
 
     activeContext = prevCtx
 
-    const output = diff(prev, curr)
+    const { output, changed } = diff(prev, curr)
     if (output) out.write(ansi.hideCursor + output)
+
+    const now = performance.now()
+    if (lastFrameTimestamp > 0) {
+      frameTimeWindow.push(now - lastFrameTimestamp)
+      if (frameTimeWindow.length > 30) frameTimeWindow.shift()
+    }
+    lastFrameTimestamp = now
+    const avgMs = frameTimeWindow.length > 0 ? frameTimeWindow.reduce((a, b) => a + b, 0) / frameTimeWindow.length : 16.67
+    lastFrameStats = { changed, total: width * height, bytes: output ? Buffer.byteLength(output) : 0, fps: Math.round(1000 / avgMs) }
 
     const tmp = prev
     prev = curr

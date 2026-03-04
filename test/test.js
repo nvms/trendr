@@ -163,7 +163,7 @@ suite('diff - identical buffers')
 {
   const prev = createBuffer(5, 3)
   const curr = createBuffer(5, 3)
-  assertEq(diff(prev, curr), '', 'no output for identical buffers')
+  assertEq(diff(prev, curr).output, '', 'no output for identical buffers')
 }
 
 suite('diff - changed text')
@@ -171,7 +171,7 @@ suite('diff - changed text')
   const prev = createBuffer(10, 2)
   const curr = createBuffer(10, 2)
   writeText(curr, 0, 0, 'hello', null, null, 0)
-  const output = diff(prev, curr)
+  const { output } = diff(prev, curr)
   assert(output.length > 0, 'produces output')
   assert(output.includes('hello'), 'includes changed text')
 }
@@ -182,7 +182,7 @@ suite('diff - partial change')
   const curr = createBuffer(10, 2)
   writeText(prev, 0, 0, 'hello', null, null, 0)
   writeText(curr, 0, 0, 'hallo', null, null, 0)
-  const output = diff(prev, curr)
+  const { output } = diff(prev, curr)
   assert(output.includes('a'), 'includes changed char')
   assert(!output.includes('hello'), 'does not include unchanged text as whole')
 }
@@ -193,7 +193,7 @@ suite('diff - color change only')
   const curr = createBuffer(3, 1)
   writeText(prev, 0, 0, 'abc', null, null, 0)
   writeText(curr, 0, 0, 'abc', 'red', null, 0)
-  const output = diff(prev, curr)
+  const { output } = diff(prev, curr)
   assert(output.length > 0, 'detects color-only change')
 }
 

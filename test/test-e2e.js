@@ -274,7 +274,7 @@ console.log('E2E: diff minimality')
   writeText(curr, 0, 0, 'Count: 1', null, null, 0)
   writeText(curr, 0, 1, 'hello', null, null, 0)
 
-  const output = diff(prev, curr)
+  const { output } = diff(prev, curr)
   assert(!output.includes('hello'), 'diff does not include unchanged text')
   assert(output.includes('1'), 'diff includes changed char')
 }

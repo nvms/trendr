@@ -142,7 +142,7 @@ async function measureTrend() {
     const tree = resolve(jsx(App, { frame: i }))
     computeLayout(tree, { x: 0, y: 0, width: W, height: H })
     paintTree(tree, curr)
-    const output = diff(prev, curr)
+    const { output } = diff(prev, curr)
     if (output) stream.write(output)
     const tmp = prev; prev = curr; curr = tmp
 

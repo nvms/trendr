@@ -174,7 +174,7 @@ async function benchTrend(iterations) {
     const tree = resolve(jsx(App, { w: size.w, h: size.h }))
     computeLayout(tree, { x: 0, y: 0, width: size.w, height: size.h })
     paintTree(tree, curr)
-    const output = diff(prev, curr)
+    const { output } = diff(prev, curr)
     if (output) stream.write(output)
 
     times.push(performance.now() - start)
