@@ -3,7 +3,6 @@
 ▜▘▛▘█▌▛▌▛▌
 ▐▖▌ ▙▖▌▌▙▌
 
-Direct-mode TUI renderer with JSX, signals, and per-cell diffing.
 </pre>
 
 <p align="center">The only Node.js TUI framework with JSX components and per-cell diffing. <a href="bench/README.md">benchmarks</a></p>
