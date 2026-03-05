@@ -6,13 +6,13 @@
 Direct-mode TUI renderer with JSX, signals, and per-cell diffing.
 </pre>
 
-<p align="center">4-16x faster frame times, 580x less I/O per render - <a href="bench/README.md">benchmarks</a></p>
+<p align="center">Per-cell diffing meets JSX. 4-16x faster than popular Node.js TUI frameworks. <a href="bench/README.md">benchmarks</a></p>
 
-Most TUI libraries redraw the entire screen every frame - clear everything, write everything back. This causes flicker and wastes stdout bandwidth.
+Tracking every character position and only writing what changed is how terminal rendering has worked since curses in the 80s. Somehow the popular Node.js TUI frameworks skipped it entirely. They redraw the whole screen every frame: clear everything, write everything back.
 
-trend tracks every character position as a "cell" (character + color + style) and compares the current frame against the previous one. Only cells that actually changed get written to the terminal as escape sequences - the low-level instructions that move the cursor, set colors, and print characters.
+trend brings per-cell diffing to a JSX component model with signals and flexbox layout. You get composable components with the rendering efficiency terminals were always meant to have.
 
-A small UI update on a 200x50 terminal: trend writes 17 bytes, ink writes 9,870. The difference matters over SSH, on slow connections, and in high-refresh UIs where every byte costs latency. Think streaming LLM output, token by token, on a screen full of conversation history - that's a full redraw per token.
+A small UI update on a 200x50 terminal: trend writes 17 bytes, the alternatives write ~10,000. That difference matters over SSH, on slow connections, and in high-refresh UIs where every byte costs latency - like streaming LLM output token by token on a screen full of conversation history.
 
 https://github.com/user-attachments/assets/d307ba1e-2b21-4f7d-8b1b-56252820db6c
 
@@ -240,12 +240,16 @@ fm.focus('list')  // jump to 'list' programmatically
 fm.current()      // the currently active name
 ```
 
-Groups let you nest multiple items under one tab stop, navigable with j/k or up/down within the group:
+Groups let you nest multiple items under one tab stop. Tab moves between groups/items at the top level, and within a focused group you navigate between its items with keyboard:
 
 ```jsx
-fm.group('settings', { items: ['theme', 'autosave', 'format'], navigate: 'updown', wrap: true })
+fm.group('settings', { items: ['theme', 'autosave', 'format'] })
 // fm.is('theme'), fm.is('autosave'), etc. work within the group
 ```
+
+Options:
+- `navigate` - which keys move between group items: `'both'` (default, j/k and up/down), `'jk'`, or `'updown'`
+- `wrap` - wrap around at ends (default `false`)
 
 Stack-based focus for modals and drills - push saves the current focus and switches, pop restores it:
 
