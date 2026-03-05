@@ -6,13 +6,11 @@
 Direct-mode TUI renderer with JSX, signals, and per-cell diffing.
 </pre>
 
-<p align="center">Per-cell diffing meets JSX. 4-16x faster than popular Node.js TUI frameworks. <a href="bench/README.md">benchmarks</a></p>
+<p align="center">The only Node.js TUI framework with JSX components and per-cell diffing. <a href="bench/README.md">benchmarks</a></p>
 
-Tracking every character position and only writing what changed is how terminal rendering has worked since curses in the 80s. Somehow the popular Node.js TUI frameworks skipped it entirely. They redraw the whole screen every frame: clear everything, write everything back.
+Per-cell diffing has been the standard terminal rendering technique since curses in the 80s - track every character position, only write what changed. The popular Node.js TUI frameworks skipped it entirely and redraw the whole screen every frame.
 
-trend brings per-cell diffing to a JSX component model with signals and flexbox layout. You get composable components with the rendering efficiency terminals were always meant to have.
-
-A small UI update on a 200x50 terminal: trend writes 17 bytes, the alternatives write ~10,000. That difference matters over SSH, on slow connections, and in high-refresh UIs where every byte costs latency - like streaming LLM output token by token on a screen full of conversation history.
+trend brings it to a JSX component model with signals and flexbox layout. 4-16x faster frame times, 580x less I/O per render (17 bytes vs ~10,000 on a single-cell update).
 
 https://github.com/user-attachments/assets/d307ba1e-2b21-4f7d-8b1b-56252820db6c
 
