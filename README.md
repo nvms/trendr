@@ -9,7 +9,7 @@
 
 Per-cell diffing has been the standard terminal rendering technique since curses in the 80s - track every character position, only write what changed. The popular Node.js TUI frameworks skipped it entirely and redraw the whole screen every frame.
 
-trend brings it to a JSX component model with signals and flexbox layout. 4-16x faster frame times, 580x less I/O per render (17 bytes vs ~10,000 on a single-cell update).
+trend brings per-cell diffing to JSX without React or any dependencies, with its own signals, hooks, and flexbox layout. 4-16x faster frame times, 580x less I/O per render (17 bytes vs ~10,000 on a single-cell update).
 
 https://github.com/user-attachments/assets/d307ba1e-2b21-4f7d-8b1b-56252820db6c
 
