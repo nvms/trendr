@@ -40,7 +40,46 @@ function plasmaCell(x, y, t) {
   return HUE_CACHE[(hue * HUE_CACHE_SIZE) | 0]
 }
 
-function Plasma() {
+function PlasmaPanel({ width, height, t }) {
+  const rows = []
+  for (let y = 0; y < height; y++) {
+    let row = ''
+    for (let x = 0; x < width; x++) {
+      row += plasmaCell(x, y, t)
+    }
+    row += '\x1b[0m'
+    rows.push(<text>{row}</text>)
+  }
+  return <box style={{ flexDirection: 'column' }}>{rows}</box>
+}
+
+function InfoPanel({ t, stats }) {
+  const elapsed = Math.floor(t * 16 / 1000)
+  const min = String(Math.floor(elapsed / 60)).padStart(2, '0')
+  const sec = String(elapsed % 60).padStart(2, '0')
+  const pct = stats.total > 0 ? ((stats.changed / stats.total) * 100).toFixed(1) : '0.0'
+
+  return (
+    <box style={{ flexDirection: 'column', padding: 1 }}>
+      <text style={{ bold: true, color: 'white' }}>per-cell diffing</text>
+      <text />
+      <text style={{ color: 'gray' }}>the right half is a plasma animation</text>
+      <text style={{ color: 'gray' }}>that changes every cell every frame.</text>
+      <text />
+      <text style={{ color: 'gray' }}>this left half is mostly static.</text>
+      <text />
+      <text />
+      <text style={{ color: 'white' }}>elapsed   <text style={{ color: 'cyan' }}>{min}:{sec}</text></text>
+      <text />
+      <text style={{ color: 'white' }}>fps       <text style={{ color: 'cyan' }}>{stats.fps}</text></text>
+      <text style={{ color: 'white' }}>cells     <text style={{ color: 'cyan' }}>{stats.changed.toLocaleString()} / {stats.total.toLocaleString()}</text></text>
+      <text style={{ color: 'white' }}>changed   <text style={{ color: 'cyan' }}>{pct}%</text></text>
+      <text style={{ color: 'white' }}>bytes     <text style={{ color: 'cyan' }}>{stats.bytes.toLocaleString()}</text></text>
+    </box>
+  )
+}
+
+function App() {
   const stream = useStdout()
   const [cols, setCols] = createSignal(stream.columns || 80)
   const [rows, setRows] = createSignal(stream.rows || 24)
@@ -60,27 +99,16 @@ function Plasma() {
 
   const w = cols()
   const h = rows()
-  const time = t()
-  const rowElements = []
-
-  for (let y = 0; y < h; y++) {
-    let row = ''
-    for (let x = 0; x < w; x++) {
-      row += plasmaCell(x, y, time)
-    }
-    row += '\x1b[0m'
-    rowElements.push(<text>{row}</text>)
-  }
-
-  const pct = stats.total > 0 ? ((stats.changed / stats.total) * 100).toFixed(1) : '0.0'
-  const overlay = `\x1b[48;2;0;0;0m\x1b[38;2;255;255;255m ${stats.fps}fps  ${stats.changed.toLocaleString()} / ${stats.total.toLocaleString()} cells changed (${pct}%)  ${stats.bytes.toLocaleString()} bytes written \x1b[0m`
+  const plasmaWidth = Math.floor(w / 2)
 
   return (
-    <box style={{ flexDirection: 'column' }}>
-      <text>{overlay}</text>
-      {rowElements}
+    <box style={{ flexDirection: 'row', height: '100%' }}>
+      <box style={{ width: w - plasmaWidth, flexDirection: 'column' }}>
+        <InfoPanel t={t()} stats={stats} />
+      </box>
+      <PlasmaPanel width={plasmaWidth} height={h} t={t()} />
     </box>
   )
 }
 
-mount(Plasma, { title: 'plasma' })
+mount(App, { title: 'plasma' })

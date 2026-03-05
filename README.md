@@ -11,12 +11,6 @@ Per-cell diffing has been the standard terminal rendering technique since curses
 
 trend brings per-cell diffing to JSX without React or any dependencies, with its own signals, hooks, and flexbox layout. 4-16x faster frame times and 580x less I/O per render (17 bytes vs ~10,000 on a single-cell update).
 
-https://github.com/user-attachments/assets/d307ba1e-2b21-4f7d-8b1b-56252820db6c
-
-https://github.com/user-attachments/assets/a5984747-f365-4fe3-a161-93101682ca42
-
-https://github.com/user-attachments/assets/9c357c93-0299-4480-a969-61a54b49ec33
-
 ## Usage
 
 Requires esbuild (or similar) for JSX transformation.
