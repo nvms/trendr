@@ -32,7 +32,9 @@
     "plasma": "node esbuild.config.js && node dist/plasma.js",
     "rain": "node esbuild.config.js && node dist/rain.js",
     "animation": "node esbuild.config.js && node dist/animation.js",
-    "texture": "node esbuild.config.js && node dist/texture.js"
+    "texture": "node esbuild.config.js && node dist/texture.js",
+    "absolute": "node esbuild.config.js && node dist/absolute.js",
+    "scroll-box": "node esbuild.config.js && node dist/scroll-box.js"
   },
   "devDependencies": {
     "esbuild": "^0.25.0"

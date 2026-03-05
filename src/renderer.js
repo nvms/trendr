@@ -117,6 +117,19 @@ function clearOverlayRect(overlayTree, buf) {
   fillRect(buf, rect.x, rect.y, rect.width, rect.height, ' ', null, null, 0)
 }
 
+function findScrollContentHeight(node) {
+  if (!node) return null
+  if (node._contentHeight != null) return node._contentHeight
+  if (node._resolved) return findScrollContentHeight(node._resolved)
+  if (node._resolvedChildren) {
+    for (const child of node._resolvedChildren) {
+      const h = findScrollContentHeight(child)
+      if (h != null) return h
+    }
+  }
+  return null
+}
+
 function clipRect(a, b) {
   const x = Math.max(a.x, b.x)
   const y = Math.max(a.y, b.y)
@@ -125,23 +138,27 @@ function clipRect(a, b) {
   return { x, y, width: Math.max(0, r - x), height: Math.max(0, bot - y) }
 }
 
-function paintTree(node, buf, clip) {
+function paintTree(node, buf, clip, offset) {
   if (!node) return
 
   if (node._resolved) {
-    paintTree(node._resolved, buf, clip)
+    paintTree(node._resolved, buf, clip, offset)
     return
   }
 
   if (node.type === Fragment) {
     if (node._resolvedChildren) {
-      for (const child of node._resolvedChildren) paintTree(child, buf, clip)
+      for (const child of node._resolvedChildren) paintTree(child, buf, clip, offset)
     }
     return
   }
 
-  const layout = node._layout
-  if (!layout || layout.width <= 0 || layout.height <= 0) return
+  const rawLayout = node._layout
+  if (!rawLayout || rawLayout.width <= 0 || rawLayout.height <= 0) return
+
+  const layout = offset
+    ? { x: rawLayout.x + offset.x, y: rawLayout.y + offset.y, width: rawLayout.width, height: rawLayout.height }
+    : rawLayout
 
   const clipped = clip ? clipRect(layout, clip) : layout
   if (clipped.width <= 0 || clipped.height <= 0) return
@@ -187,9 +204,15 @@ function paintTree(node, buf, clip) {
 
   const childClip = clip ? clipRect(layout, clip) : layout
 
+  let childOffset = offset
+  if (style.overflow === 'scroll') {
+    const scrollY = style.scrollOffset ?? 0
+    childOffset = { x: offset?.x ?? 0, y: (offset?.y ?? 0) - scrollY }
+  }
+
   if (node._resolvedChildren) {
     for (const child of node._resolvedChildren) {
-      paintTree(child, buf, childClip)
+      paintTree(child, buf, childClip, childOffset)
     }
   }
 }
@@ -396,8 +419,10 @@ export function mount(rootComponent, { stream, stdin, title, theme } = {}) {
     computeLayout(tree, { x: 0, y: 0, width, height })
 
     for (const inst of instances.values()) {
-      if (inst.node?._availableRect) inst.layout = inst.node._availableRect
-      else if (inst.node?._layout) inst.layout = inst.node._layout
+      const rect = inst.node?._availableRect ?? inst.node?._layout
+      if (!rect) continue
+      const ch = findScrollContentHeight(inst.node)
+      inst.layout = ch != null ? { ...rect, contentHeight: ch } : rect
     }
 
     paintTree(tree, curr)

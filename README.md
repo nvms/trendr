@@ -111,6 +111,12 @@ Two element types: `box` (container) and `text` (leaf).
   border: 'round',          // 'single' | 'double' | 'round' | 'bold'
   borderColor: 'cyan',
   bg: 'blue',               // background color
+  texture: 'dots',          // background texture (see below)
+  textureColor: '#333',     // color for texture characters
+  position: 'absolute',     // remove from flow, position with top/left/right/bottom
+  top: 0, left: 0, right: 0, bottom: 0,
+  overflow: 'scroll',       // scrollable container (see ScrollBox)
+  scrollOffset: 0,          // scroll position (pixels from top)
 }}>
 
 <text style={{
@@ -125,6 +131,33 @@ Two element types: `box` (container) and `text` (leaf).
   overflow: 'wrap',         // 'wrap' (default) | 'truncate' | 'nowrap'
 }}>
 ```
+
+### Background Textures
+
+Fill a box's background with a repeating character instead of blank space. Works with or without `bg`.
+
+```jsx
+<box style={{ bg: '#1a1a2e', texture: 'dots', textureColor: '#2a2a4e' }}>
+```
+
+Presets: `'shade-light'` (░), `'shade-medium'` (▒), `'shade-heavy'` (▓), `'dots'` (·), `'cross'` (╳), `'grid'` (┼), `'dash'` (╌). Or pass any single character: `texture: '~'`.
+
+Texture characters show through spaces in text rendered on top (unless the text has an explicit `bg`, which claims the cell).
+
+### Absolute Positioning
+
+Remove an element from flex flow and position it relative to the parent's content area.
+
+```jsx
+<box style={{ border: 'round', height: 5, flexDirection: 'column' }}>
+  <text>content here</text>
+  <box style={{ position: 'absolute', top: 0, right: 1 }}>
+    <text style={{ color: 'green', bold: true }}>ONLINE</text>
+  </box>
+</box>
+```
+
+Supports `top`, `left`, `right`, `bottom`. If both `left` and `right` are set, width is derived (same for `top`/`bottom`). Absolute elements paint after flow children.
 
 `Box`, `Text`, and `Spacer` are convenience wrappers:
 
@@ -540,6 +573,70 @@ Scrollable text viewer with optional scrollbar. Content can include ANSI escape 
 ```
 
 Keys: same as List (j/k, g/G, ctrl-d/u, ctrl-f/b, pageup/pagedown).
+
+### ScrollBox
+
+Scrollable container for arbitrary children. Unlike ScrollableText which takes a string, ScrollBox wraps JSX elements.
+
+```jsx
+<ScrollBox
+  focused={fm.is('list')}
+  scrollbar={true}          // default false
+  scrollOffset={offset}     // controlled, or omit for internal state
+  onScroll={setOffset}
+  thumbChar="\u2588"        // default █
+  trackChar="\u2502"        // default │
+  style={{ flexGrow: 1 }}   // pass-through style for the scroll container
+>
+  {items.map(item => (
+    <text key={item.id}>{item.name}</text>
+  ))}
+</ScrollBox>
+```
+
+Keys: same as List and ScrollableText.
+
+## Animation
+
+Animate numeric values with physics-based interpolators. Animated values are signals - they trigger re-renders as they update.
+
+```jsx
+import { useAnimated, spring, ease, decay } from '@trendr/core'
+
+const x = useAnimated(0, spring())    // spring physics
+x.set(100)                            // animate to 100
+x()                                   // read current value (tracks as signal)
+x.snap(50)                            // jump instantly, no animation
+```
+
+`useAnimated` is the hook version (auto-cleanup on unmount). `animated` is the standalone version for use outside components.
+
+### Interpolators
+
+```js
+spring({ frequency: 2, damping: 0.3 })   // underdamped spring (bouncy)
+spring({ damping: 1 })                    // critically damped (no bounce)
+ease(300)                                 // 300ms ease-out-cubic
+ease(500, linear)                         // 500ms linear
+decay({ deceleration: 0.998 })            // momentum-based decay
+```
+
+Switch interpolator mid-animation:
+
+```js
+x.setInterpolator(ease(200))
+x.set(newTarget)
+```
+
+### Easing functions
+
+`linear`, `easeInQuad`, `easeOutQuad`, `easeInOutQuad`, `easeInCubic`, `easeOutCubic`, `easeInOutCubic`, `easeOutElastic()`, `easeOutBounce()`
+
+### Tick callback
+
+```js
+x.onTick((value) => { /* called each frame while animating */ })
+```
 
 ## Build
 

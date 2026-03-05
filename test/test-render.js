@@ -692,6 +692,108 @@ suite('theme accent flows to components')
   unmount()
 }
 
+suite('absolute positioning')
+{
+  const out = new FakeStream(30, 5)
+  const inp = new FakeInput()
+
+  function App() {
+    return jsxs('box', {
+      style: { flexDirection: 'column', height: 5 },
+      children: [
+        jsx('text', { children: 'FLOW' }),
+        jsx('box', {
+          style: { position: 'absolute', top: 0, right: 0 },
+          children: jsx('text', { children: 'ABS' }),
+        }),
+      ],
+    })
+  }
+
+  const { unmount } = mount(App, { stream: out, stdin: inp })
+  await tick()
+
+  const grid = parseScreen(out.output, 30, 5)
+  const flow = findInGrid(grid, 'FLOW')
+  const abs = findInGrid(grid, 'ABS')
+
+  assert(flow != null, 'flow text rendered')
+  assert(abs != null, 'absolute text rendered')
+  if (flow) assertEq(flow.col, 0, 'flow at column 0')
+  if (abs) assertEq(abs.col, 27, 'absolute at right edge (30 - 3)')
+  if (abs) assertEq(abs.row, 0, 'absolute at top')
+
+  unmount()
+}
+
+suite('absolute does not affect flow layout')
+{
+  const out = new FakeStream(30, 5)
+  const inp = new FakeInput()
+
+  function App() {
+    return jsxs('box', {
+      style: { flexDirection: 'column' },
+      children: [
+        jsx('text', { children: 'LINE1' }),
+        jsx('box', {
+          style: { position: 'absolute', top: 0, right: 0 },
+          children: jsx('text', { children: 'BADGE' }),
+        }),
+        jsx('text', { children: 'LINE2' }),
+      ],
+    })
+  }
+
+  const { unmount } = mount(App, { stream: out, stdin: inp })
+  await tick()
+
+  const grid = parseScreen(out.output, 30, 5)
+  const l1 = findInGrid(grid, 'LINE1')
+  const l2 = findInGrid(grid, 'LINE2')
+
+  assert(l1 != null && l2 != null, 'both flow lines rendered')
+  if (l1 && l2) {
+    assertEq(l2.row, l1.row + 1, 'LINE2 immediately after LINE1 (absolute child skipped in flow)')
+  }
+
+  unmount()
+}
+
+suite('scroll container clips and offsets')
+{
+  const out = new FakeStream(20, 5)
+  const inp = new FakeInput()
+
+  function App() {
+    return jsx('box', {
+      style: { overflow: 'scroll', scrollOffset: 2, flexDirection: 'column', height: 5 },
+      children: [
+        jsx('text', { children: 'ROW0' }),
+        jsx('text', { children: 'ROW1' }),
+        jsx('text', { children: 'ROW2' }),
+        jsx('text', { children: 'ROW3' }),
+        jsx('text', { children: 'ROW4' }),
+        jsx('text', { children: 'ROW5' }),
+        jsx('text', { children: 'ROW6' }),
+      ],
+    })
+  }
+
+  const { unmount } = mount(App, { stream: out, stdin: inp })
+  await tick()
+
+  const grid = parseScreen(out.output, 20, 5)
+
+  assert(findInGrid(grid, 'ROW0') == null, 'ROW0 scrolled out')
+  assert(findInGrid(grid, 'ROW1') == null, 'ROW1 scrolled out')
+  assert(findInGrid(grid, 'ROW2') != null, 'ROW2 visible')
+  assert(findInGrid(grid, 'ROW3') != null, 'ROW3 visible')
+  assert(findInGrid(grid, 'ROW4') != null, 'ROW4 visible')
+
+  unmount()
+}
+
 // ----
 
 console.log(`\n${passed} passed, ${failed} failed`)

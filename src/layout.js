@@ -57,19 +57,73 @@ export function computeLayout(node, rect) {
   const innerW = Math.max(0, box.width - pad.left - pad.right - border * 2)
   const innerH = Math.max(0, box.height - pad.top - pad.bottom - border * 2)
 
+  const flowChildren = []
+  const absChildren = []
+  for (const child of children) {
+    if (childStyle(child).position === 'absolute') absChildren.push(child)
+    else flowChildren.push(child)
+  }
+
   const isRow = style.flexDirection === 'row'
   const gap = style.gap ?? 0
+  const isScroll = style.overflow === 'scroll'
+  const flexMain = isScroll ? 100000 : (isRow ? innerW : innerH)
 
-  layoutFlex(children, {
-    x: innerX,
-    y: innerY,
-    width: innerW,
-    height: innerH,
-    isRow,
-    gap,
-    justifyContent: style.justifyContent ?? 'flex-start',
-    alignItems: style.alignItems ?? 'stretch',
-  })
+  if (flowChildren.length > 0) {
+    layoutFlex(flowChildren, {
+      x: innerX,
+      y: innerY,
+      width: isRow && isScroll ? flexMain : innerW,
+      height: !isRow && isScroll ? flexMain : innerH,
+      isRow,
+      gap,
+      justifyContent: style.justifyContent ?? 'flex-start',
+      alignItems: style.alignItems ?? 'stretch',
+    })
+  }
+
+  if (isScroll && flowChildren.length > 0) {
+    let maxEdge = 0
+    for (const child of flowChildren) {
+      const cl = getLeaf(child)?._layout
+      if (cl) {
+        const edge = isRow ? (cl.x + cl.width - innerX) : (cl.y + cl.height - innerY)
+        if (edge > maxEdge) maxEdge = edge
+      }
+    }
+    node._contentHeight = maxEdge
+  }
+
+  for (const child of absChildren) {
+    layoutAbsolute(child, innerX, innerY, innerW, innerH)
+  }
+}
+
+function layoutAbsolute(child, areaX, areaY, areaW, areaH) {
+  const cs = childStyle(child)
+
+  let w, h
+  if (cs.left != null && cs.right != null) {
+    w = Math.max(0, areaW - (cs.left ?? 0) - (cs.right ?? 0))
+  } else {
+    w = resolveSize(cs.width, areaW) ?? measureChild(child, cs, false, areaW, areaH).width
+  }
+
+  if (cs.top != null && cs.bottom != null) {
+    h = Math.max(0, areaH - (cs.top ?? 0) - (cs.bottom ?? 0))
+  } else {
+    h = resolveSize(cs.height, areaH) ?? measureChild(child, cs, false, areaW, areaH).height
+  }
+
+  let x = areaX
+  if (cs.left != null) x = areaX + cs.left
+  else if (cs.right != null) x = areaX + areaW - w - cs.right
+
+  let y = areaY
+  if (cs.top != null) y = areaY + cs.top
+  else if (cs.bottom != null) y = areaY + areaH - h - cs.bottom
+
+  computeLayout(child, { x, y, width: Math.max(0, w), height: Math.max(0, h) })
 }
 
 function layoutFlex(children, ctx) {
