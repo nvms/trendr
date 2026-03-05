@@ -36,11 +36,12 @@ export function writeText(buf, x, y, text, fg, bg, attrs, maxWidth) {
       const cx = x + i
       if (cx < 0 || cx >= buf.width) continue
       const prev = buf.cells[y * buf.width + cx]
+      const transparent = text[i] === ' ' && !bg && prev.ch !== ' '
       buf.cells[y * buf.width + cx] = {
-        ch: text[i],
-        fg: fg ?? prev.fg,
+        ch: transparent ? prev.ch : text[i],
+        fg: transparent ? prev.fg : (fg ?? prev.fg),
         bg: bg ?? prev.bg,
-        attrs: attrs || prev.attrs,
+        attrs: transparent ? prev.attrs : (attrs || prev.attrs),
       }
     }
     return
@@ -63,11 +64,12 @@ export function writeText(buf, x, y, text, fg, bg, attrs, maxWidth) {
     const cx = x + col
     if (cx >= 0 && cx < buf.width) {
       const prev = buf.cells[y * buf.width + cx]
+      const transparent = text[i] === ' ' && !bg && prev.ch !== ' '
       buf.cells[y * buf.width + cx] = {
-        ch: text[i],
-        fg: ansi.fg ?? fg ?? prev.fg,
+        ch: transparent ? prev.ch : text[i],
+        fg: transparent ? prev.fg : (ansi.fg ?? fg ?? prev.fg),
         bg: ansi.bg ?? bg ?? prev.bg,
-        attrs: ansi.attrs || attrs || prev.attrs,
+        attrs: transparent ? prev.attrs : (ansi.attrs || attrs || prev.attrs),
       }
     }
     col++

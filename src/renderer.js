@@ -45,6 +45,21 @@ const BORDER_CHARS = {
   bold: { tl: '\u250f', tr: '\u2513', bl: '\u2517', br: '\u251b', h: '\u2501', v: '\u2503' },
 }
 
+const TEXTURE_PRESETS = {
+  'shade-light': '░',
+  'shade-medium': '▒',
+  'shade-heavy': '▓',
+  'dots': '·',
+  'cross': '╳',
+  'grid': '┼',
+  'dash': '╌',
+}
+
+function resolveTexture(texture) {
+  if (!texture) return null
+  return TEXTURE_PRESETS[texture] ?? texture
+}
+
 function resolveAttrs(style) {
   let attrs = 0
   if (style.bold) attrs |= ansi.BOLD
@@ -160,8 +175,10 @@ function paintTree(node, buf, clip) {
     return
   }
 
-  if (style.bg) {
-    fillRect(buf, clipped.x, clipped.y, clipped.width, clipped.height, ' ', null, style.bg, 0)
+  if (style.bg || style.texture) {
+    const ch = resolveTexture(style.texture) ?? ' '
+    const fg = style.textureColor ?? null
+    fillRect(buf, clipped.x, clipped.y, clipped.width, clipped.height, ch, fg, style.bg, 0)
   }
 
   if (style.border) {

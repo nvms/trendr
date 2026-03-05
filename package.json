@@ -30,7 +30,9 @@
     "highlight": "node esbuild.config.js && node dist/highlight.js src",
     "multi-row-list": "node esbuild.config.js && node dist/multi-row-list.js",
     "plasma": "node esbuild.config.js && node dist/plasma.js",
-    "rain": "node esbuild.config.js && node dist/rain.js"
+    "rain": "node esbuild.config.js && node dist/rain.js",
+    "animation": "node esbuild.config.js && node dist/animation.js",
+    "texture": "node esbuild.config.js && node dist/texture.js"
   },
   "devDependencies": {
     "esbuild": "^0.25.0"
