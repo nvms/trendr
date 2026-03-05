@@ -39,10 +39,10 @@ export function registerOverlay(element, { backdrop, fullscreen } = {}) {
 }
 
 const BORDER_CHARS = {
-  single: { tl: '\u250c', tr: '\u2510', bl: '\u2514', br: '\u2518', h: '\u2500', v: '\u2502' },
-  double: { tl: '\u2554', tr: '\u2557', bl: '\u255a', br: '\u255d', h: '\u2550', v: '\u2551' },
-  round: { tl: '\u256d', tr: '\u256e', bl: '\u2570', br: '\u256f', h: '\u2500', v: '\u2502' },
-  bold: { tl: '\u250f', tr: '\u2513', bl: '\u2517', br: '\u251b', h: '\u2501', v: '\u2503' },
+  single: { tl: '\u250c', tr: '\u2510', bl: '\u2514', br: '\u2518', h: '\u2500', v: '\u2502', tDown: '\u252c', tUp: '\u2534', tRight: '\u251c', tLeft: '\u2524' },
+  double: { tl: '\u2554', tr: '\u2557', bl: '\u255a', br: '\u255d', h: '\u2550', v: '\u2551', tDown: '\u2566', tUp: '\u2569', tRight: '\u2560', tLeft: '\u2563' },
+  round: { tl: '\u256d', tr: '\u256e', bl: '\u2570', br: '\u256f', h: '\u2500', v: '\u2502', tDown: '\u252c', tUp: '\u2534', tRight: '\u251c', tLeft: '\u2524' },
+  bold: { tl: '\u250f', tr: '\u2513', bl: '\u2517', br: '\u251b', h: '\u2501', v: '\u2503', tDown: '\u2533', tUp: '\u253b', tRight: '\u2523', tLeft: '\u252b' },
 }
 
 const TEXTURE_PRESETS = {
@@ -94,6 +94,34 @@ function paintBorder(buf, rect, borderStyle, fg) {
   for (let row = y + 1; row < y + height - 1; row++) {
     buf.cells[row * buf.width + x] = cell(chars.v)
     buf.cells[row * buf.width + x + width - 1] = cell(chars.v)
+  }
+}
+
+function paintJunctions(buf, rect, borderStyle, fg, children) {
+  if (!children) return
+  const chars = typeof borderStyle === 'string'
+    ? (BORDER_CHARS[borderStyle] ?? BORDER_CHARS.single)
+    : BORDER_CHARS.single
+  const cell = (ch) => ({ ch, fg: fg ?? null, bg: null, attrs: 0 })
+
+  for (const child of children) {
+    const leaf = child._resolved ? child._resolved : child
+    const divider = leaf?.props?.style?._divider
+    if (!divider) continue
+    const cl = leaf._layout
+    if (!cl) continue
+
+    if (divider === 'vertical') {
+      if (cl.x >= rect.x && cl.x < rect.x + rect.width) {
+        buf.cells[rect.y * buf.width + cl.x] = cell(chars.tDown)
+        buf.cells[(rect.y + rect.height - 1) * buf.width + cl.x] = cell(chars.tUp)
+      }
+    } else if (divider === 'horizontal') {
+      if (cl.y >= rect.y && cl.y < rect.y + rect.height) {
+        buf.cells[cl.y * buf.width + rect.x] = cell(chars.tRight)
+        buf.cells[cl.y * buf.width + rect.x + rect.width - 1] = cell(chars.tLeft)
+      }
+    }
   }
 }
 
@@ -200,6 +228,7 @@ function paintTree(node, buf, clip, offset) {
 
   if (style.border) {
     paintBorder(buf, layout, style.border, style.borderColor)
+    paintJunctions(buf, layout, style.border, style.borderColor, node._resolvedChildren)
   }
 
   const childClip = clip ? clipRect(layout, clip) : layout

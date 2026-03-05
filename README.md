@@ -596,6 +596,44 @@ Scrollable container for arbitrary children. Unlike ScrollableText which takes a
 
 Keys: same as List and ScrollableText.
 
+### SplitPane
+
+Connected panels with shared borders and proper box-drawing junction characters. Sizes use CSS Grid-style `fr` units or fixed values.
+
+```jsx
+import { SplitPane } from '@trendr/core'
+
+<SplitPane direction="row" sizes={[20, '2fr', '1fr']} border="round" borderColor="gray">
+  <box style={{ paddingX: 1 }}>
+    <text>sidebar</text>
+  </box>
+  <box style={{ paddingX: 1 }}>
+    <text>main content</text>
+  </box>
+  <box style={{ paddingX: 1 }}>
+    <text>detail</text>
+  </box>
+</SplitPane>
+```
+
+Props:
+- `direction` - `'row'` (vertical dividers) or `'column'` (horizontal dividers)
+- `sizes` - array of fixed numbers or `'Nfr'` strings. `[20, '1fr']` = 20 cols fixed + rest. `['1fr', '1fr']` = even split. Defaults to equal fractions.
+- `border` - `'single'` | `'double'` | `'round'` | `'bold'`
+- `borderColor` - color for border and dividers
+
+Nesting works for complex layouts:
+
+```jsx
+<SplitPane direction="column" sizes={['1fr', 8]} border="round">
+  <SplitPane direction="row" sizes={[20, '1fr']} border="round">
+    <box>nav</box>
+    <box>main</box>
+  </SplitPane>
+  <box>status</box>
+</SplitPane>
+```
+
 ## Animation
 
 Animate numeric values with physics-based interpolators. Animated values are signals - they trigger re-renders as they update.
