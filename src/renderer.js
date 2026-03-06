@@ -538,15 +538,38 @@ export function mount(rootComponent, { stream, stdin, title, theme } = {}) {
 
     computeLayout(tree, { x: 0, y: 0, width, height })
 
+    let layoutChanged = false
     for (const inst of instances.values()) {
       const rect = inst.node?._availableRect ?? inst.node?._layout
       if (!rect) continue
       const ch = findScrollContentHeight(inst.node)
-      inst.layout = ch != null ? { ...rect, contentHeight: ch } : rect
+      const next = ch != null ? { ...rect, contentHeight: ch } : rect
+      const prev = inst.layout
+      if (!prev || prev.width !== next.width || prev.height !== next.height || prev.contentHeight !== next.contentHeight) {
+        layoutChanged = true
+      }
+      inst.layout = next
     }
 
-    propagateDirty(tree)
-    paintTree(tree, curr, null, null, prev)
+    // layout values changed - re-resolve so components see updated useLayout()
+    if (layoutChanged) {
+      counters.clear()
+      visited.clear()
+      const tree2 = resolveForFrame(element, null, instances, counters, visited)
+      computeLayout(tree2, { x: 0, y: 0, width, height })
+      for (const inst of instances.values()) {
+        const rect = inst.node?._availableRect ?? inst.node?._layout
+        if (!rect) continue
+        const ch = findScrollContentHeight(inst.node)
+        inst.layout = ch != null ? { ...rect, contentHeight: ch } : rect
+        inst._dirty = true
+      }
+      propagateDirty(tree2)
+      paintTree(tree2, curr, null, null, null)
+    } else {
+      propagateDirty(tree)
+      paintTree(tree, curr, null, null, prev)
+    }
 
     for (const { element: overlayEl, owner, backdrop, fullscreen } of overlays) {
       if (backdrop) dimBuffer(curr)

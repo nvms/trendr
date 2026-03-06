@@ -372,15 +372,16 @@ Scrollable list with keyboard navigation.
   selected={selectedIndex}  // controlled, or omit for internal state
   onSelect={setIndex}
   focused={fm.is('list')}
-  height={10}               // defaults to layout height
+  scrollbar={true}          // default false
   header={<text>title</text>}
+  headerHeight={1}          // default 1, rows the header occupies
   renderItem={(item, { selected, index, focused }) => (
     <text style={{ bg: selected ? (focused ? accent : 'gray') : null }}>{item.name}</text>
   )}
 />
 ```
 
-Multi-row items are supported via `itemHeight`. The layout engine sizes each item naturally from its children - `itemHeight` just tells the scroll math how many rows each item occupies:
+Multi-row items are supported via `itemHeight`. The layout engine sizes each item naturally from its children - `itemHeight` tells the scroll math how many rows each item occupies:
 
 ```jsx
 <List

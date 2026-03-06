@@ -4,7 +4,7 @@ import { useInput, useLayout } from './hooks.js'
 
 const BOX = { flexDirection: 'row', height: 1, minHeight: 1, flexGrow: 1 }
 
-export function TextInput({ onSubmit, onCancel, onChange, placeholder, focused = true, initialValue }) {
+export function TextInput({ onSubmit, onCancel, onChange, placeholder, focused = true, initialValue, clearOnSubmit = false }) {
   const init = initialValue ?? ''
   const [value, setValue] = createSignal(init)
   const [cursor, setCursor] = createSignal(init.length)
@@ -26,7 +26,7 @@ export function TextInput({ onSubmit, onCancel, onChange, placeholder, focused =
     if (key === 'return') {
       if (onSubmit) {
         onSubmit(v)
-        update('', 0)
+        if (clearOnSubmit) update('', 0)
         event.stopPropagation()
       }
       return

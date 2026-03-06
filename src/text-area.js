@@ -87,7 +87,7 @@ function ensureVisible(cursorRow, scroll, height, totalLines) {
   return scroll
 }
 
-export function TextArea({ onSubmit, onCancel, onChange, placeholder, focused = true, maxHeight = 10 }) {
+export function TextArea({ onSubmit, onCancel, onChange, placeholder, focused = true, maxHeight = 10, clearOnSubmit = true }) {
   const [value, setValue] = createSignal('')
   const [cursor, setCursor] = createSignal(0)
   const ref = registerHook(() => ({ scroll: 0, goalCol: null }))
@@ -109,7 +109,7 @@ export function TextArea({ onSubmit, onCancel, onChange, placeholder, focused = 
 
     if (meta && key === '\r') {
       if (onSubmit) onSubmit(v)
-      update('', 0)
+      if (clearOnSubmit) update('', 0)
       ref.scroll = 0
       event.stopPropagation()
       return

@@ -68,7 +68,7 @@ export function ScrollBox({ children, focused = true, scrollOffset: offsetProp, 
   }
 
   return jsxs('box', {
-    style: { flexDirection: 'row', flexGrow: userStyle?.flexGrow },
+    style: { flexDirection: 'row', flexGrow: userStyle?.flexGrow, gap: 1 },
     children: [
       scrollBox,
       jsx('box', {
