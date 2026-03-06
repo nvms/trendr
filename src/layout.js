@@ -1,6 +1,20 @@
 import { wordWrap, measureText } from './wrap.js'
 import { Fragment } from './element.js'
 
+const ALL_EDGES = { top: true, right: true, bottom: true, left: true }
+
+export function resolveBorderEdges(style) {
+  if (!style.border) return { top: 0, right: 0, bottom: 0, left: 0 }
+  if (!style.borderEdges) return { top: 1, right: 1, bottom: 1, left: 1 }
+  const e = style.borderEdges
+  return {
+    top: e.top ? 1 : 0,
+    right: e.right ? 1 : 0,
+    bottom: e.bottom ? 1 : 0,
+    left: e.left ? 1 : 0,
+  }
+}
+
 export function computeLayout(node, rect) {
   if (!node) return
 
@@ -51,11 +65,11 @@ export function computeLayout(node, rect) {
   if (!children || children.length === 0) return
 
   const pad = resolvePadding(style)
-  const border = style.border ? 1 : 0
-  const innerX = box.x + pad.left + border
-  const innerY = box.y + pad.top + border
-  const innerW = Math.max(0, box.width - pad.left - pad.right - border * 2)
-  const innerH = Math.max(0, box.height - pad.top - pad.bottom - border * 2)
+  const be = resolveBorderEdges(style)
+  const innerX = box.x + pad.left + be.left
+  const innerY = box.y + pad.top + be.top
+  const innerW = Math.max(0, box.width - pad.left - pad.right - be.left - be.right)
+  const innerH = Math.max(0, box.height - pad.top - pad.bottom - be.top - be.bottom)
 
   const flowChildren = []
   const absChildren = []
@@ -272,8 +286,8 @@ function measureIntrinsic(node, availW, availH) {
 
   const style = node.props?.style ?? {}
   const pad = resolvePadding(style)
-  const border = style.border ? 1 : 0
-  const chrome = { x: pad.left + pad.right + border * 2, y: pad.top + pad.bottom + border * 2 }
+  const be = resolveBorderEdges(style)
+  const chrome = { x: pad.left + pad.right + be.left + be.right, y: pad.top + pad.bottom + be.top + be.bottom }
   const innerW = availW - chrome.x
   const innerH = availH - chrome.y
 

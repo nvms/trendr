@@ -10,7 +10,7 @@ function App() {
   return (
     <SplitPane direction="column" sizes={['1fr', 8]} border="round" borderColor="gray" style={{ height: '100%' }}>
 
-      <SplitPane direction="row" sizes={[20, '2fr', '1fr']} border="round" borderColor="gray">
+      <SplitPane direction="row" sizes={[20, '2fr', '1fr']} border="round" borderColor="gray" borderEdges={{ bottom: true }}>
         <box style={{ flexDirection: 'column', paddingX: 1 }}>
           <text style={{ bold: true, color: accent }}>nav</text>
           <text>dashboard</text>

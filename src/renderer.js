@@ -1,6 +1,6 @@
 import { createBuffer, clearBuffer, fillRect, writeText, dimBuffer } from './buffer.js'
 import { diff } from './diff.js'
-import { computeLayout } from './layout.js'
+import { computeLayout, resolveBorderEdges } from './layout.js'
 import { Fragment } from './element.js'
 import { createScheduler } from './scheduler.js'
 import { createInputHandler } from './input.js'
@@ -71,7 +71,7 @@ function resolveAttrs(style) {
   return attrs
 }
 
-function paintBorder(buf, rect, borderStyle, fg) {
+function paintBorder(buf, rect, borderStyle, fg, edges) {
   const chars = typeof borderStyle === 'string'
     ? (BORDER_CHARS[borderStyle] ?? BORDER_CHARS.single)
     : BORDER_CHARS.single
@@ -80,24 +80,38 @@ function paintBorder(buf, rect, borderStyle, fg) {
   if (width < 2 || height < 2) return
 
   const cell = (ch) => ({ ch, fg: fg ?? null, bg: null, attrs: 0 })
+  const { top, right, bottom, left } = edges
 
-  buf.cells[y * buf.width + x] = cell(chars.tl)
-  buf.cells[y * buf.width + x + width - 1] = cell(chars.tr)
-  buf.cells[(y + height - 1) * buf.width + x] = cell(chars.bl)
-  buf.cells[(y + height - 1) * buf.width + x + width - 1] = cell(chars.br)
+  if (top && left) buf.cells[y * buf.width + x] = cell(chars.tl)
+  else if (top) buf.cells[y * buf.width + x] = cell(chars.h)
+  else if (left) buf.cells[y * buf.width + x] = cell(chars.v)
 
-  for (let col = x + 1; col < x + width - 1; col++) {
+  if (top && right) buf.cells[y * buf.width + x + width - 1] = cell(chars.tr)
+  else if (top) buf.cells[y * buf.width + x + width - 1] = cell(chars.h)
+  else if (right) buf.cells[y * buf.width + x + width - 1] = cell(chars.v)
+
+  if (bottom && left) buf.cells[(y + height - 1) * buf.width + x] = cell(chars.bl)
+  else if (bottom) buf.cells[(y + height - 1) * buf.width + x] = cell(chars.h)
+  else if (left) buf.cells[(y + height - 1) * buf.width + x] = cell(chars.v)
+
+  if (bottom && right) buf.cells[(y + height - 1) * buf.width + x + width - 1] = cell(chars.br)
+  else if (bottom) buf.cells[(y + height - 1) * buf.width + x + width - 1] = cell(chars.h)
+  else if (right) buf.cells[(y + height - 1) * buf.width + x + width - 1] = cell(chars.v)
+
+  if (top) for (let col = x + 1; col < x + width - 1; col++)
     buf.cells[y * buf.width + col] = cell(chars.h)
-    buf.cells[(y + height - 1) * buf.width + col] = cell(chars.h)
-  }
 
-  for (let row = y + 1; row < y + height - 1; row++) {
+  if (bottom) for (let col = x + 1; col < x + width - 1; col++)
+    buf.cells[(y + height - 1) * buf.width + col] = cell(chars.h)
+
+  if (left) for (let row = y + 1; row < y + height - 1; row++)
     buf.cells[row * buf.width + x] = cell(chars.v)
+
+  if (right) for (let row = y + 1; row < y + height - 1; row++)
     buf.cells[row * buf.width + x + width - 1] = cell(chars.v)
-  }
 }
 
-function paintJunctions(buf, rect, borderStyle, fg, children) {
+function paintJunctions(buf, rect, borderStyle, fg, children, edges) {
   if (!children) return
   const chars = typeof borderStyle === 'string'
     ? (BORDER_CHARS[borderStyle] ?? BORDER_CHARS.single)
@@ -113,13 +127,13 @@ function paintJunctions(buf, rect, borderStyle, fg, children) {
 
     if (divider === 'vertical') {
       if (cl.x >= rect.x && cl.x < rect.x + rect.width) {
-        buf.cells[rect.y * buf.width + cl.x] = cell(chars.tDown)
-        buf.cells[(rect.y + rect.height - 1) * buf.width + cl.x] = cell(chars.tUp)
+        if (edges.top) buf.cells[rect.y * buf.width + cl.x] = cell(chars.tDown)
+        if (edges.bottom) buf.cells[(rect.y + rect.height - 1) * buf.width + cl.x] = cell(chars.tUp)
       }
     } else if (divider === 'horizontal') {
       if (cl.y >= rect.y && cl.y < rect.y + rect.height) {
-        buf.cells[cl.y * buf.width + rect.x] = cell(chars.tRight)
-        buf.cells[cl.y * buf.width + rect.x + rect.width - 1] = cell(chars.tLeft)
+        if (edges.left) buf.cells[cl.y * buf.width + rect.x] = cell(chars.tRight)
+        if (edges.right) buf.cells[cl.y * buf.width + rect.x + rect.width - 1] = cell(chars.tLeft)
       }
     }
   }
@@ -227,8 +241,9 @@ function paintTree(node, buf, clip, offset) {
   }
 
   if (style.border) {
-    paintBorder(buf, layout, style.border, style.borderColor)
-    paintJunctions(buf, layout, style.border, style.borderColor, node._resolvedChildren)
+    const edges = resolveBorderEdges(style)
+    paintBorder(buf, layout, style.border, style.borderColor, edges)
+    paintJunctions(buf, layout, style.border, style.borderColor, node._resolvedChildren, edges)
   }
 
   const childClip = clip ? clipRect(layout, clip) : layout

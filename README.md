@@ -110,6 +110,7 @@ Two element types: `box` (container) and `text` (leaf).
   margin: 1,                // same variants as padding
   border: 'round',          // 'single' | 'double' | 'round' | 'bold'
   borderColor: 'cyan',
+  borderEdges: { bottom: true, left: true }, // render only specific sides
   bg: 'blue',               // background color
   texture: 'dots',          // background texture (see below)
   textureColor: '#333',     // color for texture characters
@@ -621,6 +622,7 @@ Props:
 - `sizes` - array of fixed numbers or `'Nfr'` strings. `[20, '1fr']` = 20 cols fixed + rest. `['1fr', '1fr']` = even split. Defaults to equal fractions.
 - `border` - `'single'` | `'double'` | `'round'` | `'bold'`
 - `borderColor` - color for border and dividers
+- `borderEdges` - object with `top`, `right`, `bottom`, `left` booleans to render only specific sides. Omitted keys default to false.
 
 Nesting works for complex layouts:
 

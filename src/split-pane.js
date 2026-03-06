@@ -19,7 +19,7 @@ function sizeToStyle(size, isRow) {
   return { flexGrow: parsed.value }
 }
 
-export function SplitPane({ children, direction = 'row', sizes: sizesProp, border = 'single', borderColor, style }) {
+export function SplitPane({ children, direction = 'row', sizes: sizesProp, border = 'single', borderColor, borderEdges, style }) {
   const items = Array.isArray(children) ? children.filter(c => c != null && c !== true && c !== false) : children ? [children] : []
   const n = items.length
   if (n === 0) return null
@@ -58,6 +58,7 @@ export function SplitPane({ children, direction = 'row', sizes: sizesProp, borde
       ...style,
       border: border || undefined,
       borderColor,
+      borderEdges,
       flexDirection: isRow ? 'row' : 'column',
     },
     children: elements,
