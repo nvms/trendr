@@ -20,10 +20,6 @@ function ensure(n) {
   if (pos + n > buf.length) throw new Error('diff output buffer overflow')
 }
 
-function writeByte(b) {
-  buf[pos++] = b
-}
-
 function writeNum(n) {
   if (n >= 1000) { buf[pos++] = 48 + (n / 1000 | 0); n %= 1000; buf[pos++] = 48 + (n / 100 | 0); n %= 100; buf[pos++] = 48 + (n / 10 | 0); buf[pos++] = 48 + (n % 10) }
   else if (n >= 100) { buf[pos++] = 48 + (n / 100 | 0); n %= 100; buf[pos++] = 48 + (n / 10 | 0); buf[pos++] = 48 + (n % 10) }
