@@ -45,12 +45,12 @@ list benchmark: 10000 items, 1000 scroll frames, 100 warmup
 
 library      median(ms)  p99(ms)  mean(ms)  min(ms)  max(ms)      fps    bytes
 -------------------------------------------------------------------------------------
-trend            0.058    0.177    0.067    0.053    0.434    17210    930KB
-ink              0.250    0.998    0.290    0.229     1.66     3994     16KB
-neo-blessed      0.111    0.530    0.135    0.103     1.85     9020      0KB
+trend            0.056    0.166    0.065    0.053    0.400    18004    930KB
+ink              0.251    0.945    0.294    0.233     1.74     3982     17KB
+neo-blessed      0.108    0.718    0.132    0.102     1.66     9255      0KB
 
 fastest: trend
-  ink is 4.3x slower
+  ink is 4.5x slower
   neo-blessed is 1.9x slower
 ```
 
@@ -70,12 +70,12 @@ resize benchmark: 10000 resizes across 6 sizes, 50 warmup
 
 library      median(ms)  p99(ms)  mean(ms)  min(ms)  max(ms)      fps    bytes
 -------------------------------------------------------------------------------------
-trend            0.017    0.080    0.021    0.008    0.287    60302   2692KB
-ink              0.397    0.606    0.406    0.354     2.39     2517      4KB
-neo-blessed      0.143    0.738    0.173    0.057     1.88     7004      0KB
+trend            0.017    0.080    0.021    0.008    0.466    60452   2692KB
+ink              0.411    0.635    0.419    0.364     2.85     2433      4KB
+neo-blessed      0.143    0.708    0.175    0.057     2.03     7014      0KB
 
 fastest: trend
-  ink is 24.0x slower
+  ink is 24.8x slower
   neo-blessed is 8.6x slower
 ```
 
