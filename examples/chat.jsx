@@ -92,13 +92,16 @@ function Chat() {
           selected={listIdx()}
           onSelect={setListIdx}
           focused={fm.is('list')}
-          renderItem={(msg, { selected, focused }) => (
-            <box style={{ flexDirection: 'row', bg: selected ? (focused ? accent : 'gray') : null }}>
-              <text style={{ color: selected ? 'black' : 'gray', width: 6 }}>{msg.time}</text>
-              <text style={{ color: selected ? 'black' : COLORS[msg.from], bold: true, width: 10 }}>{msg.from}</text>
-              <text style={{ color: selected ? 'black' : null }}>{msg.text}</text>
+          renderItem={(msg, { selected, focused }) => {
+            const highlight = selected && focused
+            return (
+            <box style={{ flexDirection: 'row', bg: highlight ? accent : null }}>
+              <text style={{ color: highlight ? 'black' : 'gray', width: 6 }}>{msg.time}</text>
+              <text style={{ color: highlight ? 'black' : COLORS[msg.from], bold: true, width: 10 }}>{msg.from}</text>
+              <text style={{ color: highlight ? 'black' : null }}>{msg.text}</text>
             </box>
-          )}
+            )
+          }}
         />
       </box>
 

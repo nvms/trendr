@@ -40,6 +40,7 @@ function App() {
           onSelect={setSel}
           focused={true}
           itemHeight={3}
+          gap={1}
           renderItem={(item, { selected, focused }) => (
             <box style={{ flexDirection: 'column', bg: selected ? (focused ? accent : 'gray') : null }}>
               <box style={{ flexDirection: 'row' }}>

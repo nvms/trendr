@@ -553,6 +553,7 @@ export function mount(rootComponent, { stream, stdin, title, theme } = {}) {
 
     // layout values changed - re-resolve so components see updated useLayout()
     if (layoutChanged) {
+      overlays = []
       counters.clear()
       visited.clear()
       const tree2 = resolveForFrame(element, null, instances, counters, visited)

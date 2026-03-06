@@ -2,7 +2,7 @@ import { jsx, jsxs } from '../jsx-runtime.js'
 import { createSignal } from './signal.js'
 import { useInput, useLayout, useTheme } from './hooks.js'
 
-export function List({ items, selected: selectedProp, onSelect, renderItem, header, headerHeight = 1, focused = true, itemHeight = 1, scrollbar = false }) {
+export function List({ items, selected: selectedProp, onSelect, renderItem, header, headerHeight = 1, focused = true, itemHeight = 1, scrollbar = false, gap = 0 }) {
   const { accent = 'cyan' } = useTheme()
   const [selectedInternal, setSelectedInternal] = createSignal(0)
   const layout = useLayout()
@@ -64,6 +64,7 @@ export function List({ items, selected: selectedProp, onSelect, renderItem, head
       flexGrow: 1,
       overflow: 'scroll',
       scrollOffset,
+      gap,
     },
     children,
   })
