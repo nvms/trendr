@@ -101,3 +101,16 @@ export function copyBuffer(src, dst) {
   const len = Math.min(src.cells.length, dst.cells.length)
   for (let i = 0; i < len; i++) dst.cells[i] = src.cells[i]
 }
+
+export function blitRect(src, dst, x, y, w, h) {
+  const x1 = Math.max(x, 0)
+  const y1 = Math.max(y, 0)
+  const x2 = Math.min(x + w, src.width, dst.width)
+  const y2 = Math.min(y + h, src.height, dst.height)
+  for (let row = y1; row < y2; row++) {
+    const base = row * dst.width
+    for (let col = x1; col < x2; col++) {
+      dst.cells[base + col] = src.cells[base + col]
+    }
+  }
+}

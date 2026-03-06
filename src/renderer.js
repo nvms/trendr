@@ -1,10 +1,10 @@
-import { createBuffer, clearBuffer, fillRect, writeText, dimBuffer } from './buffer.js'
+import { createBuffer, clearBuffer, fillRect, writeText, dimBuffer, blitRect } from './buffer.js'
 import { diff } from './diff.js'
 import { computeLayout, resolveBorderEdges } from './layout.js'
 import { Fragment } from './element.js'
 import { createScheduler } from './scheduler.js'
 import { createInputHandler } from './input.js'
-import { setSchedulerHook, setHookRegistrar, createScope, disposeScope, onCleanup } from './signal.js'
+import { setSchedulerHook, setHookRegistrar, createScope, disposeScope, onCleanup, startRenderTracking, stopRenderTracking } from './signal.js'
 import { wordWrap, measureText, sliceVisible } from './wrap.js'
 import * as ansi from './ansi.js'
 
@@ -180,17 +180,51 @@ function clipRect(a, b) {
   return { x, y, width: Math.max(0, r - x), height: Math.max(0, bot - y) }
 }
 
-function paintTree(node, buf, clip, offset) {
+function propagateDirty(node) {
+  if (!node) return false
+  if (node._resolved) {
+    const childDirty = propagateDirty(node._resolved)
+    const inst = node._instance
+    if (inst) {
+      inst._subtreeDirty = inst._dirty || childDirty
+      return inst._subtreeDirty
+    }
+    return childDirty
+  }
+  if (node._resolvedChildren) {
+    let anyDirty = false
+    for (const child of node._resolvedChildren) {
+      if (propagateDirty(child)) anyDirty = true
+    }
+    return anyDirty
+  }
+  return false
+}
+
+function layoutEqual(a, b) {
+  return a && b && a.x === b.x && a.y === b.y && a.width === b.width && a.height === b.height
+}
+
+function paintTree(node, buf, clip, offset, prevBuf) {
   if (!node) return
 
   if (node._resolved) {
-    paintTree(node._resolved, buf, clip, offset)
+    const inst = node._instance
+    if (prevBuf && inst && !inst._subtreeDirty) {
+      const layout = node._resolved?._layout ?? node._layout
+      if (layout && layoutEqual(layout, inst._lastLayout)) {
+        blitRect(prevBuf, buf, layout.x, layout.y, layout.width, layout.height)
+        return
+      }
+    }
+    if (inst) inst._lastLayout = node._resolved?._layout ?? node._layout
+    paintTree(node._resolved, buf, clip, offset, prevBuf)
     return
   }
 
   if (node.type === Fragment) {
     if (node._resolvedChildren) {
-      for (const child of node._resolvedChildren) paintTree(child, buf, clip, offset)
+      for (const child of node._resolvedChildren) paintTree(child, buf, clip, offset, prevBuf)
     }
     return
   }
@@ -256,7 +290,7 @@ function paintTree(node, buf, clip, offset) {
 
   if (node._resolvedChildren) {
     for (const child of node._resolvedChildren) {
-      paintTree(child, buf, childClip, childOffset)
+      paintTree(child, buf, childClip, childOffset, prevBuf)
     }
   }
 }
@@ -360,6 +394,35 @@ export function registerHook(setupFn) {
 // instances are keyed by component function + occurrence index,
 // so multiple instances of the same component each get their own state.
 
+function shallowPropsEqual(a, b) {
+  if (a === b) return true
+  if (!a || !b) return false
+  const keysA = Object.keys(a)
+  const keysB = Object.keys(b)
+  if (keysA.length !== keysB.length) return false
+  for (const k of keysA) {
+    if (k === 'children') continue
+    if (a[k] !== b[k]) return false
+  }
+  return true
+}
+
+function isInstanceClean(instance, newProps) {
+  if (!instance._trackedSignals) return false
+  if (!shallowPropsEqual(instance._lastProps, newProps)) return false
+  const sigs = instance._trackedSignals
+  const vals = instance._signalValues
+  for (let i = 0; i < sigs.length; i++) {
+    if (sigs[i]() !== vals[i]) return false
+  }
+  return true
+}
+
+function snapshotSignals(instance, signals) {
+  instance._trackedSignals = signals
+  instance._signalValues = signals.map(g => g())
+}
+
 function resolveForFrame(element, parent, instances, counters, visited) {
   if (element == null || typeof element === 'boolean') return null
 
@@ -396,21 +459,34 @@ function resolveForFrame(element, parent, instances, counters, visited) {
 
     if (!instance) {
       let result
-      instance = { scope: null, fn, hooks: [], node: null, layout: null }
+      instance = { scope: null, fn, hooks: [], node: null, layout: null, _dirty: true }
       instances.set(instanceKey, instance)
       instance.scope = createScope(() => {
         startHookTracking(instance)
+        startRenderTracking()
         result = fn(element.props ?? {})
+        const signals = stopRenderTracking()
         endHookTracking()
+        snapshotSignals(instance, signals)
+        instance._lastProps = element.props
       })
       node._resolved = resolveForFrame(result, node, instances, counters, visited)
     } else {
+      const clean = isInstanceClean(instance, element.props)
+      instance._dirty = !clean
+
       startHookTracking(instance)
+      startRenderTracking()
       const result = fn(element.props ?? {})
+      const signals = stopRenderTracking()
       endHookTracking()
+      snapshotSignals(instance, signals)
+      instance._lastProps = element.props
+
       node._resolved = resolveForFrame(result, node, instances, counters, visited)
     }
 
+    node._instance = instance
     instance.node = node
     return node
   }
@@ -469,7 +545,8 @@ export function mount(rootComponent, { stream, stdin, title, theme } = {}) {
       inst.layout = ch != null ? { ...rect, contentHeight: ch } : rect
     }
 
-    paintTree(tree, curr)
+    propagateDirty(tree)
+    paintTree(tree, curr, null, null, prev)
 
     for (const { element: overlayEl, owner, backdrop, fullscreen } of overlays) {
       if (backdrop) dimBuffer(curr)

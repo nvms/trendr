@@ -4,6 +4,17 @@ let pendingEffects = null
 let batchDepth = 0
 let schedulerHook = null
 let hookRegistrar = null
+let renderTracker = null
+
+export function startRenderTracking() {
+  renderTracker = []
+}
+
+export function stopRenderTracking() {
+  const tracked = renderTracker
+  renderTracker = null
+  return tracked
+}
 
 export function setSchedulerHook(fn) {
   schedulerHook = fn
@@ -18,6 +29,7 @@ export function createSignalRaw(value) {
 
   function get() {
     if (currentEffect) subs.add(currentEffect)
+    if (renderTracker) renderTracker.push(get)
     return value
   }
 
