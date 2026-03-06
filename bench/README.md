@@ -70,13 +70,13 @@ resize benchmark: 10000 resizes across 6 sizes, 50 warmup
 
 library      median(ms)  p99(ms)  mean(ms)  min(ms)  max(ms)      fps    bytes
 -------------------------------------------------------------------------------------
-trend            0.018    0.089    0.022    0.009    0.303    56072   2692KB
-ink              0.398    0.606    0.408    0.352     1.89     2512      4KB
-neo-blessed      0.144    0.775    0.171    0.058     2.11     6934      0KB
+trend            0.017    0.080    0.021    0.008    0.287    60302   2692KB
+ink              0.397    0.606    0.406    0.354     2.39     2517      4KB
+neo-blessed      0.143    0.738    0.173    0.057     1.88     7004      0KB
 
 fastest: trend
-  ink is 22.3x slower
-  neo-blessed is 8.1x slower
+  ink is 24.0x slower
+  neo-blessed is 8.6x slower
 ```
 
 ## single-cell I/O (single-cell.js)

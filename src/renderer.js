@@ -487,7 +487,10 @@ export function mount(rootComponent, { stream, stdin, title, theme } = {}) {
     activeContext = prevCtx
 
     const { output, changed } = diff(prev, curr)
-    if (output) out.write(ansi.hideCursor + output)
+    if (changed > 0) {
+      out.write(ansi.hideCursor)
+      out.write(output)
+    }
 
     const now = performance.now()
     if (lastFrameTimestamp > 0) {
