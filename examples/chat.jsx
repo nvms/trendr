@@ -35,7 +35,7 @@ function now() {
   return String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0')
 }
 
-function Chat() {
+export function Chat() {
   const { accent } = useTheme()
   const fm = useFocus({ initial: 'input' })
   fm.item('input')
@@ -46,9 +46,7 @@ function Chat() {
   const [allMessages, setAllMessages] = createSignal({ ...SEED })
   const [listIdx, setListIdx] = createSignal(0)
 
-  useInput(({ key, ctrl }) => {
-    if (ctrl && key === 'c') process.exit(0)
-
+  useInput(({ key }) => {
     if (fm.is('list')) {
       if (key === 'left' || key === 'h') {
         const i = ROOMS.indexOf(room())
@@ -112,4 +110,11 @@ function Chat() {
   )
 }
 
-mount(Chat, { title: 'chat' })
+// --- standalone ---
+function Standalone() {
+  useInput(({ key, ctrl }) => {
+    if (ctrl && key === 'c') process.exit(0)
+  })
+  return <Chat />
+}
+mount(Standalone, { title: 'chat' })

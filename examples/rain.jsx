@@ -38,7 +38,7 @@ function hueToAnsi(hue, brightness) {
   return `\x1b[38;2;${clamp(r + m)};${clamp(g + m)};${clamp(b + m)}m`
 }
 
-function Rain() {
+export function Rain() {
   const stream = useStdout()
   const [cols, setCols] = createSignal(stream.columns || 80)
   const [rows, setRows] = createSignal(stream.rows || 24)
@@ -66,10 +66,6 @@ function Rain() {
     }
     setTick(v => v + 1)
   }, 16)
-
-  useInput(({ key, ctrl }) => {
-    if (key === 'q' || (ctrl && key === 'c')) process.exit(0)
-  })
 
   const w = cols()
   const h = rows() - 1
@@ -110,4 +106,11 @@ function Rain() {
   )
 }
 
-mount(Rain, { title: 'rain' })
+// --- standalone ---
+function Standalone() {
+  useInput(({ key, ctrl }) => {
+    if (key === 'q' || (ctrl && key === 'c')) process.exit(0)
+  })
+  return <Rain />
+}
+mount(Standalone, { title: 'rain' })

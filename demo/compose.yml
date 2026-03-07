@@ -1,0 +1,14 @@
+services:
+  demo:
+    build:
+      context: ..
+      dockerfile: demo/Dockerfile
+    container_name: trend-demo
+    init: true
+    ports:
+      - "2222:2222"
+    environment:
+      - PORT=2222
+      - MAX_CONNECTIONS=20
+    restart: unless-stopped
+    platform: linux/amd64

@@ -79,7 +79,7 @@ function InfoPanel({ t, stats }) {
   )
 }
 
-function App() {
+export function Plasma() {
   const stream = useStdout()
   const [cols, setCols] = createSignal(stream.columns || 80)
   const [rows, setRows] = createSignal(stream.rows || 24)
@@ -92,10 +92,6 @@ function App() {
   })
 
   useInterval(() => setT(v => v + 0.12), 16)
-
-  useInput(({ key, ctrl }) => {
-    if (key === 'q' || (ctrl && key === 'c')) process.exit(0)
-  })
 
   const w = cols()
   const h = rows()
@@ -111,4 +107,11 @@ function App() {
   )
 }
 
-mount(App, { title: 'plasma' })
+// --- standalone ---
+function Standalone() {
+  useInput(({ key, ctrl }) => {
+    if (key === 'q' || (ctrl && key === 'c')) process.exit(0)
+  })
+  return <Plasma />
+}
+mount(Standalone, { title: 'plasma' })

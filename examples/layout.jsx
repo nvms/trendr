@@ -21,7 +21,7 @@ const LOGS = [
   'GET /api/events 200 41ms',
 ]
 
-function App() {
+export function Layout() {
   const { accent } = useTheme()
   const fm = useFocus({ initial: 'nav' })
   fm.item('nav')
@@ -29,10 +29,6 @@ function App() {
 
   const [navIdx, setNavIdx] = createSignal(0)
   const [logIdx, setLogIdx] = createSignal(0)
-
-  useInput(({ key, ctrl }) => {
-    if (ctrl && key === 'c') process.exit(0)
-  })
 
   const sel = NAV[navIdx()]
 
@@ -116,4 +112,11 @@ function App() {
   )
 }
 
-mount(App, { title: 'layout' })
+// --- standalone ---
+function Standalone() {
+  useInput(({ key, ctrl }) => {
+    if (ctrl && key === 'c') process.exit(0)
+  })
+  return <Layout />
+}
+mount(Standalone, { title: 'layout' })

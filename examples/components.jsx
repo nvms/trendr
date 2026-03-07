@@ -20,7 +20,7 @@ const PROCESSES = [
   { pid: 1243, name: 'vite dev', cpu: 2.3, mem: 95, status: 'running' },
 ]
 
-function App() {
+export function Components() {
   const { accent } = useTheme()
   const fm = useFocus({ initial: 'table' })
   fm.item('table')
@@ -44,8 +44,7 @@ function App() {
     ),
   })
 
-  useInput(({ key, ctrl }) => {
-    if (ctrl && key === 'c') process.exit(0)
+  useInput(({ key }) => {
     if (key === 't') toast('settings updated')
     if (key === 'm') {
       if (!fm.is('modal')) { setModalOpen(true); fm.push('modal') }
@@ -125,7 +124,7 @@ function App() {
             label="auto refresh"
             onChange={setAutoRefresh}
             focused={fm.is('autoRefresh')}
-            checkedIcon="[✓]"
+            checkedIcon="[x]"
             uncheckedIcon="[ ]"
           />
           <Checkbox
@@ -133,7 +132,7 @@ function App() {
             label="show idle"
             onChange={setShowIdle}
             focused={fm.is('showIdle')}
-            checkedIcon="[✓]"
+            checkedIcon="[x]"
             uncheckedIcon="[ ]"
           />
           <box style={{ height: 1 }} />
@@ -173,4 +172,11 @@ function App() {
   )
 }
 
-mount(App, { title: 'components', theme: { accent: 'magenta' } })
+// --- standalone ---
+function Standalone() {
+  useInput(({ key, ctrl }) => {
+    if (ctrl && key === 'c') process.exit(0)
+  })
+  return <Components />
+}
+mount(Standalone, { title: 'components', theme: { accent: 'magenta' } })

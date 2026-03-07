@@ -539,7 +539,7 @@ function resolveForFrame(element, parent, instances, counters, visited, scope) {
   return node
 }
 
-export function mount(rootComponent, { stream, stdin, title, theme } = {}) {
+export function mount(rootComponent, { stream, stdin, title, theme, onExit: onExitCb } = {}) {
   const out = stream ?? process.stdout
   const inp = stdin ?? process.stdin
 
@@ -696,7 +696,8 @@ export function mount(rootComponent, { stream, stdin, title, theme } = {}) {
   input.onKey((event) => {
     if (event.key === 'c' && event.ctrl) {
       unmount()
-      process.exit(0)
+      if (onExitCb) onExitCb()
+      else process.exit(0)
     }
   })
 

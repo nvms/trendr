@@ -1,10 +1,6 @@
 import { mount, useInput } from '../index.js'
 
-function App() {
-  useInput(({ key, ctrl }) => {
-    if (ctrl && key === 'c') process.exit(0)
-  })
-
+export function Texture() {
   return (
     <box style={{ flexDirection: 'column', height: '100%', paddingX: 1, paddingY: 1, gap: 1 }}>
 
@@ -66,4 +62,11 @@ function App() {
   )
 }
 
-mount(App, { title: 'textures' })
+// --- standalone ---
+function Standalone() {
+  useInput(({ key, ctrl }) => {
+    if (ctrl && key === 'c') process.exit(0)
+  })
+  return <Texture />
+}
+mount(Standalone, { title: 'textures' })

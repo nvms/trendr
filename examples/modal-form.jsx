@@ -79,7 +79,7 @@ function UserForm({ user, onSave, onCancel }) {
   )
 }
 
-function App() {
+export function ModalForm() {
   const { accent } = useTheme()
   const fm = useFocus({ initial: 'list' })
   fm.item('list')
@@ -113,8 +113,7 @@ function App() {
     toast(idx >= 0 ? 'user updated' : 'user created')
   }
 
-  useInput(({ key, ctrl }) => {
-    if (ctrl && key === 'c') process.exit(0)
+  useInput(({ key }) => {
     if (key === 'return' && fm.is('list') && !modalOpen()) {
       openEdit(listIdx())
     }
@@ -167,4 +166,11 @@ function App() {
   )
 }
 
-mount(App, { title: 'modal form' })
+// --- standalone ---
+function Standalone() {
+  useInput(({ key, ctrl }) => {
+    if (ctrl && key === 'c') process.exit(0)
+  })
+  return <ModalForm />
+}
+mount(Standalone, { title: 'modal form' })

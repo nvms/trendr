@@ -29,7 +29,7 @@ function Clock() {
   )
 }
 
-function Dashboard() {
+export function Dashboard() {
   const [cpu, setCpu] = createSignal(0)
   const [mem, setMem] = createSignal(0)
   const [disk, setDisk] = createSignal(0)
@@ -41,10 +41,6 @@ function Dashboard() {
     setDisk(prev => Math.min(100, Math.max(0, prev + (Math.random() * 4 - 2) | 0)))
     setNet(prev => Math.min(100, Math.max(0, prev + (Math.random() * 30 - 15) | 0)))
   }, 500)
-
-  useInput(({ key }) => {
-    if (key === 'q') process.exit(0)
-  })
 
   return (
     <box style={{ flexDirection: 'column', padding: 1, gap: 1 }}>
@@ -60,10 +56,20 @@ function Dashboard() {
         <Gauge label="DISK" value={disk} color="blue" />
         <Gauge label="NET" value={net} color="magenta" />
       </box>
-
-      <text style={{ color: 'gray' }}>press q to quit</text>
     </box>
   )
 }
 
-mount(Dashboard, { title: 'dashboard' })
+// --- standalone ---
+function Standalone() {
+  useInput(({ key }) => {
+    if (key === 'q') process.exit(0)
+  })
+  return (
+    <box style={{ flexDirection: 'column', height: '100%' }}>
+      <Dashboard />
+      <text style={{ color: 'gray' }}>press q to quit</text>
+    </box>
+  )
+}
+mount(Standalone, { title: 'dashboard' })

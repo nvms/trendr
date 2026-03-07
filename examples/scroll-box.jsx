@@ -1,4 +1,4 @@
-import { mount, createSignal, useInput, useFocus, useTheme, ScrollBox } from '../index.js'
+import { mount, useInput, useFocus, useTheme, ScrollBox } from '../index.js'
 
 const ITEMS = Array.from({ length: 40 }, (_, i) => ({
   id: i,
@@ -15,15 +15,11 @@ const CARDS = Array.from({ length: 20 }, (_, i) => ({
   bg: COLORS[i % COLORS.length],
 }))
 
-function App() {
+export function ScrollBoxDemo() {
   const { accent } = useTheme()
   const fm = useFocus({ initial: 'left' })
   fm.item('left')
   fm.item('right')
-
-  useInput(({ key, ctrl }) => {
-    if (ctrl && key === 'c') process.exit(0)
-  })
 
   return (
     <box style={{ flexDirection: 'column', height: '100%' }}>
@@ -61,4 +57,11 @@ function App() {
   )
 }
 
-mount(App, { title: 'scroll box' })
+// --- standalone ---
+function Standalone() {
+  useInput(({ key, ctrl }) => {
+    if (ctrl && key === 'c') process.exit(0)
+  })
+  return <ScrollBoxDemo />
+}
+mount(Standalone, { title: 'scroll box' })

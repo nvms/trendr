@@ -1,11 +1,7 @@
 import { mount, useInput, useTheme, SplitPane } from '../index.js'
 
-function App() {
+export function SplitPaneDemo() {
   const { accent } = useTheme()
-
-  useInput(({ key, ctrl }) => {
-    if (ctrl && key === 'c') process.exit(0)
-  })
 
   return (
     <SplitPane direction="column" sizes={['1fr', 8]} border="round" borderColor="gray" style={{ height: '100%' }}>
@@ -50,4 +46,11 @@ function App() {
   )
 }
 
-mount(App, { title: 'split pane' })
+// --- standalone ---
+function Standalone() {
+  useInput(({ key, ctrl }) => {
+    if (ctrl && key === 'c') process.exit(0)
+  })
+  return <SplitPaneDemo />
+}
+mount(Standalone, { title: 'split pane' })

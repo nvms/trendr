@@ -124,7 +124,7 @@ function filterFlat(items, query) {
   return items.filter(item => item.name.toLowerCase().includes(q))
 }
 
-function Explorer() {
+export function Explorer() {
   const { accent } = useTheme()
   const fm = useFocus({ initial: 'tree' })
   fm.item('tree')
@@ -135,9 +135,7 @@ function Explorer() {
   const [search, setSearch] = createSignal('')
   const [previewScroll, setPreviewScroll] = createSignal(0)
 
-  useInput(({ key, ctrl }) => {
-    if (ctrl && key === 'c') process.exit(0)
-
+  useInput(({ key }) => {
     if (key === '/' && fm.is('tree')) {
       fm.push('search')
       return
@@ -265,4 +263,11 @@ function Explorer() {
   )
 }
 
-mount(Explorer, { title: 'explorer' })
+// --- standalone ---
+function Standalone() {
+  useInput(({ key, ctrl }) => {
+    if (ctrl && key === 'c') process.exit(0)
+  })
+  return <Explorer />
+}
+mount(Standalone, { title: 'explorer' })

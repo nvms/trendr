@@ -22,7 +22,7 @@ function hsl(hue, s, l) {
   return `${f(0)};${f(8)};${f(4)}`
 }
 
-function App() {
+export function Animation() {
   const { accent } = useTheme()
   const stream = useStdout()
   const [cols, setCols] = createSignal(stream.columns || 80)
@@ -30,19 +30,15 @@ function App() {
 
   const [mode, setMode] = createSignal(0)
 
-  // spring params
   const [frequency, setFrequency] = createSignal(1.0)
   const [damping, setDamping] = createSignal(1)
 
-  // ease params
   const [duration, setDuration] = createSignal(1000)
   const [curveIdx, setCurveIdx] = createSignal(0)
 
-  // elastic params
   const [amplitude, setAmplitude] = createSignal(1.0)
   const [period, setPeriod] = createSignal(0.2)
 
-  // bounce params
   const [bounciness, setBounciness] = createSignal(7.5)
 
   const [trail, setTrail] = createSignal([])
@@ -82,8 +78,7 @@ function App() {
     setRows(height)
   })
 
-  useInput(({ key, ctrl }) => {
-    if (key === 'q' || (ctrl && key === 'c')) process.exit(0)
+  useInput(({ key }) => {
     if (key === 'space' || key === 'return') fire()
     if (key === 'tab') setMode(i => (i + 1) % MODES.length)
 
@@ -207,9 +202,16 @@ function App() {
         <text key={i}>  {line}</text>
       ))}
       <box style={{ flexGrow: 1 }} />
-      <text style={{ color: 'gray' }}>  space: fire   tab: mode   arrows: adjust params   q: quit</text>
+      <text style={{ color: 'gray' }}>  space: fire   tab: mode   arrows: adjust params</text>
     </box>
   )
 }
 
-mount(App, { title: 'animation playground', theme: { accent: 'magenta' } })
+// --- standalone ---
+function Standalone() {
+  useInput(({ key, ctrl }) => {
+    if (key === 'q' || (ctrl && key === 'c')) process.exit(0)
+  })
+  return <Animation />
+}
+mount(Standalone, { title: 'animation playground', theme: { accent: 'magenta' } })
