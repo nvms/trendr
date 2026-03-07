@@ -34,6 +34,16 @@ function App() {
           <text style={{ color: 'gray', dim: true }}>single char shimmer</text>
           <Shimmer size={1} gradient={1} duration={800} delay={300} highlight="magenta">trend - terminal rendering engine</Shimmer>
         </box>
+
+        <box style={{ flexDirection: 'column' }}>
+          <text style={{ color: 'gray', dim: true }}>reverse</text>
+          <Shimmer reverse highlight="cyan">Scanning files...</Shimmer>
+        </box>
+
+        <box style={{ flexDirection: 'column' }}>
+          <text style={{ color: 'gray', dim: true }}>long delay (delay=3000)</text>
+          <Shimmer delay={3000} duration={600} highlight="white">Idle shimmer</Shimmer>
+        </box>
       </box>
 
       <text style={{ color: 'gray' }}>q - quit</text>

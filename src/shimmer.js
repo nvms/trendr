@@ -27,7 +27,7 @@ function lerpColor(a, b, t) {
   return '#' + ((1 << 24) + (r << 16) + (g << 8) + bl).toString(16).slice(1)
 }
 
-export function Shimmer({ children, color, highlight, size = 3, gradient = 3, duration = 1000, delay = 500 }) {
+export function Shimmer({ children, color, highlight, size = 3, gradient = 3, duration = 1000, delay = 500, reverse = false }) {
   const { accent = 'cyan' } = useTheme()
   const baseColor = color ?? 'gray'
   const hlColor = highlight ?? accent
@@ -55,7 +55,7 @@ export function Shimmer({ children, color, highlight, size = 3, gradient = 3, du
 
   const baseRgb = toRgb(baseColor)
   const hlRgb = toRgb(hlColor)
-  const center = p - windowSize / 2
+  const center = reverse ? (len + windowSize / 2) - p : p - windowSize / 2
   const halfSize = (size - 1) / 2
   const parts = []
   let run = { color: null, bold: false, chars: '' }

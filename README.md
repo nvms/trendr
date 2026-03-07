@@ -7,7 +7,7 @@
 
 <p align="center">The only Node.js TUI framework with JSX components and per-cell diffing. <a href="bench/README.md">benchmarks</a></p>
 
-Per-cell diffing has been the standard terminal rendering technique since curses in the 80s - track every character position, only write what changed. The popular Node.js TUI frameworks skipped it entirely and redraw the whole screen every frame.
+Per-cell diffing has been the standard terminal rendering technique since curses in the 80s - track every character position, only write what changed. The popular Node.js TUI frameworks skipped it entirely and redraw the full output on every update.
 
 trend brings per-cell diffing to JSX without React or any dependencies, with its own signals, hooks, and flexbox layout. 4-16x faster frame times and 580x less I/O per render (17 bytes vs ~10,000 on a single-cell update).
 
@@ -639,6 +639,7 @@ Animated shimmer effect that slides a highlight across text. Uses color interpol
   gradient={3}         // gradient tail length each side (default 3, 0 for hard edge)
   duration={1000}      // ms for one pass across the text (default 1000)
   delay={500}          // ms pause between passes (default 500)
+  reverse={false}      // slide right to left (default false)
 >
   Loading resources...
 </Shimmer>
