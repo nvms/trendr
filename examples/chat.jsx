@@ -104,7 +104,7 @@ export function Chat() {
       </box>
 
       <box style={{ border: 'round', borderColor: fm.is('input') ? accent : 'gray', marginX: 1, paddingX: 1 }}>
-        <TextArea onSubmit={send} placeholder="type a message..." focused={fm.is('input')} maxHeight={5} />
+        <TextArea onSubmit={send} placeholder="type a message..." focused={fm.is('input')} maxHeight={5} cursor={{ blink: true, bg: 'cyan', color: 'black' }} />
       </box>
     </box>
   )

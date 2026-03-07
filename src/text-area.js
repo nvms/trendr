@@ -1,6 +1,6 @@
 import { jsx, jsxs } from '../jsx-runtime.js'
 import { createSignal } from './signal.js'
-import { useInput, useLayout } from './hooks.js'
+import { useInput, useLayout, useCursor } from './hooks.js'
 import { registerHook } from './renderer.js'
 
 export function wrapForEditor(text, width) {
@@ -87,11 +87,12 @@ function ensureVisible(cursorRow, scroll, height, totalLines) {
   return scroll
 }
 
-export function TextArea({ onSubmit, onCancel, onChange, placeholder, focused = true, maxHeight = 10, clearOnSubmit = true }) {
+export function TextArea({ onSubmit, onCancel, onChange, placeholder, focused = true, maxHeight = 10, clearOnSubmit = true, cursor: cursorProp }) {
   const [value, setValue] = createSignal('')
   const [cursor, setCursor] = createSignal(0)
   const ref = registerHook(() => ({ scroll: 0, goalCol: null }))
   const layout = useLayout()
+  const { cursorStyle, reset: resetBlink } = useCursor(cursorProp, focused)
 
   function update(v, c) {
     setValue(v)
@@ -102,6 +103,7 @@ export function TextArea({ onSubmit, onCancel, onChange, placeholder, focused = 
 
   useInput((event) => {
     if (!focused) return
+    resetBlink()
 
     const { key, raw, ctrl, meta } = event
     const v = value()
@@ -226,6 +228,7 @@ export function TextArea({ onSubmit, onCancel, onChange, placeholder, focused = 
   const v = value()
   const c = cursor()
   const w = layout.width || 0
+  const cs = cursorStyle()
 
   if (!v && placeholder && !focused) {
     return jsx('text', { style: { color: 'gray', flexGrow: 1 }, children: placeholder })
@@ -247,7 +250,7 @@ export function TextArea({ onSubmit, onCancel, onChange, placeholder, focused = 
       children: jsxs('box', {
         style: { flexDirection: 'row', height: 1 },
         children: [
-          jsx('text', { style: { inverse: true, color: 'gray' }, children: placeholder[0] }),
+          jsx('text', { style: cs ? { ...cs, color: cs.color ?? 'gray' } : { inverse: true, color: 'gray' }, children: placeholder[0] }),
           placeholder.length > 1 && jsx('text', { style: { color: 'gray' }, children: placeholder.slice(1) }),
         ],
       }),
@@ -273,7 +276,7 @@ export function TextArea({ onSubmit, onCancel, onChange, placeholder, focused = 
       style: { flexDirection: 'row', height: 1 },
       children: [
         before && jsx('text', { children: before }),
-        jsx('text', { style: { inverse: true }, children: cursorChar }),
+        jsx('text', { style: cs ?? {}, children: cursorChar }),
         after && jsx('text', { children: after }),
       ],
     })

@@ -1,5 +1,5 @@
 import { onCleanup, createSignal as rawCreateSignal, createSignalRaw } from './signal.js'
-import { getContext, getTheme, registerHook, getInstanceLayout, getFrameStats } from './renderer.js'
+import { getContext, getTheme, getCursor, registerHook, getInstanceLayout, getFrameStats } from './renderer.js'
 import { setTitle } from './ansi.js'
 
 export function useState(initial) {
@@ -122,6 +122,58 @@ export function useScrollDrag({ barX, barY, thumbHeight, trackHeight, maxOffset,
       drag.active = false
     }
   })
+}
+
+export function useCursor(propCursor, focused) {
+  const config = getCursor(propCursor)
+
+  const state = registerHook(() => {
+    const [visible, setVisible] = createSignalRaw(true)
+    let id = null
+
+    function start(rate) {
+      stop()
+      id = setInterval(() => setVisible(v => !v), rate)
+    }
+
+    function stop() {
+      if (id !== null) { clearInterval(id); id = null }
+      setVisible(true)
+    }
+
+    onCleanup(stop)
+    return { visible, setVisible, start, stop, blinking: false, rate: 0 }
+  })
+
+  const shouldBlink = config.blink && focused
+  if (shouldBlink && (!state.blinking || state.rate !== config.rate)) {
+    state.start(config.rate)
+    state.blinking = true
+    state.rate = config.rate
+  } else if (!shouldBlink && state.blinking) {
+    state.stop()
+    state.blinking = false
+  }
+
+  if (!shouldBlink) state.setVisible(true)
+
+  function reset() {
+    if (!state.blinking) return
+    state.setVisible(true)
+    state.start(config.rate)
+  }
+
+  function cursorStyle() {
+    if (!focused || !state.visible()) return null
+    const s = {}
+    if (config.color) s.color = config.color
+    if (config.bg) s.bg = config.bg
+    if (!config.color && !config.bg) s.inverse = true
+    if (config.style === 'underline') { s.underline = true; delete s.inverse }
+    return s
+  }
+
+  return { config, visible: state.visible, cursorStyle, reset }
 }
 
 export function useAsync(fn, { immediate = false } = {}) {

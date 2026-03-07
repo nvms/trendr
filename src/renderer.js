@@ -18,10 +18,18 @@ export function getContext() {
   return activeContext
 }
 
+const DEFAULT_CURSOR = { blink: false, rate: 530, style: 'block' }
 const DEFAULT_THEME = { accent: 'cyan' }
 
 export function getTheme() {
   return activeContext?.theme ?? DEFAULT_THEME
+}
+
+export function getCursor(propCursor) {
+  const themeCursor = activeContext?.theme?.cursor
+  if (!propCursor && !themeCursor) return DEFAULT_CURSOR
+  if (propCursor === true) return { ...DEFAULT_CURSOR, blink: true, ...themeCursor }
+  return { ...DEFAULT_CURSOR, ...themeCursor, ...propCursor }
 }
 
 export function getFrameStats() {

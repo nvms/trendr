@@ -1,14 +1,15 @@
 import { jsx, jsxs } from '../jsx-runtime.js'
 import { createSignal } from './signal.js'
-import { useInput, useLayout } from './hooks.js'
+import { useInput, useLayout, useCursor } from './hooks.js'
 
 const BOX = { flexDirection: 'row', height: 1, minHeight: 1, flexGrow: 1 }
 
-export function TextInput({ onSubmit, onCancel, onChange, placeholder, focused = true, initialValue, clearOnSubmit = false }) {
+export function TextInput({ onSubmit, onCancel, onChange, placeholder, focused = true, initialValue, clearOnSubmit = false, cursor: cursorProp }) {
   const init = initialValue ?? ''
   const [value, setValue] = createSignal(init)
   const [cursor, setCursor] = createSignal(init.length)
   const layout = useLayout()
+  const { cursorStyle, reset: resetBlink } = useCursor(cursorProp, focused)
 
   function update(v, c) {
     setValue(v)
@@ -18,6 +19,7 @@ export function TextInput({ onSubmit, onCancel, onChange, placeholder, focused =
 
   useInput((event) => {
     if (!focused) return
+    resetBlink()
 
     const { key, raw, ctrl } = event
     const v = value()
@@ -79,6 +81,7 @@ export function TextInput({ onSubmit, onCancel, onChange, placeholder, focused =
   const v = value()
   const c = cursor()
   const w = layout.width || 0
+  const cs = cursorStyle()
 
   if (!v && placeholder && !focused) {
     return jsx('text', { style: { color: 'gray', flexGrow: 1 }, children: placeholder })
@@ -88,7 +91,7 @@ export function TextInput({ onSubmit, onCancel, onChange, placeholder, focused =
     return jsxs('box', {
       style: BOX,
       children: [
-        jsx('text', { style: { inverse: true, color: 'gray' }, children: placeholder[0] }),
+        jsx('text', { style: cs ? { ...cs, color: cs.color ?? 'gray' } : { inverse: true, color: 'gray' }, children: placeholder[0] }),
         placeholder.length > 1 && jsx('text', { style: { color: 'gray' }, children: placeholder.slice(1) }),
       ],
     })
@@ -103,7 +106,7 @@ export function TextInput({ onSubmit, onCancel, onChange, placeholder, focused =
       style: BOX,
       children: [
         v.slice(0, c) && jsx('text', { children: v.slice(0, c) }),
-        jsx('text', { style: { inverse: focused }, children: cursorChar }),
+        jsx('text', { style: cs ?? {}, children: cursorChar }),
         v.slice(c + 1) && jsx('text', { children: v.slice(c + 1) }),
       ],
     })
@@ -124,7 +127,7 @@ export function TextInput({ onSubmit, onCancel, onChange, placeholder, focused =
     style: BOX,
     children: [
       before && jsx('text', { children: before }),
-      jsx('text', { style: { inverse: focused }, children: cursorChar }),
+      jsx('text', { style: cs ?? {}, children: cursorChar }),
       after && jsx('text', { children: after }),
     ],
   })
