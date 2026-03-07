@@ -1,4 +1,4 @@
-import { mount, useInput, Shimmer } from '../index.js'
+import { mount, useInput, Shimmer, Spinner } from '../index.js'
 
 function App() {
   useInput(({ key }) => {
@@ -32,7 +32,7 @@ function App() {
 
         <box style={{ flexDirection: 'column' }}>
           <text style={{ color: 'gray', dim: true }}>single char shimmer</text>
-          <Shimmer size={1} gradient={1} duration={800} delay={300} highlight="magenta">trend - terminal rendering engine</Shimmer>
+          <Shimmer size={1} gradient={1} duration={2000} delay={300} highlight="magenta">trend - terminal rendering engine</Shimmer>
         </box>
 
         <box style={{ flexDirection: 'column' }}>
@@ -43,6 +43,15 @@ function App() {
         <box style={{ flexDirection: 'column' }}>
           <text style={{ color: 'gray', dim: true }}>long delay (delay=3000)</text>
           <Shimmer delay={3000} duration={600} highlight="white">Idle shimmer</Shimmer>
+        </box>
+
+        <box style={{ flexDirection: 'column' }}>
+          <text style={{ color: 'gray', dim: true }}>spinner + shimmer</text>
+          <box style={{ flexDirection: 'row' }}>
+            <Spinner color="white" />
+            <text> </text>
+            <Shimmer highlight="white" duration={1500} delay={800} reverse>Thinking...</Shimmer>
+          </box>
         </box>
       </box>
 

@@ -594,8 +594,10 @@ Used in [components](examples/components.jsx)
 ```jsx
 <Spinner
   label="loading..."
+  variant="dots"     // 'dots' (default), 'line', 'circle', 'bounce', 'arrow', 'square', 'star'
   color="magenta"    // overrides theme accent
   interval={80}      // ms, default 80
+  frames={['a','b']} // custom frames (overrides variant)
 />
 ```
 
