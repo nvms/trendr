@@ -1,4 +1,5 @@
 import { parseSgr } from './ansi.js'
+import { charWidth } from './wrap.js'
 
 const EMPTY = { ch: ' ', fg: null, bg: null, attrs: 0 }
 
@@ -31,18 +32,29 @@ export function writeText(buf, x, y, text, fg, bg, attrs, maxWidth) {
   const max = maxWidth ?? (buf.width - x)
 
   if (text.indexOf('\x1b') === -1) {
-    const n = Math.min(max, text.length, buf.width - x)
-    for (let i = 0; i < n; i++) {
-      const cx = x + i
-      if (cx < 0 || cx >= buf.width) continue
-      const prev = buf.cells[y * buf.width + cx]
-      const transparent = text[i] === ' ' && !bg && prev.ch !== ' '
-      buf.cells[y * buf.width + cx] = {
-        ch: transparent ? prev.ch : text[i],
-        fg: transparent ? prev.fg : (fg ?? prev.fg),
-        bg: bg ?? prev.bg,
-        attrs: transparent ? prev.attrs : (attrs || prev.attrs),
+    let col = 0
+    let i = 0
+    while (i < text.length && col < max) {
+      const code = text.codePointAt(i)
+      const len = code > 0xffff ? 2 : 1
+      const w = charWidth(code)
+      const cx = x + col
+      if (cx >= 0 && cx < buf.width) {
+        const ch = len === 1 ? text[i] : text.slice(i, i + len)
+        const prev = buf.cells[y * buf.width + cx]
+        const transparent = ch === ' ' && !bg && prev.ch !== ' '
+        buf.cells[y * buf.width + cx] = {
+          ch: transparent ? prev.ch : ch,
+          fg: transparent ? prev.fg : (fg ?? prev.fg),
+          bg: bg ?? prev.bg,
+          attrs: transparent ? prev.attrs : (attrs || prev.attrs),
+        }
+        if (w === 2 && cx + 1 < buf.width) {
+          buf.cells[y * buf.width + cx + 1] = { ch: '', fg: fg ?? null, bg: bg ?? null, attrs: attrs ?? 0 }
+        }
       }
+      col += w
+      i += len
     }
     return
   }
@@ -61,19 +73,26 @@ export function writeText(buf, x, y, text, fg, bg, attrs, maxWidth) {
       }
     }
 
+    const code = text.codePointAt(i)
+    const len = code > 0xffff ? 2 : 1
+    const w = charWidth(code)
     const cx = x + col
     if (cx >= 0 && cx < buf.width) {
+      const ch = len === 1 ? text[i] : text.slice(i, i + len)
       const prev = buf.cells[y * buf.width + cx]
-      const transparent = text[i] === ' ' && !bg && prev.ch !== ' '
+      const transparent = ch === ' ' && !bg && prev.ch !== ' '
       buf.cells[y * buf.width + cx] = {
-        ch: transparent ? prev.ch : text[i],
+        ch: transparent ? prev.ch : ch,
         fg: transparent ? prev.fg : (ansi.fg ?? fg ?? prev.fg),
         bg: ansi.bg ?? bg ?? prev.bg,
         attrs: transparent ? prev.attrs : (ansi.attrs || attrs || prev.attrs),
       }
+      if (w === 2 && cx + 1 < buf.width) {
+        buf.cells[y * buf.width + cx + 1] = { ch: '', fg: ansi.fg ?? fg ?? null, bg: ansi.bg ?? bg ?? null, attrs: ansi.attrs || attrs || 0 }
+      }
     }
-    col++
-    i++
+    col += w
+    i += len
   }
 }
 

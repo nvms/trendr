@@ -121,6 +121,24 @@ suite('buffer - writeText ANSI cumulative')
   assertEq(buf.cells[2].attrs, 0, 'cumulative: third no attrs')
 }
 
+suite('buffer - writeText wide chars')
+{
+  const buf = createBuffer(10, 1)
+  writeText(buf, 0, 0, 'a\u2705b', null, null, 0)
+  assertEq(buf.cells[0].ch, 'a', 'wide: ascii before emoji')
+  assertEq(buf.cells[1].ch, '\u2705', 'wide: emoji in cell')
+  assertEq(buf.cells[2].ch, '', 'wide: placeholder after emoji')
+  assertEq(buf.cells[3].ch, 'b', 'wide: ascii after emoji')
+
+  const buf2 = createBuffer(10, 1)
+  writeText(buf2, 0, 0, '\x1b[31m\u274c\x1b[0m ok', null, null, 0)
+  assertEq(buf2.cells[0].ch, '\u274c', 'wide ansi: emoji in cell')
+  assertEq(buf2.cells[0].fg, 'red', 'wide ansi: fg on emoji')
+  assertEq(buf2.cells[1].ch, '', 'wide ansi: placeholder after emoji')
+  assertEq(buf2.cells[2].ch, ' ', 'wide ansi: space after placeholder')
+  assertEq(buf2.cells[3].ch, 'o', 'wide ansi: text continues correctly')
+}
+
 suite('buffer - fillRect')
 {
   const buf = createBuffer(6, 4)
@@ -629,6 +647,13 @@ suite('measureText')
   assertEq(measureText('hello'), 5, 'ascii width')
   assertEq(measureText(''), 0, 'empty string')
   assertEq(measureText('ab'), 2, 'two chars')
+  assertEq(measureText('\u2705'), 2, 'check mark emoji is width 2')
+  assertEq(measureText('\u274c'), 2, 'cross mark emoji is width 2')
+  assertEq(measureText('a\u2705b'), 4, 'emoji in middle of text')
+  assertEq(measureText('\u{1f680}'), 2, 'surrogate pair emoji is width 2')
+  assertEq(measureText('\u2714'), 1, 'heavy check mark is narrow')
+  assertEq(measureText('\u2716'), 1, 'heavy multiplication is narrow')
+  assertEq(measureText('\u2713'), 1, 'check mark is narrow')
 }
 
 suite('measureText - ANSI')

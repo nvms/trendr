@@ -118,7 +118,7 @@ export function diff(prev, curr) {
     let x = 0
     while (x < w) {
       const idx = y * w + x
-      if (cellEq(prev.cells[idx], curr.cells[idx])) {
+      if (curr.cells[idx].ch === '' || cellEq(prev.cells[idx], curr.cells[idx])) {
         x++
         continue
       }
@@ -127,9 +127,10 @@ export function diff(prev, curr) {
 
       while (x < w) {
         const i = y * w + x
-        if (cellEq(prev.cells[i], curr.cells[i])) break
-
         const c = curr.cells[i]
+        if (c.ch === '') { x++; continue }
+        if (cellEq(prev.cells[i], c)) break
+
         changed++
 
         if (c.fg !== lastFg || c.bg !== lastBg || c.attrs !== lastAttrs) {
