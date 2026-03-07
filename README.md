@@ -561,15 +561,30 @@ Keys: j/k or up/down, enter/space to select. Renders `●` / `○`.
 
 ### ProgressBar
 
-Used in [dashboard](examples/dashboard.jsx), [components](examples/components.jsx)
+Used in [progress](examples/progress.jsx), [components](examples/components.jsx)
 
 ```jsx
 <ProgressBar
-  value={0.65}      // 0 to 1
-  width={20}        // characters, default 20
-  color="red"       // overrides theme accent
-  label="65%"       // optional text after bar
+  value={0.65}              // 0 to 1
+  variant="thin"            // 'thin' (default), 'block', 'ascii', 'braille'
+  color="red"               // overrides theme accent
+  label="Installing"        // optional label before bar
+  count="8/12"              // optional count after percentage
+  percentage={true}         // show percentage (default true)
+  width={30}                // override bar width (default: fills available space)
 />
+```
+
+Variants:
+- `thin` - clean `━` bar (default)
+- `block` - thick `█░` blocks
+- `ascii` - plain `[###---]`, works in any terminal
+- `braille` - smooth `⣿` fill
+
+The bar auto-sizes to fill available width. Label goes left, percentage and count go right:
+
+```
+Installing  ━━━━━━━━━━━━━━━━━━━━━━━━ 67% (8/12)
 ```
 
 ### Spinner
