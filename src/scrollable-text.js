@@ -1,6 +1,6 @@
 import { jsx } from '../jsx-runtime.js'
 import { createSignal } from './signal.js'
-import { useInput, useLayout, useTheme } from './hooks.js'
+import { useInput, useMouse, useLayout, useTheme, useScrollDrag } from './hooks.js'
 import { wordWrap } from './wrap.js'
 
 export function ScrollableText({ content = '', focused = true, scrollOffset: offsetProp, onScroll, width: widthProp, scrollbar = false, wrap = true, thumbChar = '\u2588', trackChar = '\u2502' }) {
@@ -35,6 +35,31 @@ export function ScrollableText({ content = '', focused = true, scrollOffset: off
     else if (ctrl && key === 'd') setOffset(clamp(offset + half))
     else if (key === 'home' || key === 'g') setOffset(0)
     else if (key === 'end' || key === 'G') setOffset(maxOffset)
+  })
+
+  useMouse((event) => {
+    if (!focused) return
+    if (event.action !== 'scroll') return
+    if (lines.length <= (h || 1)) return
+    const { x, y } = event
+    if (x < layout.x || x >= layout.x + layout.width || y < layout.y || y >= layout.y + layout.height) return
+    if (event.direction === 'up') setOffset(clamp(offset - 3))
+    else setOffset(clamp(offset + 3))
+    event.stopPropagation()
+  })
+
+  const hasBar = scrollbar && h > 0 && lines.length > h
+  const barThumbH = hasBar ? Math.max(1, Math.round((h / lines.length) * h)) : 0
+  const barThumbStart = hasBar && maxOffset > 0 ? Math.round((offset / maxOffset) * (h - barThumbH)) : 0
+
+  useScrollDrag({
+    barX: hasBar ? layout.x + layout.width - 1 : null,
+    barY: layout.y + barThumbStart,
+    thumbHeight: barThumbH,
+    trackHeight: h,
+    maxOffset,
+    scrollOffset: offset,
+    onScroll: (v) => setOffset(clamp(v)),
   })
 
   const visible = lines.slice(offset, h > 0 ? offset + h : undefined)

@@ -253,6 +253,20 @@ Calling `run()` while a previous call is in-flight discards the stale result (on
 const { status, data } = useAsync(fetchUsers, { immediate: true })
 ```
 
+### useMouse
+
+```jsx
+useMouse((event) => {
+  // event.action: 'press' | 'release' | 'scroll'
+  // event.button: 'left' | 'middle' | 'right' (press/release only)
+  // event.direction: 'up' | 'down' (scroll only)
+  // event.x, event.y: 0-based terminal coordinates
+  // event.stopPropagation(): prevent other handlers from receiving this event
+})
+```
+
+Mouse is enabled automatically. Built-in components already support mouse: scroll wheel on List, ScrollBox, ScrollableText, Select; click on Button, Checkbox, Radio.
+
 ### useStdout
 
 ```jsx

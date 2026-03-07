@@ -30,6 +30,28 @@ const SPECIAL_KEYS = {
   ' ': 'space',
 }
 
+const MOUSE_RE = /^\x1b\[<(\d+);(\d+);(\d+)([Mm])$/
+
+export function parseMouse(raw) {
+  const m = MOUSE_RE.exec(raw)
+  if (!m) return null
+  const cb = parseInt(m[1], 10)
+  const x = parseInt(m[2], 10) - 1
+  const y = parseInt(m[3], 10) - 1
+  const release = m[4] === 'm'
+  const button = cb & 3
+  const scroll = (cb & 64) !== 0
+  const motion = (cb & 32) !== 0
+
+  if (scroll) {
+    return { type: 'mouse', action: 'scroll', direction: button === 0 ? 'up' : 'down', x, y }
+  }
+
+  const buttonName = button === 0 ? 'left' : button === 1 ? 'middle' : 'right'
+  const action = release ? 'release' : motion ? 'drag' : 'press'
+  return { type: 'mouse', action, button: buttonName, x, y }
+}
+
 export function parseKey(data) {
   const raw = typeof data === 'string' ? data : data.toString()
 
@@ -69,6 +91,15 @@ export function splitKeys(data) {
     if (raw[i] === '\x1b') {
       if (i + 1 < raw.length && raw[i + 1] === '[') {
         let j = i + 2
+        // sgr mouse: \x1b[<Cb;Cx;CyM or m
+        if (j < raw.length && raw[j] === '<') {
+          j++
+          while (j < raw.length && ((raw[j] >= '0' && raw[j] <= '9') || raw[j] === ';')) j++
+          if (j < raw.length) j++
+          keys.push(raw.slice(i, j))
+          i = j
+          continue
+        }
         while (j < raw.length && raw[j] >= '0' && raw[j] <= '9') j++
         if (j < raw.length && raw[j] === ';') {
           j++
@@ -98,12 +129,24 @@ export function splitKeys(data) {
 }
 
 export function createInputHandler(stream) {
-  const listeners = new Set()
+  const keyListeners = new Set()
+  const mouseListeners = new Set()
 
   function dispatch(keyStr) {
+    const mouse = parseMouse(keyStr)
+    if (mouse) {
+      mouse.stopPropagation = () => { mouse._stopped = true }
+      const snapshot = [...mouseListeners].reverse()
+      for (const fn of snapshot) {
+        fn(mouse)
+        if (mouse._stopped) break
+      }
+      return
+    }
+
     const event = parseKey(keyStr)
     event.stopPropagation = () => { event._stopped = true }
-    const snapshot = [...listeners].reverse()
+    const snapshot = [...keyListeners].reverse()
     for (const fn of snapshot) {
       fn(event)
       if (event._stopped) break
@@ -131,13 +174,22 @@ export function createInputHandler(stream) {
   }
 
   function onKey(fn) {
-    listeners.add(fn)
-    if (listeners.size === 1) attach()
+    keyListeners.add(fn)
+    if (keyListeners.size + mouseListeners.size === 1) attach()
     return () => {
-      listeners.delete(fn)
-      if (listeners.size === 0) detach()
+      keyListeners.delete(fn)
+      if (keyListeners.size + mouseListeners.size === 0) detach()
     }
   }
 
-  return { onKey, attach, detach }
+  function onMouse(fn) {
+    mouseListeners.add(fn)
+    if (keyListeners.size + mouseListeners.size === 1) attach()
+    return () => {
+      mouseListeners.delete(fn)
+      if (keyListeners.size + mouseListeners.size === 0) detach()
+    }
+  }
+
+  return { onKey, onMouse, attach, detach }
 }

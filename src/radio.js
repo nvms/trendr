@@ -1,6 +1,6 @@
 import { jsx, jsxs } from '../jsx-runtime.js'
 import { createSignal } from './signal.js'
-import { useInput, useTheme } from './hooks.js'
+import { useInput, useMouse, useLayout, useTheme } from './hooks.js'
 
 export function Radio({ options, selected, onSelect, focused = false }) {
   const { accent = 'cyan' } = useTheme()
@@ -25,6 +25,20 @@ export function Radio({ options, selected, onSelect, focused = false }) {
       }
     } else if (key === 'return' || key === 'space') {
       onSelect?.(options[cursor()])
+      event.stopPropagation()
+    }
+  })
+
+  const layout = useLayout()
+
+  useMouse((event) => {
+    if (event.action !== 'press' || event.button !== 'left') return
+    const { x, y } = event
+    if (x < layout.x || x >= layout.x + layout.width || y < layout.y || y >= layout.y + layout.height) return
+    const idx = y - layout.y
+    if (idx >= 0 && idx < options.length) {
+      setCursor(idx)
+      onSelect?.(options[idx])
       event.stopPropagation()
     }
   })

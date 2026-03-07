@@ -54,7 +54,7 @@ function PlasmaPanel({ width, height, t }) {
 }
 
 function InfoPanel({ t, stats }) {
-  const elapsed = Math.floor(t * 16 / 1000)
+  const elapsed = Math.floor(t / 0.12 * 16 / 1000)
   const min = String(Math.floor(elapsed / 60)).padStart(2, '0')
   const sec = String(elapsed % 60).padStart(2, '0')
   const pct = stats.total > 0 ? ((stats.changed / stats.total) * 100).toFixed(1) : '0.0'

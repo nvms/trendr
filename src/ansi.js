@@ -16,6 +16,9 @@ export const sgrReset = `${ESC}0m`
 
 export const setTitle = (title) => `\x1b]2;${title}\x07`
 
+export const enableMouse = `${ESC}?1002h${ESC}?1006h`
+export const disableMouse = `${ESC}?1002l${ESC}?1006l`
+
 export const BOLD = 1
 export const DIM = 2
 export const ITALIC = 4

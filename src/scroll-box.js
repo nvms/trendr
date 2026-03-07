@@ -1,6 +1,6 @@
 import { jsx, jsxs } from '../jsx-runtime.js'
 import { createSignal } from './signal.js'
-import { useInput, useLayout, useTheme } from './hooks.js'
+import { useInput, useMouse, useLayout, useTheme, useScrollDrag } from './hooks.js'
 
 export function ScrollBox({ children, focused = true, scrollOffset: offsetProp, onScroll, scrollbar = false, thumbChar = '\u2588', trackChar = '\u2502', style: userStyle }) {
   const { accent = 'cyan' } = useTheme()
@@ -31,6 +31,31 @@ export function ScrollBox({ children, focused = true, scrollOffset: offsetProp, 
     else if (ctrl && key === 'd') setOffset(clamp(offset + half))
     else if (key === 'home' || key === 'g') setOffset(0)
     else if (key === 'end' || key === 'G') setOffset(maxOffset)
+  })
+
+  useMouse((event) => {
+    if (!focused) return
+    if (event.action !== 'scroll') return
+    if (contentH <= visibleH) return
+    const { x, y } = event
+    if (x < layout.x || x >= layout.x + layout.width || y < layout.y || y >= layout.y + layout.height) return
+    if (event.direction === 'up') setOffset(clamp(offset - 3))
+    else setOffset(clamp(offset + 3))
+    event.stopPropagation()
+  })
+
+  const hasBar = scrollbar && visibleH > 0 && contentH > visibleH
+  const barThumbH = hasBar ? Math.max(1, Math.round((visibleH / contentH) * visibleH)) : 0
+  const barThumbStart = hasBar && maxOffset > 0 ? Math.round((offset / maxOffset) * (visibleH - barThumbH)) : 0
+
+  useScrollDrag({
+    barX: hasBar ? layout.x + layout.width - 1 : null,
+    barY: layout.y + barThumbStart,
+    thumbHeight: barThumbH,
+    trackHeight: visibleH,
+    maxOffset,
+    scrollOffset: offset,
+    onScroll: (v) => setOffset(clamp(v)),
   })
 
   const scrollBox = jsx('box', {

@@ -30,7 +30,8 @@ export function getFrameStats() {
 
 export function getInstanceLayout() {
   if (!currentHookOwner) return { x: 0, y: 0, width: 0, height: 0 }
-  return currentHookOwner.layout ?? { x: 0, y: 0, width: 0, height: 0 }
+  if (!currentHookOwner.layout) currentHookOwner.layout = { x: 0, y: 0, width: 0, height: 0 }
+  return currentHookOwner.layout
 }
 
 export function registerOverlay(element, { backdrop, fullscreen } = {}) {
@@ -170,6 +171,27 @@ function findScrollContentHeight(node) {
     }
   }
   return null
+}
+
+function updateOverlayLayouts(node) {
+  if (!node) return
+  if (node._instance) {
+    const rect = node._availableRect ?? node._layout
+    if (rect) {
+      const ch = findScrollContentHeight(node)
+      if (!node._instance.layout) node._instance.layout = { x: 0, y: 0, width: 0, height: 0 }
+      const target = node._instance.layout
+      target.x = rect.x
+      target.y = rect.y
+      target.width = rect.width
+      target.height = rect.height
+      target.contentHeight = ch
+    }
+  }
+  if (node._resolved) updateOverlayLayouts(node._resolved)
+  if (node._resolvedChildren) {
+    for (const child of node._resolvedChildren) updateOverlayLayouts(child)
+  }
 }
 
 function clipRect(a, b) {
@@ -523,6 +545,8 @@ export function mount(rootComponent, { stream, stdin, title, theme } = {}) {
   // component instance cache persists across frames
   // maps instanceKey -> { scope, fn, hooks }
   const instances = new Map()
+  let forceFullPaint = false
+  let prevHadOverlays = false
 
   function frame() {
     const prevCtx = activeContext
@@ -544,12 +568,16 @@ export function mount(rootComponent, { stream, stdin, title, theme } = {}) {
       const rect = inst.node?._availableRect ?? inst.node?._layout
       if (!rect) continue
       const ch = findScrollContentHeight(inst.node)
-      const next = ch != null ? { ...rect, contentHeight: ch } : rect
+      if (!inst.layout) inst.layout = { x: 0, y: 0, width: 0, height: 0 }
       const prev = inst.layout
-      if (!prev || prev.width !== next.width || prev.height !== next.height || prev.contentHeight !== next.contentHeight) {
+      if (prev.width !== rect.width || prev.height !== rect.height || prev.contentHeight !== ch) {
         layoutChanged = true
       }
-      inst.layout = next
+      prev.x = rect.x
+      prev.y = rect.y
+      prev.width = rect.width
+      prev.height = rect.height
+      prev.contentHeight = ch
     }
 
     // layout values changed - re-resolve so components see updated useLayout()
@@ -563,37 +591,44 @@ export function mount(rootComponent, { stream, stdin, title, theme } = {}) {
         const rect = inst.node?._availableRect ?? inst.node?._layout
         if (!rect) continue
         const ch = findScrollContentHeight(inst.node)
-        inst.layout = ch != null ? { ...rect, contentHeight: ch } : rect
+        if (!inst.layout) inst.layout = { x: 0, y: 0, width: 0, height: 0 }
+        inst.layout.x = rect.x
+        inst.layout.y = rect.y
+        inst.layout.width = rect.width
+        inst.layout.height = rect.height
+        inst.layout.contentHeight = ch
         inst._dirty = true
       }
       propagateDirty(tree2)
       paintTree(tree2, curr, null, null, null)
     } else {
       propagateDirty(tree)
-      paintTree(tree, curr, null, null, forceFullPaint ? null : prev)
+      paintTree(tree, curr, null, null, (forceFullPaint || prevHadOverlays) ? null : prev)
       forceFullPaint = false
     }
+
+    const hasOverlays = overlays.length > 0
 
     for (const { element: overlayEl, owner, backdrop, fullscreen } of overlays) {
       if (backdrop) dimBuffer(curr)
 
+      const overlayRect = (backdrop || fullscreen)
+        ? { x: 0, y: 0, width, height }
+        : (() => {
+            const anchor = owner.node?._layout ?? owner.layout ?? { x: 0, y: 0, width: 0, height: 0 }
+            return { x: anchor.x, y: anchor.y + 1, width: width - anchor.x, height: height - anchor.y - 1 }
+          })()
+
       const overlayTree = resolveForFrame(overlayEl, null, instances, counters, visited, '')
       if (overlayTree) {
-        if (backdrop || fullscreen) {
-          computeLayout(overlayTree, { x: 0, y: 0, width, height })
-        } else {
-          const anchor = owner.node?._layout ?? owner.layout ?? { x: 0, y: 0, width: 0, height: 0 }
-          computeLayout(overlayTree, {
-            x: anchor.x,
-            y: anchor.y + 1,
-            width: width - anchor.x,
-            height: height - anchor.y - 1,
-          })
-        }
+        computeLayout(overlayTree, overlayRect)
+        updateOverlayLayouts(overlayTree)
         clearOverlayRect(overlayTree, curr)
         paintTree(overlayTree, curr)
       }
     }
+
+    prevHadOverlays = hasOverlays
 
     for (const [key, inst] of instances) {
       if (!visited.has(key)) {
@@ -631,7 +666,7 @@ export function mount(rootComponent, { stream, stdin, title, theme } = {}) {
 
   setSchedulerHook(scheduler.requestFrame)
 
-  out.write(ansi.altScreen + ansi.hideCursor + ansi.clearScreen + (title ? ansi.setTitle(title) : ''))
+  out.write(ansi.altScreen + ansi.hideCursor + ansi.clearScreen + ansi.enableMouse + (title ? ansi.setTitle(title) : ''))
   if (inp.isTTY && inp.setRawMode) inp.setRawMode(true)
 
   frame()
@@ -670,7 +705,7 @@ export function mount(rootComponent, { stream, stdin, title, theme } = {}) {
     }
     instances.clear()
 
-    out.write(ansi.sgrReset + ansi.showCursor + ansi.exitAltScreen)
+    out.write(ansi.sgrReset + ansi.disableMouse + ansi.showCursor + ansi.exitAltScreen)
     if (inp.isTTY && inp.setRawMode) inp.setRawMode(false)
     activeContext = null
     setSchedulerHook(null)
@@ -681,8 +716,6 @@ export function mount(rootComponent, { stream, stdin, title, theme } = {}) {
   }
 
   process.on('exit', onExit)
-
-  let forceFullPaint = false
 
   function repaint() {
     prev = createBuffer(width, height)

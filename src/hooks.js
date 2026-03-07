@@ -18,6 +18,18 @@ export function useInput(handler) {
   ref.current = handler
 }
 
+export function useMouse(handler) {
+  const ref = registerHook(() => {
+    const ctx = getContext()
+    if (!ctx) throw new Error('useMouse must be called within a mounted component')
+    const state = { current: handler }
+    const unsub = ctx.input.onMouse((event) => state.current(event))
+    onCleanup(unsub)
+    return state
+  })
+  ref.current = handler
+}
+
 export function useResize(handler) {
   const ref = registerHook(() => {
     const ctx = getContext()
@@ -80,6 +92,36 @@ export function useTimeout(fn, ms) {
     return state
   })
   ref.current = fn
+}
+
+export function useScrollDrag({ barX, barY, thumbHeight, trackHeight, maxOffset, scrollOffset, onScroll }) {
+  const drag = registerHook(() => ({ active: false, startY: 0, startOffset: 0 }))
+
+  useMouse((event) => {
+    if (barX == null || thumbHeight <= 0) return
+
+    if (event.action === 'press' && event.button === 'left' && event.x === barX) {
+      if (event.y >= barY && event.y < barY + thumbHeight) {
+        drag.active = true
+        drag.startY = event.y
+        drag.startOffset = scrollOffset
+        event.stopPropagation()
+      }
+    }
+
+    if (event.action === 'drag' && drag.active) {
+      const dy = event.y - drag.startY
+      const travel = Math.max(1, trackHeight - thumbHeight)
+      const ratio = maxOffset / travel
+      const newOffset = Math.max(0, Math.min(maxOffset, Math.round(drag.startOffset + dy * ratio)))
+      onScroll(newOffset)
+      event.stopPropagation()
+    }
+
+    if (event.action === 'release' && drag.active) {
+      drag.active = false
+    }
+  })
 }
 
 export function useAsync(fn, { immediate = false } = {}) {

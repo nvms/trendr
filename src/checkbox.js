@@ -1,8 +1,9 @@
 import { jsx, jsxs } from '../jsx-runtime.js'
-import { useInput, useTheme } from './hooks.js'
+import { useInput, useMouse, useLayout, useTheme } from './hooks.js'
 
 export function Checkbox({ checked = false, label, onChange, focused = false, checkedIcon = '[x]', uncheckedIcon = '[ ]' }) {
   const { accent = 'cyan' } = useTheme()
+  const layout = useLayout()
 
   useInput((event) => {
     if (!focused) return
@@ -10,6 +11,14 @@ export function Checkbox({ checked = false, label, onChange, focused = false, ch
       onChange?.(!checked)
       event.stopPropagation()
     }
+  })
+
+  useMouse((event) => {
+    if (event.action !== 'press' || event.button !== 'left') return
+    const { x, y } = event
+    if (x < layout.x || x >= layout.x + layout.width || y < layout.y || y >= layout.y + layout.height) return
+    onChange?.(!checked)
+    event.stopPropagation()
   })
 
   const icon = checked ? checkedIcon : uncheckedIcon

@@ -1,6 +1,6 @@
 import { jsx, jsxs } from '../jsx-runtime.js'
 import { createSignal } from './signal.js'
-import { useInput, useLayout, useTheme } from './hooks.js'
+import { useInput, useMouse, useLayout, useTheme, useScrollDrag } from './hooks.js'
 
 export function List({ items, selected: selectedProp, onSelect, renderItem, header, headerHeight = 1, focused = true, itemHeight = 1, scrollbar = false, stickyHeader = false, gap = 0 }) {
   const { accent = 'cyan' } = useTheme()
@@ -45,6 +45,47 @@ export function List({ items, selected: selectedProp, onSelect, renderItem, head
     else if (ctrl && key === 'd') setSelected(Math.min(len - 1, selected + half))
     else if (key === 'home' || key === 'g') setSelected(0)
     else if (key === 'end' || key === 'G') setSelected(len - 1)
+  })
+
+  useMouse((event) => {
+    if (!focused) return
+    const len = items.length
+    if (len === 0) return
+    const { x, y } = event
+    if (x < layout.x || x >= layout.x + layout.width || y < layout.y || y >= layout.y + layout.height) return
+
+    if (event.action === 'scroll') {
+      if (event.direction === 'up') setSelected(Math.max(0, selected - 1))
+      else setSelected(Math.min(len - 1, selected + 1))
+      event.stopPropagation()
+      return
+    }
+
+    if (event.action === 'press' && event.button === 'left') {
+      const headerOffset = sticky ? headerH : (header ? headerH : 0)
+      const relY = y - layout.y - headerOffset
+      const idx = Math.floor((relY + scrollOffset) / Math.max(1, avgH))
+      if (idx >= 0 && idx < len) {
+        setSelected(idx)
+        event.stopPropagation()
+      }
+    }
+  })
+
+  const hasBar = scrollbar && scrollViewH > 0 && scrollContentH > scrollViewH
+  const barThumbH = hasBar ? Math.max(1, Math.round((scrollViewH / scrollContentH) * scrollViewH)) : 0
+
+  useScrollDrag({
+    barX: hasBar ? layout.x + layout.width - 1 : null,
+    barY: layout.y + (sticky ? headerH : 0),
+    thumbHeight: barThumbH,
+    trackHeight: scrollViewH,
+    maxOffset,
+    scrollOffset: selected * avgH,
+    onScroll: (offset) => {
+      const idx = Math.round(offset / Math.max(1, avgH))
+      setSelected(Math.max(0, Math.min(items.length - 1, idx)))
+    },
   })
 
   const itemTop = selected * avgH + innerHeaderH
