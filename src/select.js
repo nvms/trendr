@@ -1,25 +1,71 @@
 import { jsx } from '../jsx-runtime.js'
 import { createSignal } from './signal.js'
 import { useInput, useMouse, useLayout, useTheme } from './hooks.js'
-import { registerOverlay, getInstanceLayout, getContext } from './renderer.js'
+import { registerOverlay, getInstanceLayout, getContext, registerHook } from './renderer.js'
 
-function SelectDropdown({ items, cursor, scroll, visibleCount, onSelect, onClose, renderItem, style: s, accent }) {
+function SelectDropdown({ items, cursor, scroll, visibleCount, onSelect, onClose, onCursorChange, renderItem, style: s, accent, dropWidth }) {
   const layout = useLayout()
+  const drag = registerHook(() => ({ active: false, startY: 0, startCursor: 0 }))
 
   useMouse((event) => {
-    if (event.action === 'scroll') {
+    if (event.action === 'release') {
+      if (drag.active) drag.active = false
+      return
+    }
+
+    if (event.action === 'drag' && drag.active) {
+      const thumbH = Math.max(1, Math.round((visibleCount / items.length) * visibleCount))
+      const dy = event.y - drag.startY
+      const travel = Math.max(1, visibleCount - thumbH)
+      const ratio = (items.length - 1) / travel
+      const idx = Math.max(0, Math.min(items.length - 1, Math.round(drag.startCursor + dy * ratio)))
+      onCursorChange(idx)
       event.stopPropagation()
       return
     }
-    if (event.action !== 'press' || event.button !== 'left') return
+
+    // layout not yet computed - consume event but don't act
+    if (layout.width === 0 || layout.height === 0) {
+      event.stopPropagation()
+      return
+    }
+
     const { x, y } = event
-    if (x < layout.x || x >= layout.x + layout.width || y < layout.y || y >= layout.y + layout.height) {
+    const boxRight = layout.x + dropWidth
+    const inside = x >= layout.x && x < boxRight && y >= layout.y && y < layout.y + layout.height
+
+    if (event.action === 'scroll') {
+      if (!inside) return
+      if (event.direction === 'up') onCursorChange(Math.max(0, cursor - 1))
+      else onCursorChange(Math.min(items.length - 1, cursor + 1))
+      event.stopPropagation()
+      return
+    }
+
+    if (event.action !== 'press' || event.button !== 'left') return
+
+    if (!inside) {
       onClose()
       event.stopPropagation()
       return
     }
-    const borderTop = 1
-    const relY = y - layout.y - borderTop
+
+    const scrollable = items.length > visibleCount
+    if (scrollable && x >= boxRight - 4) {
+      const maxSc = items.length - visibleCount
+      const thumbH = Math.max(1, Math.round((visibleCount / items.length) * visibleCount))
+      const thumbStart = maxSc > 0 ? Math.round((scroll / maxSc) * (visibleCount - thumbH)) : 0
+      const barY = layout.y + 1 + thumbStart
+      if (y >= barY && y < barY + thumbH) {
+        drag.active = true
+        drag.startY = y
+        drag.startCursor = cursor
+      }
+      event.stopPropagation()
+      return
+    }
+
+    const relY = y - layout.y - 1
     if (relY >= 0 && relY < visibleCount) {
       const clickedIdx = relY + scroll
       if (clickedIdx >= 0 && clickedIdx < items.length) {
@@ -31,11 +77,9 @@ function SelectDropdown({ items, cursor, scroll, visibleCount, onSelect, onClose
 
   const scrollable = items.length > visibleCount
   const visible = items.slice(scroll, scroll + visibleCount)
-
   const thumbH = scrollable ? Math.max(1, Math.round((visibleCount / items.length) * visibleCount)) : 0
   const maxSc = items.length - visibleCount
   const thumbStart = scrollable && maxSc > 0 ? Math.round((scroll / maxSc) * (visibleCount - thumbH)) : 0
-
   const maxLen = items.reduce((m, v) => Math.max(m, v.length), 0)
 
   const dropdownChildren = visible.map((item, vi) => {
@@ -200,6 +244,10 @@ export function Select({ items, selected, onSelect, focused = false, overlay = f
 
   const handleClose = () => setOpen(false)
 
+  const maxLen = items.reduce((m, v) => Math.max(m, v.length), 0)
+  const scrollable = items.length > visibleCount
+  const dropWidth = maxLen + 4 + (scrollable ? 2 : 0)
+
   const dropdown = jsx(SelectDropdown, {
     items,
     cursor: cur,
@@ -207,9 +255,11 @@ export function Select({ items, selected, onSelect, focused = false, overlay = f
     visibleCount,
     onSelect: handleSelect,
     onClose: handleClose,
+    onCursorChange: (idx) => setCursor(idx),
     renderItem,
     style: s,
     accent,
+    dropWidth,
   })
 
   if (overlay) {
