@@ -257,7 +257,7 @@ const { status, data } = useAsync(fetchUsers, { immediate: true })
 
 ```jsx
 useMouse((event) => {
-  // event.action: 'press' | 'release' | 'scroll'
+  // event.action: 'press' | 'release' | 'drag' | 'scroll'
   // event.button: 'left' | 'middle' | 'right' (press/release only)
   // event.direction: 'up' | 'down' (scroll only)
   // event.x, event.y: 0-based terminal coordinates
@@ -265,7 +265,7 @@ useMouse((event) => {
 })
 ```
 
-Mouse is enabled automatically. Built-in components already support mouse: scroll wheel on List, ScrollBox, ScrollableText, Select; click on Button, Checkbox, Radio.
+Mouse is enabled automatically. Built-in components support click (Button, Checkbox, Radio, Select, List), scroll wheel (List, ScrollBox, ScrollableText, Select), and scrollbar thumb dragging (List, ScrollBox, ScrollableText, Select).
 
 ### useStdout
 

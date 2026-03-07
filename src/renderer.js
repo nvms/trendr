@@ -144,14 +144,25 @@ function findContentRect(node) {
   if (!node?._layout) return null
   const style = node.props?.style ?? {}
   if (style.border) return node._layout
-  if (node._resolvedChildren) {
-    for (const child of node._resolvedChildren) {
-      const found = findContentRect(child)
-      if (found) return found
-    }
+  if (node.type === 'text' || style.bg || style.inverse) return node._layout
+
+  let bounds = null
+  const merge = (rect) => {
+    if (!rect) return
+    if (!bounds) { bounds = { ...rect }; return }
+    const r = Math.max(bounds.x + bounds.width, rect.x + rect.width)
+    const b = Math.max(bounds.y + bounds.height, rect.y + rect.height)
+    bounds.x = Math.min(bounds.x, rect.x)
+    bounds.y = Math.min(bounds.y, rect.y)
+    bounds.width = r - bounds.x
+    bounds.height = b - bounds.y
   }
-  if (node._resolved) return findContentRect(node._resolved)
-  return null
+
+  if (node._resolvedChildren) {
+    for (const child of node._resolvedChildren) merge(findContentRect(child))
+  }
+  if (node._resolved) merge(findContentRect(node._resolved))
+  return bounds
 }
 
 function clearOverlayRect(overlayTree, buf) {
