@@ -226,6 +226,20 @@ useInterval(() => tick(), 1000) // auto-cleaned on unmount
 const stream = useStdout() // the output stream (process.stdout or custom)
 ```
 
+### useRepaint
+
+Returns a function that forces a full terminal repaint. Useful when resuming the TUI after suspending it to spawn an external process (e.g. `$EDITOR`).
+
+```jsx
+const repaint = useRepaint()
+
+// leave alt screen, spawn editor, re-enter, repaint
+stdout.write('\x1b[?1049l\x1b[?25h')
+execSync(`${process.env.EDITOR} ${file}`, { stdio: 'inherit' })
+stdout.write('\x1b[?1049h\x1b[?25l')
+repaint()
+```
+
 ### useTheme
 
 Returns the current theme object. See [Theming](#theming).
@@ -401,7 +415,7 @@ Keys: j/k or up/down, g/G for top/bottom, ctrl-d/u half page, ctrl-f/b full page
 
 ### Table
 
-Used in [components](examples/components.jsx)
+Used in [components](examples/components.jsx), [custom-table](examples/custom-table.jsx)
 
 Column-based data table. Uses List internally.
 
@@ -418,6 +432,23 @@ Column-based data table. Uses List internally.
   focused={fm.is('table')}
   separator={true}              // horizontal rule below header
   separatorChars={{ left: '', fill: '─', right: '' }}  // customizable
+/>
+```
+
+Pass `renderItem` to take full control over row rendering while keeping column-aligned headers. When provided, it replaces the default column-based rendering entirely.
+
+```jsx
+<Table
+  columns={columns}
+  data={rows}
+  selected={idx()}
+  onSelect={setIdx}
+  renderItem={(row, { selected, focused }) => (
+    <box style={{ flexDirection: 'row', bg: selected ? accent : null, paddingX: 1 }}>
+      <text style={{ color: selected ? 'black' : null, flexGrow: 1 }}>{row.name}</text>
+      <text style={{ color: selected ? 'black' : row.stale ? 'yellow' : 'gray' }}>{row.age}</text>
+    </box>
+  )}
 />
 ```
 

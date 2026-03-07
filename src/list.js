@@ -2,7 +2,7 @@ import { jsx, jsxs } from '../jsx-runtime.js'
 import { createSignal } from './signal.js'
 import { useInput, useLayout, useTheme } from './hooks.js'
 
-export function List({ items, selected: selectedProp, onSelect, renderItem, header, headerHeight = 1, focused = true, itemHeight = 1, scrollbar = false, gap = 0 }) {
+export function List({ items, selected: selectedProp, onSelect, renderItem, header, headerHeight = 1, focused = true, itemHeight = 1, scrollbar = false, stickyHeader = false, gap = 0 }) {
   const { accent = 'cyan' } = useTheme()
   const [selectedInternal, setSelectedInternal] = createSignal(0)
   const layout = useLayout()
@@ -13,13 +13,20 @@ export function List({ items, selected: selectedProp, onSelect, renderItem, head
   const viewH = layout.height
   const contentH = layout.contentHeight ?? 0
   const headerH = header ? headerHeight : 0
+  const sticky = header && stickyHeader
 
-  // use real average item height from layout when available
-  const avgH = contentH > 0 && items.length > 0
+  const innerHeaderH = sticky ? 0 : headerH
+
+  // when sticky, layout measures the outer wrapper so we can't derive item height from it
+  // use itemHeight directly and compute content from item count
+  const avgH = !sticky && contentH > 0 && items.length > 0
     ? (contentH - headerH) / items.length
     : itemHeight
 
-  const maxOffset = Math.max(0, contentH - viewH)
+  const scrollViewH = sticky ? viewH - headerH : viewH
+  const scrollContentH = sticky ? items.length * avgH : contentH
+
+  const maxOffset = Math.max(0, scrollContentH - scrollViewH)
 
   useInput(({ key, ctrl }) => {
     if (!focused) return
@@ -40,25 +47,25 @@ export function List({ items, selected: selectedProp, onSelect, renderItem, head
     else if (key === 'end' || key === 'G') setSelected(len - 1)
   })
 
-  const itemTop = selected * avgH + headerH
+  const itemTop = selected * avgH + innerHeaderH
   const itemBottom = itemTop + avgH
 
   let scrollOffset = 0
-  if (viewH > 0 && contentH > viewH) {
-    const centered = itemTop - Math.floor((viewH - avgH) / 2)
+  if (scrollViewH > 0 && scrollContentH > scrollViewH) {
+    const centered = itemTop - Math.floor((scrollViewH - avgH) / 2)
     scrollOffset = Math.max(0, Math.min(maxOffset, centered))
     if (itemTop < scrollOffset) scrollOffset = itemTop
-    if (itemBottom > scrollOffset + viewH) scrollOffset = itemBottom - viewH
+    if (itemBottom > scrollOffset + scrollViewH) scrollOffset = itemBottom - scrollViewH
     scrollOffset = Math.max(0, Math.min(maxOffset, Math.round(scrollOffset)))
   }
 
-  const children = []
-  if (header) children.push(header)
+  const scrollChildren = []
+  if (header && !sticky) scrollChildren.push(header)
   for (let i = 0; i < items.length; i++) {
-    children.push(renderItem(items[i], { selected: i === selected, index: i, focused }))
+    scrollChildren.push(renderItem(items[i], { selected: i === selected, index: i, focused }))
   }
 
-  const list = jsx('box', {
+  const scrollBox = jsx('box', {
     style: {
       flexDirection: 'column',
       flexGrow: 1,
@@ -66,18 +73,26 @@ export function List({ items, selected: selectedProp, onSelect, renderItem, head
       scrollOffset,
       gap,
     },
-    children,
+    children: scrollChildren,
   })
 
-  if (!scrollbar || viewH <= 0 || contentH <= viewH) return list
+  const list = sticky
+    ? jsxs('box', {
+        style: { flexDirection: 'column', flexGrow: 1 },
+        children: [header, scrollBox],
+      })
+    : scrollBox
 
-  const thumbH = Math.max(1, Math.round((viewH / contentH) * viewH))
+  if (!scrollbar || scrollViewH <= 0 || scrollContentH <= scrollViewH) return list
+
+  const thumbH = Math.max(1, Math.round((scrollViewH / scrollContentH) * scrollViewH))
   const thumbStart = maxOffset > 0
-    ? Math.round((scrollOffset / maxOffset) * (viewH - thumbH))
+    ? Math.round((scrollOffset / maxOffset) * (scrollViewH - thumbH))
     : 0
 
+  const barH = sticky ? scrollViewH : viewH
   const barChildren = []
-  for (let i = 0; i < viewH; i++) {
+  for (let i = 0; i < barH; i++) {
     const isThumb = i >= thumbStart && i < thumbStart + thumbH
     barChildren.push(
       jsx('text', {
@@ -88,14 +103,26 @@ export function List({ items, selected: selectedProp, onSelect, renderItem, head
     )
   }
 
+  const scrollBarCol = jsx('box', {
+    style: { width: 1, flexDirection: 'column' },
+    children: barChildren,
+  })
+
+  if (sticky) {
+    return jsxs('box', {
+      style: { flexDirection: 'column', flexGrow: 1 },
+      children: [
+        header,
+        jsxs('box', {
+          style: { flexDirection: 'row', flexGrow: 1, gap: 1 },
+          children: [scrollBox, scrollBarCol],
+        }),
+      ],
+    })
+  }
+
   return jsxs('box', {
     style: { flexDirection: 'row', flexGrow: 1, gap: 1 },
-    children: [
-      list,
-      jsx('box', {
-        style: { width: 1, flexDirection: 'column' },
-        children: barChildren,
-      }),
-    ],
+    children: [list, scrollBarCol],
   })
 }

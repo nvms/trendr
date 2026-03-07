@@ -56,6 +56,12 @@ export function useStdout() {
   return ctx.stream
 }
 
+export function useRepaint() {
+  const ctx = getContext()
+  if (!ctx) throw new Error('useRepaint must be called within a mounted component')
+  return ctx.repaint
+}
+
 export function useFrameStats() {
   return getFrameStats()
 }

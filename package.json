@@ -35,7 +35,8 @@
     "texture": "node esbuild.config.js && node dist/texture.js",
     "absolute": "node esbuild.config.js && node dist/absolute.js",
     "scroll-box": "node esbuild.config.js && node dist/scroll-box.js",
-    "split-pane": "node esbuild.config.js && node dist/split-pane.js"
+    "split-pane": "node esbuild.config.js && node dist/split-pane.js",
+    "custom-table": "node esbuild.config.js && node dist/custom-table.js"
   },
   "devDependencies": {
     "esbuild": "^0.25.0"

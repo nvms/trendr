@@ -4,7 +4,7 @@ import { List } from './list.js'
 
 const DEFAULT_SEP = { left: '', fill: '\u2500', right: '' }
 
-export function Table({ columns, data, selected, onSelect, focused = true, separator = false, separatorChars }) {
+export function Table({ columns, data, selected, onSelect, focused = true, separator = false, separatorChars, renderItem, scrollbar, stickyHeader = false }) {
   const { accent = 'cyan' } = useTheme()
 
   const headerRow = jsxs('box', {
@@ -46,6 +46,24 @@ export function Table({ columns, data, selected, onSelect, focused = true, separ
       })
     : headerRow
 
+  const defaultRenderItem = (row, { selected: isSel }) =>
+    jsxs('box', {
+      style: { flexDirection: 'row', bg: isSel ? (focused ? accent : 'gray') : null },
+      children: columns.map((col, i) =>
+        jsx('text', {
+          key: i,
+          style: {
+            width: col.width,
+            flexGrow: col.flexGrow,
+            overflow: 'truncate',
+            paddingX: col.paddingX ?? 1,
+            color: isSel && focused ? 'black' : (col.color ?? null),
+          },
+          children: col.render ? col.render(row, isSel) : String(row[col.key] ?? ''),
+        })
+      ),
+    })
+
   return jsx(List, {
     items: data,
     selected,
@@ -53,22 +71,8 @@ export function Table({ columns, data, selected, onSelect, focused = true, separ
     focused,
     header,
     headerHeight: separator ? 2 : 1,
-    renderItem: (row, { selected: isSel }) =>
-      jsxs('box', {
-        style: { flexDirection: 'row', bg: isSel ? (focused ? accent : 'gray') : null },
-        children: columns.map((col, i) =>
-          jsx('text', {
-            key: i,
-            style: {
-              width: col.width,
-              flexGrow: col.flexGrow,
-              overflow: 'truncate',
-              paddingX: col.paddingX ?? 1,
-              color: isSel && focused ? 'black' : (col.color ?? null),
-            },
-            children: col.render ? col.render(row, isSel) : String(row[col.key] ?? ''),
-          })
-        ),
-      }),
+    scrollbar,
+    stickyHeader,
+    renderItem: renderItem || defaultRenderItem,
   })
 }

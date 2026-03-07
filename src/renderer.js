@@ -569,7 +569,8 @@ export function mount(rootComponent, { stream, stdin, title, theme } = {}) {
       paintTree(tree2, curr, null, null, null)
     } else {
       propagateDirty(tree)
-      paintTree(tree, curr, null, null, prev)
+      paintTree(tree, curr, null, null, forceFullPaint ? null : prev)
+      forceFullPaint = false
     }
 
     for (const { element: overlayEl, owner, backdrop, fullscreen } of overlays) {
@@ -680,5 +681,17 @@ export function mount(rootComponent, { stream, stdin, title, theme } = {}) {
 
   process.on('exit', onExit)
 
-  return { unmount }
+  let forceFullPaint = false
+
+  function repaint() {
+    prev = createBuffer(width, height)
+    curr = createBuffer(width, height)
+    forceFullPaint = true
+    out.write(ansi.clearScreen)
+    scheduler.forceFrame()
+  }
+
+  ctx.repaint = repaint
+
+  return { unmount, repaint }
 }
