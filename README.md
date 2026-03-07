@@ -220,6 +220,29 @@ Used in [dashboard](examples/dashboard.jsx)
 useInterval(() => tick(), 1000) // auto-cleaned on unmount
 ```
 
+### useAsync
+
+Used in [async](examples/async.jsx)
+
+Turns an async function into reactive `status`/`data`/`error` signals with a `run` trigger.
+
+```jsx
+import { useAsync } from '@trendr/core'
+
+const { status, data, error, run } = useAsync(fetchUsers)
+
+// status(): 'idle' | 'loading' | 'success' | 'error'
+// data():   resolved value (null until success)
+// error():  rejected error (null until error)
+// run():    trigger the async function. forwards args: run(userId)
+```
+
+Calling `run()` while a previous call is in-flight discards the stale result (only the latest call resolves). Use `{ immediate: true }` to fire on mount:
+
+```jsx
+const { status, data } = useAsync(fetchUsers, { immediate: true })
+```
+
 ### useStdout
 
 ```jsx

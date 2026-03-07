@@ -1,7 +1,7 @@
 export { mount } from './src/renderer.js'
 export { createSignal } from './src/signal.js'
 export { createEffect, createMemo, batch, untrack, onCleanup } from './src/signal.js'
-export { useState, useInput, useResize, useInterval, useLayout, useStdout, useRepaint, useTitle, useTheme, useFrameStats } from './src/hooks.js'
+export { useState, useInput, useResize, useInterval, useLayout, useStdout, useRepaint, useTitle, useTheme, useFrameStats, useAsync } from './src/hooks.js'
 export { Box, Text, Spacer } from './src/components.js'
 export { TextInput } from './src/text-input.js'
 export { TextArea } from './src/text-area.js'

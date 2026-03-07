@@ -1,4 +1,4 @@
-import { onCleanup, createSignal as rawCreateSignal } from './signal.js'
+import { onCleanup, createSignal as rawCreateSignal, createSignalRaw } from './signal.js'
 import { getContext, getTheme, registerHook, getInstanceLayout, getFrameStats } from './renderer.js'
 import { setTitle } from './ansi.js'
 
@@ -70,4 +70,30 @@ export function useTitle(title) {
   const ctx = getContext()
   if (!ctx) throw new Error('useTitle must be called within a mounted component')
   ctx.stream.write(setTitle(title))
+}
+
+export function useAsync(fn, { immediate = false } = {}) {
+  const state = registerHook(() => {
+    const [status, setStatus] = createSignalRaw('idle')
+    const [data, setData] = createSignalRaw(null)
+    const [error, setError] = createSignalRaw(null)
+    let generation = 0
+
+    function run(...args) {
+      const gen = ++generation
+      setStatus('loading')
+      setData(null)
+      setError(null)
+      fn(...args).then(
+        result => { if (gen === generation) { setData(result); setStatus('success') } },
+        err => { if (gen === generation) { setError(err); setStatus('error') } },
+      )
+    }
+
+    if (immediate) run()
+
+    return { status, data, error, run }
+  })
+
+  return state
 }
