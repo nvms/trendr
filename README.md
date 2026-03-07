@@ -625,6 +625,25 @@ Multiple tasks render as a step list:
 <Task run={() => test()} label="Testing..." successLabel="Tests passed" />
 ```
 
+### Shimmer
+
+Used in [shimmer](examples/shimmer.jsx)
+
+Animated shimmer effect that slides a highlight across text. Uses color interpolation for smooth gradient falloff.
+
+```jsx
+<Shimmer
+  color="gray"         // base text color (default 'gray')
+  highlight="cyan"     // shimmer color (default: theme accent)
+  size={3}             // width of bright center in chars (default 3)
+  gradient={3}         // gradient tail length each side (default 3, 0 for hard edge)
+  duration={1000}      // ms for one pass across the text (default 1000)
+  delay={500}          // ms pause between passes (default 500)
+>
+  Loading resources...
+</Shimmer>
+```
+
 ### Button
 
 Used in [modal-form](examples/modal-form.jsx)

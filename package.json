@@ -40,7 +40,8 @@
     "async": "node esbuild.config.js && node dist/async.js",
     "timeout": "node esbuild.config.js && node dist/timeout.js",
     "task": "node esbuild.config.js && node dist/task.js",
-    "progress": "node esbuild.config.js && node dist/progress.js"
+    "progress": "node esbuild.config.js && node dist/progress.js",
+    "shimmer": "node esbuild.config.js && node dist/shimmer.js"
   },
   "devDependencies": {
     "esbuild": "^0.25.0"
