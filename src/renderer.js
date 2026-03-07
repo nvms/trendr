@@ -423,7 +423,7 @@ function snapshotSignals(instance, signals) {
   instance._signalValues = signals.map(g => g())
 }
 
-function resolveForFrame(element, parent, instances, counters, visited) {
+function resolveForFrame(element, parent, instances, counters, visited, scope) {
   if (element == null || typeof element === 'boolean') return null
 
   if (typeof element === 'string' || typeof element === 'number') {
@@ -450,10 +450,11 @@ function resolveForFrame(element, parent, instances, counters, visited) {
 
   if (typeof element.type === 'function') {
     const fn = element.type
-    const count = counters.get(fn) ?? 0
-    counters.set(fn, count + 1)
+    const counterKey = `${scope}/${fn.name}`
+    const count = counters.get(counterKey) ?? 0
+    counters.set(counterKey, count + 1)
 
-    const instanceKey = element.key != null ? `${fn.name}:key:${element.key}` : `${fn.name}:${count}`
+    const instanceKey = element.key != null ? `${scope}/${fn.name}:key:${element.key}` : `${scope}/${fn.name}:${count}`
     if (visited) visited.add(instanceKey)
     let instance = instances.get(instanceKey)
 
@@ -470,7 +471,7 @@ function resolveForFrame(element, parent, instances, counters, visited) {
         snapshotSignals(instance, signals)
         instance._lastProps = element.props
       })
-      node._resolved = resolveForFrame(result, node, instances, counters, visited)
+      node._resolved = resolveForFrame(result, node, instances, counters, visited, instanceKey)
     } else {
       const clean = isInstanceClean(instance, element.props)
       instance._dirty = !clean
@@ -483,7 +484,7 @@ function resolveForFrame(element, parent, instances, counters, visited) {
       snapshotSignals(instance, signals)
       instance._lastProps = element.props
 
-      node._resolved = resolveForFrame(result, node, instances, counters, visited)
+      node._resolved = resolveForFrame(result, node, instances, counters, visited, instanceKey)
     }
 
     node._instance = instance
@@ -493,13 +494,13 @@ function resolveForFrame(element, parent, instances, counters, visited) {
 
   if (element.type === Fragment) {
     const children = flattenChildren(element.props?.children)
-    node._resolvedChildren = children.map(c => resolveForFrame(c, node, instances, counters, visited)).filter(Boolean)
+    node._resolvedChildren = children.map(c => resolveForFrame(c, node, instances, counters, visited, scope)).filter(Boolean)
     return node
   }
 
   const children = flattenChildren(element.props?.children)
   if (children.length > 0) {
-    node._resolvedChildren = children.map(c => resolveForFrame(c, node, instances, counters, visited)).filter(Boolean)
+    node._resolvedChildren = children.map(c => resolveForFrame(c, node, instances, counters, visited, scope)).filter(Boolean)
   }
 
   return node
@@ -534,7 +535,7 @@ export function mount(rootComponent, { stream, stdin, title, theme } = {}) {
     const counters = new Map()
     const visited = new Set()
     const element = { type: rootComponent, props: {}, key: null }
-    const tree = resolveForFrame(element, null, instances, counters, visited)
+    const tree = resolveForFrame(element, null, instances, counters, visited, '')
 
     computeLayout(tree, { x: 0, y: 0, width, height })
 
@@ -556,7 +557,7 @@ export function mount(rootComponent, { stream, stdin, title, theme } = {}) {
       overlays = []
       counters.clear()
       visited.clear()
-      const tree2 = resolveForFrame(element, null, instances, counters, visited)
+      const tree2 = resolveForFrame(element, null, instances, counters, visited, '')
       computeLayout(tree2, { x: 0, y: 0, width, height })
       for (const inst of instances.values()) {
         const rect = inst.node?._availableRect ?? inst.node?._layout
@@ -576,7 +577,7 @@ export function mount(rootComponent, { stream, stdin, title, theme } = {}) {
     for (const { element: overlayEl, owner, backdrop, fullscreen } of overlays) {
       if (backdrop) dimBuffer(curr)
 
-      const overlayTree = resolveForFrame(overlayEl, null, instances, counters, visited)
+      const overlayTree = resolveForFrame(overlayEl, null, instances, counters, visited, '')
       if (overlayTree) {
         if (backdrop || fullscreen) {
           computeLayout(overlayTree, { x: 0, y: 0, width, height })

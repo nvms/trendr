@@ -9,14 +9,13 @@ function fakeStep(label, delay) {
   })
 }
 
-function TaskList({ generation }) {
-  const g = generation
+function TaskList() {
   return (
     <box style={{ flexDirection: 'column' }}>
-      <Task key={`install-${g}`} run={fakeStep('Install', 1200)} label="Installing dependencies..." successLabel="Dependencies installed" />
-      <Task key={`build-${g}`} run={fakeStep('Build', 2000)} label="Building project..." successLabel="Build complete" />
-      <Task key={`lint-${g}`} run={fakeStep('Linting', 1500)} label="Linting..." errorLabel="Lint failed" />
-      <Task key={`test-${g}`} run={fakeStep('Tests', 2500)} label="Running tests..." successLabel="All tests passed" />
+      <Task run={fakeStep('Install', 1200)} label="Installing dependencies..." successLabel="Dependencies installed" />
+      <Task run={fakeStep('Build', 2000)} label="Building project..." successLabel="Build complete" />
+      <Task run={fakeStep('Linting', 1500)} label="Linting..." errorLabel="Lint failed" />
+      <Task run={fakeStep('Tests', 2500)} label="Running tests..." successLabel="All tests passed" />
     </box>
   )
 }
@@ -34,7 +33,7 @@ function App() {
       <text style={{ bold: true }}>Task demo</text>
 
       {gen() > 0
-        ? <TaskList key={gen()} generation={gen()} />
+        ? <TaskList key={gen()} />
         : <text style={{ color: 'gray' }}>press r to run tasks</text>
       }
 
