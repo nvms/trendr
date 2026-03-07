@@ -72,6 +72,16 @@ export function useTitle(title) {
   ctx.stream.write(setTitle(title))
 }
 
+export function useTimeout(fn, ms) {
+  const ref = registerHook(() => {
+    const state = { current: fn }
+    const id = setTimeout(() => state.current(), ms)
+    onCleanup(() => clearTimeout(id))
+    return state
+  })
+  ref.current = fn
+}
+
 export function useAsync(fn, { immediate = false } = {}) {
   const state = registerHook(() => {
     const [status, setStatus] = createSignalRaw('idle')

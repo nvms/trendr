@@ -220,6 +220,16 @@ Used in [dashboard](examples/dashboard.jsx)
 useInterval(() => tick(), 1000) // auto-cleaned on unmount
 ```
 
+### useTimeout
+
+Used in [timeout](examples/timeout.jsx)
+
+Single-shot timer. Auto-cleaned on unmount.
+
+```jsx
+useTimeout(() => hide(), 3000)
+```
+
 ### useAsync
 
 Used in [async](examples/async.jsx)
@@ -572,6 +582,32 @@ Used in [components](examples/components.jsx)
   color="magenta"    // overrides theme accent
   interval={80}      // ms, default 80
 />
+```
+
+### Task
+
+Used in [task](examples/task.jsx)
+
+Async task with visual state. Renders a spinner while loading, checkmark on success, x on error. Built on `useAsync`.
+
+```jsx
+<Task
+  run={() => fetchData()}   // async function
+  label="Fetching data..."  // shown while loading
+  successLabel="Done"       // optional, shown on success (defaults to label)
+  errorLabel="Failed"       // optional, shown on error (defaults to error message)
+  immediate={true}          // fire on mount (default true)
+  icon={{ success: '+' }}   // override icons per status
+  color="cyan"              // override color (defaults vary by status)
+/>
+```
+
+Multiple tasks render as a step list:
+
+```jsx
+<Task run={() => install()} label="Installing..." successLabel="Installed" />
+<Task run={() => build()} label="Building..." successLabel="Built" />
+<Task run={() => test()} label="Testing..." successLabel="Tests passed" />
 ```
 
 ### Button
