@@ -46,8 +46,7 @@ const DEMOS = [
   { id: 'texture',     label: 'textures',     desc: 'background texture presets and custom patterns',            component: Texture },
 ]
 
-function Menu({ onSelect }) {
-  const [selected, setSelected] = createSignal(0)
+function Menu({ onSelect, selected, setSelected }) {
   const [hue, setHue] = createSignal(0)
   const stream = useStdout()
   const [cols, setCols] = createSignal(stream.columns || 80)
@@ -105,6 +104,7 @@ function Menu({ onSelect }) {
 
 function App() {
   const [currentDemo, setCurrentDemo] = createSignal(null)
+  const [selected, setSelected] = createSignal(0)
 
   useInput(({ key }) => {
     if (key === 'escape' && currentDemo() !== null) {
@@ -115,7 +115,7 @@ function App() {
   const demoId = currentDemo()
 
   if (demoId === null) {
-    return <Menu onSelect={setCurrentDemo} />
+    return <Menu onSelect={setCurrentDemo} selected={selected} setSelected={setSelected} />
   }
 
   const demo = DEMOS.find(d => d.id === demoId)
