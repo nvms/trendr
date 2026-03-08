@@ -291,12 +291,14 @@ const stream = useStdout() // the output stream (process.stdout or custom)
 Forces a full repaint. Useful after spawning an external process (e.g. `$EDITOR`).
 
 ```jsx
-const repaint = useRepaint()
+import { useRepaint, useStdout, exitAltScreen, showCursor, altScreen, hideCursor } from '@trendr/core'
 
-// leave alt screen, spawn editor, re-enter, repaint
-stdout.write('\x1b[?1049l\x1b[?25h')
+const repaint = useRepaint()
+const stdout = useStdout()
+
+stdout.write(exitAltScreen + showCursor)
 execSync(`${process.env.EDITOR} ${file}`, { stdio: 'inherit' })
-stdout.write('\x1b[?1049h\x1b[?25l')
+stdout.write(altScreen + hideCursor)
 repaint()
 ```
 
