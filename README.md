@@ -21,7 +21,7 @@ Requires esbuild (or similar) for JSX transformation.
 ```
 
 ```jsx
-import { mount, createSignal, useInput } 'from ''trend'
+import { mount, createSignal, useInput } from '@trendr/core'
 
 function App() {
   const [count, setCount] = createSignal(0)
@@ -42,17 +42,28 @@ function App() {
 mount(App)
 ```
 
-`mount(Component, { stream?, stdin?, theme? })` enters alt screen, starts a 60fps render loop, and returns `{ unmount }`. Components are plain functions that return JSX. State is managed with signals - call the getter to read, the setter to write. The framework re-renders automatically when signals change.
+`mount(Component, { stream?, stdin?, title?, theme? })` enters alt screen, starts a 60fps render loop, and returns `{ unmount, repaint }`. Components are plain functions that return JSX. Signals drive state - read with the getter, write with the setter, and the framework re-renders automatically.
 
 ### Theming
 
-All built-in components use `accent` as the focus/highlight color (default: `'cyan'`). Override it globally via mount:
+Pass a theme object to `mount` to configure global defaults:
 
 ```jsx
-mount(App, { theme: { accent: 'green' } })
+mount(App, {
+  theme: {
+    accent: 'green',        // focus/highlight color, default 'cyan'
+    cursor: {
+      blink: true,          // default false
+      rate: 530,            // blink interval ms, default 530
+      style: 'block',       // default 'block'
+      bg: 'cyan',           // cursor background color
+      color: 'black',       // cursor text color
+    },
+  },
+})
 ```
 
-Components read the accent with `useTheme()`. Use this in your own components to stay consistent:
+Components read the theme with `useTheme()`:
 
 ```jsx
 import { useTheme } from '@trendr/core'
@@ -116,7 +127,7 @@ Two element types: `box` (container) and `text` (leaf).
   position: 'absolute',     // remove from flow, position with top/left/right/bottom
   top: 0, left: 0, right: 0, bottom: 0,
   overflow: 'scroll',       // scrollable container (see ScrollBox)
-  scrollOffset: 0,          // scroll position (pixels from top)
+  scrollOffset: 0,          // scroll position (rows from top)
 }}>
 
 <text style={{
@@ -134,7 +145,7 @@ Two element types: `box` (container) and `text` (leaf).
 
 ### Background Textures
 
-Fill a box's background with a repeating character instead of blank space. Works with or without `bg`.
+Repeating character fill for box backgrounds. Works with or without `bg`.
 
 ```jsx
 <box style={{ bg: '#1a1a2e', texture: 'dots', textureColor: '#2a2a4e' }}>
@@ -146,7 +157,7 @@ Texture characters show through spaces in text rendered on top (unless the text 
 
 ### Absolute Positioning
 
-Remove an element from flex flow and position it relative to the parent's content area.
+Position relative to parent, removed from flex flow.
 
 ```jsx
 <box style={{ border: 'round', height: 5, flexDirection: 'column' }}>
@@ -157,7 +168,7 @@ Remove an element from flex flow and position it relative to the parent's conten
 </box>
 ```
 
-Supports `top`, `left`, `right`, `bottom`. If both `left` and `right` are set, width is derived (same for `top`/`bottom`). Absolute elements paint after flow children.
+If both `left` and `right` are set, width is derived (same for `top`/`bottom`).
 
 `Box`, `Text`, and `Spacer` are convenience wrappers:
 
@@ -233,7 +244,7 @@ useTimeout(() => hide(), 3000)
 
 Used in [async](examples/async.jsx)
 
-Turns an async function into reactive `status`/`data`/`error` signals with a `run` trigger.
+Async function to reactive signals.
 
 ```jsx
 import { useAsync } from '@trendr/core'
@@ -246,7 +257,7 @@ const { status, data, error, run } = useAsync(fetchUsers)
 // run():    trigger the async function. forwards args: run(userId)
 ```
 
-Calling `run()` while a previous call is in-flight discards the stale result (only the latest call resolves). Use `{ immediate: true }` to fire on mount:
+Stale calls are discarded. Use `{ immediate: true }` to fire on mount:
 
 ```jsx
 const { status, data } = useAsync(fetchUsers, { immediate: true })
@@ -264,7 +275,7 @@ useMouse((event) => {
 })
 ```
 
-Mouse is enabled automatically. Built-in components support click (Button, Checkbox, Radio, Select, List), scroll wheel (List, ScrollBox, ScrollableText, Select), and scrollbar thumb dragging (List, ScrollBox, ScrollableText, Select).
+Mouse is enabled automatically. Built-in components support click, scroll wheel, and scrollbar dragging.
 
 ### useStdout
 
@@ -274,7 +285,7 @@ const stream = useStdout() // the output stream (process.stdout or custom)
 
 ### useRepaint
 
-Returns a function that forces a full terminal repaint. Useful when resuming the TUI after suspending it to spawn an external process (e.g. `$EDITOR`).
+Forces a full repaint. Useful after spawning an external process (e.g. `$EDITOR`).
 
 ```jsx
 const repaint = useRepaint()
@@ -298,7 +309,7 @@ const { accent } = useTheme()
 
 Used in [explorer](examples/explorer.jsx), [chat](examples/chat.jsx), [modal-form](examples/modal-form.jsx), [components](examples/components.jsx), [focus-demo](examples/focus-demo.jsx), [layout](examples/layout.jsx)
 
-Manages focus across multiple interactive regions. You register named items in the order you want tab to cycle through them. The focus manager tracks which name is currently active - it doesn't know anything about your components or layout.
+Register named items in tab order. The focus manager tracks which is active.
 
 ```jsx
 import { useFocus } from '@trendr/core'
@@ -311,23 +322,18 @@ fm.item('list')      // tab stop 1
 fm.item('sidebar')   // tab stop 2
 ```
 
-Then wire each component's `focused` prop to `fm.is()`, which returns true when that name is the active one:
+Wire `fm.is()` to each component's `focused` prop. Tab/shift-tab cycles through items.
 
 ```jsx
 <TextInput focused={fm.is('input')} />
 <List focused={fm.is('list')} />
 <Select focused={fm.is('sidebar')} />
+
+fm.focus('list')  // jump programmatically
+fm.current()      // the active name
 ```
 
-Tab and shift-tab cycle through the registered names. The focus manager handles the index - you just query it.
-
-```jsx
-fm.is('input')   // boolean - is 'input' the active name?
-fm.focus('list')  // jump to 'list' programmatically
-fm.current()      // the currently active name
-```
-
-Groups let you nest multiple items under one tab stop. Tab moves between groups/items at the top level, and within a focused group you navigate between its items with keyboard:
+Groups nest multiple items under one tab stop:
 
 ```jsx
 fm.group('settings', { items: ['theme', 'autosave', 'format'] })
@@ -338,7 +344,7 @@ Options:
 - `navigate` - which keys move between group items: `'both'` (default, j/k and up/down), `'jk'`, or `'updown'`
 - `wrap` - wrap around at ends (default `false`)
 
-Stack-based focus for modals and drills - push saves the current focus and switches, pop restores it:
+Stack-based focus for modals - push saves current focus, pop restores it:
 
 ```jsx
 fm.push('modal')  // save current focus, switch to 'modal'
@@ -372,7 +378,7 @@ toast('saved')
 
 ## Components
 
-All interactive components accept a `focused` prop that controls whether they respond to keyboard input. When multiple components are on screen, only the focused one should capture keys - otherwise a keypress meant for a text input would also scroll a list. In practice you wire this to a focus manager:
+All interactive components accept a `focused` prop. Wire it to a focus manager so only one component captures keys at a time:
 
 ```jsx
 const fm = useFocus({ initial: 'search' })
@@ -441,7 +447,7 @@ Scrollable list with keyboard navigation.
 />
 ```
 
-Multi-row items are supported via `itemHeight`. The layout engine sizes each item naturally from its children - `itemHeight` tells the scroll math how many rows each item occupies:
+`itemHeight` enables multi-row items (tells scroll math how many rows each item occupies):
 
 ```jsx
 <List
@@ -481,7 +487,7 @@ Column-based data table. Uses List internally.
 />
 ```
 
-Pass `renderItem` to take full control over row rendering while keeping column-aligned headers. When provided, it replaces the default column-based rendering entirely.
+`renderItem` gives full control over row rendering while keeping column-aligned headers:
 
 ```jsx
 <Table
@@ -594,8 +600,6 @@ Variants:
 - `ascii` - plain `[###---]`, works in any terminal
 - `braille` - smooth `⣿` fill
 
-The bar auto-sizes to fill available width. Label goes left, percentage and count go right:
-
 ```
 Installing  ━━━━━━━━━━━━━━━━━━━━━━━━ 67% (8/12)
 ```
@@ -618,7 +622,7 @@ Used in [components](examples/components.jsx)
 
 Used in [task](examples/task.jsx)
 
-Async task with visual state. Renders a spinner while loading, checkmark on success, x on error. Built on `useAsync`.
+Spinner while loading, checkmark on success, x on error. Built on `useAsync`.
 
 ```jsx
 <Task
@@ -644,7 +648,7 @@ Multiple tasks render as a step list:
 
 Used in [shimmer](examples/shimmer.jsx)
 
-Animated shimmer effect that slides a highlight across text. Uses color interpolation for smooth gradient falloff.
+Sliding highlight effect with gradient falloff.
 
 ```jsx
 <Shimmer
@@ -699,7 +703,7 @@ Keys: escape to close.
 
 Used in [explorer](examples/explorer.jsx), [reader](examples/reader.jsx), [highlight](examples/highlight.jsx)
 
-Scrollable text viewer with optional scrollbar. Content can include ANSI escape sequences (SGR) - colors, bold, dim, etc. are parsed and rendered correctly. This means you can pipe output from any syntax highlighter (shiki, cli-highlight, etc.) directly into `content`.
+Scrollable text viewer. ANSI escape sequences are parsed and rendered, so syntax highlighter output (shiki, cli-highlight, etc.) works directly.
 
 ```jsx
 <ScrollableText
@@ -710,7 +714,7 @@ Scrollable text viewer with optional scrollbar. Content can include ANSI escape 
   scrollbar={true}         // default false
   wrap={false}             // default true, set false for horizontal scroll
   thumbChar="█"            // default █
-  trackChar="░"            // default │
+  trackChar="│"            // default │
 />
 ```
 
@@ -718,7 +722,7 @@ Keys: same as List (j/k, g/G, ctrl-d/u, ctrl-f/b, pageup/pagedown).
 
 ### ScrollBox
 
-Scrollable container for arbitrary children. Unlike ScrollableText which takes a string, ScrollBox wraps JSX elements.
+Scrollable container for JSX children (vs ScrollableText which takes a string).
 
 ```jsx
 <ScrollBox
@@ -740,7 +744,7 @@ Keys: same as List and ScrollableText.
 
 ### SplitPane
 
-Connected panels with shared borders and proper box-drawing junction characters. Sizes use CSS Grid-style `fr` units or fixed values.
+Paneled layout with shared borders and junction characters. Sizes use `fr` units or fixed values.
 
 ```jsx
 import { SplitPane } from '@trendr/core'
@@ -765,7 +769,7 @@ Props:
 - `borderColor` - color for border and dividers
 - `borderEdges` - object with `top`, `right`, `bottom`, `left` booleans to render only specific sides. Omitted keys default to false.
 
-Nesting works for complex layouts:
+Nesting works:
 
 ```jsx
 <SplitPane direction="column" sizes={['1fr', 8]} border="round">
@@ -779,7 +783,7 @@ Nesting works for complex layouts:
 
 ## Animation
 
-Animate numeric values with physics-based interpolators. Animated values are signals - they trigger re-renders as they update.
+Physics-based animation. Animated values are signals that trigger re-renders.
 
 ```jsx
 import { useAnimated, spring, ease, decay } from '@trendr/core'
