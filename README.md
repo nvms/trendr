@@ -212,10 +212,11 @@ useHotkey('alt+enter', () => submit(), { when: () => isFocused })
 
 ### useLayout
 
-Returns the component's computed layout rectangle.
+Returns a live reference to the component's computed layout rectangle. Values update in-place each frame, including after terminal resize.
 
 ```jsx
-const { x, y, width, height } = useLayout()
+const layout = useLayout()
+// layout.x, layout.y, layout.width, layout.height, layout.contentHeight
 ```
 
 ### useResize
