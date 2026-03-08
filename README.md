@@ -6,7 +6,7 @@
 </pre>
 
 
-JSX components, signals, per-cell diffing and flexbox without React and Yoga. Terminals are character grids, not DOM trees.
+JSX components, signals, per-cell diffing and flexbox without React and Yoga. Terminals are character grids, not DOM trees. Why reconcile a virtual DOM to write escape sequences?
 
 4-16x faster frame times and 580x less I/O per render than popular TUI frameworks. No dependencies. [benchmarks](bench/README.md)
 
