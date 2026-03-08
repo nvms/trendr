@@ -184,7 +184,7 @@ async function benchReal() {
     console.log('baseline (full repaint)')
     console.log(`  median: ${median(times).toFixed(3)}ms`)
     console.log(`  p99:    ${p99(times).toFixed(3)}ms`)
-    console.log(`  bytes:  ${stream.bytes}`)
+    console.log(`  bytes:  ${stream.bytes} total, ${Math.round(stream.bytes / (WARMUP + FRAMES))}/frame avg`)
     console.log()
   }
 
@@ -216,7 +216,7 @@ async function benchReal() {
     console.log('dirty-rect (skip static subtrees)')
     console.log(`  median: ${median(times).toFixed(3)}ms`)
     console.log(`  p99:    ${p99(times).toFixed(3)}ms`)
-    console.log(`  bytes:  ${stream.bytes}`)
+    console.log(`  bytes:  ${stream.bytes} total, ${Math.round(stream.bytes / (WARMUP + FRAMES))}/frame avg`)
     console.log()
   }
 
@@ -257,7 +257,7 @@ async function benchReal() {
     console.log('dirty-rect + copyBuffer')
     console.log(`  median: ${median(times).toFixed(3)}ms`)
     console.log(`  p99:    ${p99(times).toFixed(3)}ms`)
-    console.log(`  bytes:  ${stream.bytes}`)
+    console.log(`  bytes:  ${stream.bytes} total, ${Math.round(stream.bytes / (WARMUP + FRAMES))}/frame avg`)
   }
 }
 
