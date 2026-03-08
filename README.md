@@ -14,6 +14,10 @@ https://github.com/user-attachments/assets/70c91ab3-659a-4bb0-939a-961dcfbaba61
 
 ## Usage
 
+```bash
+npm i @trendr/core
+```
+
 Requires esbuild (or similar) for JSX transformation.
 
 ```json
