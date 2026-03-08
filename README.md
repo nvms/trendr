@@ -42,7 +42,7 @@ function App() {
 mount(App)
 ```
 
-`mount(Component, { stream?, stdin?, title?, theme? })` enters alt screen, starts a 60fps render loop, and returns `{ unmount, repaint }`. Components are plain functions that return JSX. Signals drive state - read with the getter, write with the setter, and the framework re-renders automatically.
+`mount(Component, { stream?, stdin?, title?, theme? })` enters alt screen and returns `{ unmount, repaint }`. Renders on demand when signals change, capped at 60fps.
 
 ### Theming
 
@@ -129,16 +129,14 @@ Two element types: `box` (container) and `text` (leaf).
   overflow: 'scroll',       // scrollable container (see ScrollBox)
   scrollOffset: 0,          // scroll position (rows from top)
 }}>
+```
 
+```jsx
 <text style={{
   color: 'cyan',            // named, hex (#ff0000), or 256-color index
   bg: 'black',
-  bold: true,
-  dim: true,
-  italic: true,
-  underline: true,
-  inverse: true,
-  strikethrough: true,
+  bold: true, dim: true, italic: true,
+  underline: true, inverse: true, strikethrough: true,
   overflow: 'wrap',         // 'wrap' (default) | 'truncate' | 'nowrap'
 }}>
 ```
@@ -712,7 +710,7 @@ Scrollable text viewer. ANSI escape sequences are parsed and rendered, so syntax
   scrollOffset={offset}    // controlled, or omit for internal state
   onScroll={setOffset}
   scrollbar={true}         // default false
-  wrap={false}             // default true, set false for horizontal scroll
+  wrap={false}             // default true, false truncates long lines
   thumbChar="█"            // default █
   trackChar="│"            // default │
 />
@@ -730,8 +728,8 @@ Scrollable container for JSX children (vs ScrollableText which takes a string).
   scrollbar={true}          // default false
   scrollOffset={offset}     // controlled, or omit for internal state
   onScroll={setOffset}
-  thumbChar="\u2588"        // default █
-  trackChar="\u2502"        // default │
+  thumbChar="█"             // default █
+  trackChar="│"             // default │
   style={{ flexGrow: 1 }}   // pass-through style for the scroll container
 >
   {items.map(item => (
