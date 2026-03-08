@@ -37,7 +37,7 @@ export function Table({ columns, data, selected, onSelect, focused = true, separ
               style: { flexDirection: 'row' },
               children: [
                 jsx('text', { style: { color: 'gray', dim: true }, children: s.left }),
-                jsx('text', { style: { color: 'gray', dim: true, flexGrow: 1, overflow: 'nowrap' }, children: s.fill.repeat(200) }),
+                jsx('text', { style: { color: 'gray', dim: true, flexGrow: 1, overflow: 'nowrap' }, children: s.fill.repeat(1000) }),
                 jsx('text', { style: { color: 'gray', dim: true }, children: s.right }),
               ],
             })
