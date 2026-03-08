@@ -12,6 +12,7 @@ node run.js
 node list.js
 node resize.js
 node single-cell.js
+node rerender.js
 node startup.js
 ```
 
@@ -105,6 +106,26 @@ this is where per-cell diffing matters most - the fewer cells that change, the
 bigger the gap. in real apps (a blinking cursor, a ticking clock, a spinner) most
 frames change very little. over SSH or slow terminals, 580x less I/O is the
 difference between responsive and sluggish.
+
+## rerender (rerender.js)
+
+adapted from ink's own benchmark in their repo. a growing list of items where
+each frame appends one new item and updates a counter, alongside a static UI
+block (heading, paragraph, color list). ink uses its `Static` component for the
+append-only section. trend renders the visible slice and diffs cell-by-cell.
+
+```bash
+rerender benchmark: 1000 frames, 100 warmup
+growing list + live counter (ink's Static benchmark)
+
+library      median(ms)  p99(ms)  mean(ms)  min(ms)  max(ms)      fps    bytes
+-------------------------------------------------------------------------------------
+trend            0.037    0.149    0.047    0.033    0.310    26860     61KB
+ink              0.390     1.23    0.458    0.366     3.77     2566    488KB
+
+fastest: trend
+  ink is 10.5x slower
+```
 
 ## cold start (startup.js)
 
