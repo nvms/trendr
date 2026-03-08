@@ -10,7 +10,7 @@ JSX components, signals, per-cell diffing and flexbox without React and [Yoga](h
 
 4-16x faster frame times and 580x less I/O per render than popular TUI frameworks. No dependencies. [benchmarks](bench/README.md)
 
-https://github.com/user-attachments/assets/70c91ab3-659a-4bb0-939a-961dcfbaba61
+https://github.com/user-attachments/assets/6e84bb4b-a99e-46f2-a235-1ee4be62c0ae
 
 ## Usage
 
