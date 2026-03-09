@@ -155,6 +155,7 @@ export function ModalForm() {
         onClose={closeModal}
         title={editIdx() >= 0 ? 'edit user' : 'new user'}
         width={40}
+        border="single"
       >
         <UserForm
           user={editing}

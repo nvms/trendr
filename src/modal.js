@@ -2,7 +2,7 @@ import { jsx } from '../jsx-runtime.js'
 import { useInput, useTheme } from './hooks.js'
 import { registerOverlay } from './renderer.js'
 
-export function Modal({ open, onClose, title, children, width: w = 40 }) {
+export function Modal({ open, onClose, title, children, width: w = 40, border = 'round' }) {
   const { accent = 'cyan' } = useTheme()
 
   useInput((event) => {
@@ -18,7 +18,7 @@ export function Modal({ open, onClose, title, children, width: w = 40 }) {
   const content = jsx('box', {
     style: {
       width: w,
-      border: 'round',
+      border,
       borderColor: accent,
       flexDirection: 'column',
       paddingX: 1,
