@@ -1,6 +1,6 @@
 import { mount, createSignal, useInput, useInterval, ProgressBar } from '../index.js'
 
-function App() {
+export function Progress() {
   const [value, setValue] = createSignal(0)
   const [running, setRunning] = createSignal(false)
 
@@ -11,7 +11,7 @@ function App() {
   useInput(({ key }) => {
     if (key === 'space') setRunning(r => !r)
     if (key === 'r') { setValue(0); setRunning(true) }
-    if (key === 'q') process.exit(0)
+
   })
 
   const v = value()
@@ -48,9 +48,16 @@ function App() {
         </box>
       </box>
 
-      <text style={{ color: 'gray' }}>space - pause/resume    r - reset    q - quit</text>
+      <text style={{ color: 'gray' }}>space - pause/resume    r - reset</text>
     </box>
   )
 }
 
-mount(App, { title: 'progress' })
+// --- standalone ---
+function Standalone() {
+  useInput(({ key }) => {
+    if (key === 'q') process.exit(0)
+  })
+  return <Progress />
+}
+mount(Standalone, { title: 'progress' })

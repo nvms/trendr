@@ -1,10 +1,6 @@
 import { mount, useInput, Shimmer, Spinner } from '../index.js'
 
-function App() {
-  useInput(({ key }) => {
-    if (key === 'q') process.exit(0)
-  })
-
+export function ShimmerDemo() {
   return (
     <box style={{ flexDirection: 'column', padding: 1, gap: 1 }}>
       <text style={{ bold: true }}>Shimmer</text>
@@ -55,9 +51,15 @@ function App() {
         </box>
       </box>
 
-      <text style={{ color: 'gray' }}>q - quit</text>
     </box>
   )
 }
 
-mount(App, { title: 'shimmer' })
+// --- standalone ---
+function Standalone() {
+  useInput(({ key }) => {
+    if (key === 'q') process.exit(0)
+  })
+  return <ShimmerDemo />
+}
+mount(Standalone, { title: 'shimmer' })
