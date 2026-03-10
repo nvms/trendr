@@ -444,6 +444,8 @@ Scrollable list with keyboard navigation.
   onSelect={setIndex}
   focused={fm.is('list')}
   scrollbar={true}          // default false
+  scrolloff={2}             // items of margin from edges when scrolling (default 2)
+  interactive={true}        // handle keyboard input (default: same as focused)
   header={<text>title</text>}
   headerHeight={1}          // default 1, rows the header occupies
   renderItem={(item, { selected, index, focused }) => (
@@ -469,6 +471,47 @@ Scrollable list with keyboard navigation.
 ```
 
 Keys: j/k or up/down, g/G for top/bottom, ctrl-d/u half page, ctrl-f/b full page, pageup/pagedown.
+
+### PickList
+
+Used in [pick-list](examples/pick-list.jsx)
+
+Filterable list with live search. Text input at the top filters a scrollable list below. Navigate the list with up/down or ctrl-n/ctrl-p while typing.
+
+```jsx
+<PickList
+  items={data}
+  focused={fm.is('search')}
+  placeholder="search..."
+  onSelect={item => {}}       // Enter on highlighted item
+  onCancel={() => {}}          // Escape
+  onChange={query => {}}       // every keystroke in the filter
+  clearOnSelect={false}        // reset filter on select (default false)
+  scrollbar={true}             // default false
+  scrolloff={2}                // items of margin from edges (default 2, inherited from List)
+  gap={1}                      // space between input and list (default 0)
+  filter={(query, item) => {}} // custom filter (default: case-insensitive includes)
+/>
+```
+
+Multi-row items with `renderItem`, `itemHeight`, and `itemGap`:
+
+```jsx
+<PickList
+  items={packages}
+  itemHeight={3}
+  itemGap={1}
+  renderItem={(pkg, { selected, focused }) => (
+    <box style={{ flexDirection: 'column', bg: selected ? accent : null, paddingX: 1 }}>
+      <text style={{ bold: true }}>{pkg.name}</text>
+      <text style={{ color: 'gray' }}>{pkg.desc}</text>
+      <text style={{ color: 'yellow' }}>{pkg.downloads}</text>
+    </box>
+  )}
+/>
+```
+
+Keys: type to filter, up/down or ctrl-n/ctrl-p to navigate, enter to select, escape to cancel. All bash-style editing keys work (ctrl-a/e/u/k/w).
 
 ### Table
 

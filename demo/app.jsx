@@ -16,6 +16,7 @@ import { Layout } from '../examples/layout.jsx'
 import { ScrollBoxDemo } from '../examples/scroll-box.jsx'
 import { ShimmerDemo } from '../examples/shimmer.jsx'
 import { Progress } from '../examples/progress.jsx'
+import { PickListDemo } from '../examples/pick-list.jsx'
 
 function hueToRgb(hue, s = 0.9, l = 0.65) {
   const h = ((hue % 360) + 360) % 360
@@ -48,6 +49,7 @@ const DEMOS = [
   { id: 'texture',     label: 'textures',     desc: 'background texture presets and custom patterns',            component: Texture },
   { id: 'shimmer',     label: 'shimmer',      desc: 'animated shimmer text effects with spinner combos',        component: ShimmerDemo },
   { id: 'progress',    label: 'progress',     desc: 'progress bar variants - thin, ascii, block, braille',     component: Progress },
+  { id: 'pick-list',   label: 'pick list',    desc: 'filterable list with live search and multi-row items',    component: PickListDemo },
 ]
 
 function Menu({ onSelect, selected, setSelected }) {

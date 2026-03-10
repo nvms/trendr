@@ -2,9 +2,10 @@ import { jsx, jsxs } from '../jsx-runtime.js'
 import { createSignal } from './signal.js'
 import { useInput, useMouse, useLayout, useTheme, useScrollDrag } from './hooks.js'
 
-export function List({ items, selected: selectedProp, onSelect, renderItem, header, headerHeight = 1, focused = true, itemHeight = 1, scrollbar = false, stickyHeader = false, gap = 0 }) {
+export function List({ items, selected: selectedProp, onSelect, renderItem, header, headerHeight = 1, focused = true, interactive = focused, itemHeight = 1, scrollbar = false, stickyHeader = false, gap = 0, scrolloff = 2 }) {
   const { accent = 'cyan' } = useTheme()
   const [selectedInternal, setSelectedInternal] = createSignal(0)
+  const [scrollState, setScrollState] = createSignal(0)
   const layout = useLayout()
 
   const selected = selectedProp ?? selectedInternal()
@@ -29,7 +30,7 @@ export function List({ items, selected: selectedProp, onSelect, renderItem, head
   const maxOffset = Math.max(0, scrollContentH - scrollViewH)
 
   useInput(({ key, ctrl }) => {
-    if (!focused) return
+    if (!interactive) return
 
     const len = items.length
     if (len === 0) return
@@ -93,11 +94,12 @@ export function List({ items, selected: selectedProp, onSelect, renderItem, head
 
   let scrollOffset = 0
   if (scrollViewH > 0 && scrollContentH > scrollViewH) {
-    const centered = itemTop - Math.floor((scrollViewH - avgH) / 2)
-    scrollOffset = Math.max(0, Math.min(maxOffset, centered))
-    if (itemTop < scrollOffset) scrollOffset = itemTop
-    if (itemBottom > scrollOffset + scrollViewH) scrollOffset = itemBottom - scrollViewH
+    const margin = scrolloff * avgH
+    scrollOffset = scrollState()
+    if (itemTop - margin < scrollOffset) scrollOffset = itemTop - margin
+    if (itemBottom + margin > scrollOffset + scrollViewH) scrollOffset = itemBottom + margin - scrollViewH
     scrollOffset = Math.max(0, Math.min(maxOffset, Math.round(scrollOffset)))
+    if (scrollOffset !== scrollState()) setScrollState(scrollOffset)
   }
 
   const scrollChildren = []
