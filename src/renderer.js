@@ -336,16 +336,39 @@ function paintTree(node, buf, clip, offset, prevBuf) {
   }
 }
 
-function extractText(node) {
+function extractText(node, parentCtx) {
   if (node == null || node === true || node === false) return ''
   if (typeof node === 'string') return node
   if (typeof node === 'number') return String(node)
+
   const children = node.props?.children
   if (children == null || children === true || children === false) return ''
-  if (typeof children === 'string') return children
-  if (typeof children === 'number') return String(children)
-  if (Array.isArray(children)) return children.map(c => extractText(c)).join('')
-  return ''
+  if (typeof children === 'string' && !node.props?.style) return children
+  if (typeof children === 'number' && !node.props?.style) return String(children)
+
+  const style = node.props?.style
+  const ownAttrs = style ? resolveAttrs(style) : 0
+  const hasOwnStyle = style && (style.color != null || style.bg != null || ownAttrs)
+
+  const myCtx = hasOwnStyle ? {
+    fg: style.color ?? parentCtx?.fg ?? null,
+    bg: style.bg ?? parentCtx?.bg ?? null,
+    attrs: ownAttrs || parentCtx?.attrs || 0,
+  } : (parentCtx || null)
+
+  let inner
+  if (typeof children === 'string') inner = children
+  else if (typeof children === 'number') inner = String(children)
+  else if (Array.isArray(children)) inner = children.map(c => extractText(c, myCtx)).join('')
+  else inner = ''
+
+  if (parentCtx !== undefined && hasOwnStyle) {
+    const prefix = ansi.sgr(myCtx.fg, myCtx.bg, myCtx.attrs)
+    const suffix = parentCtx ? ansi.sgr(parentCtx.fg, parentCtx.bg, parentCtx.attrs) : ansi.sgrReset
+    return prefix + inner + suffix
+  }
+
+  return inner
 }
 
 function flattenChildren(children) {
@@ -747,5 +770,5 @@ export function mount(rootComponent, { stream, stdin, title, theme, onExit: onEx
 
   ctx.repaint = repaint
 
-  return { unmount, repaint }
+  return { unmount, repaint, getBuffer: () => prev }
 }

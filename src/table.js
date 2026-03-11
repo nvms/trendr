@@ -4,7 +4,7 @@ import { List } from './list.js'
 
 const DEFAULT_SEP = { left: '', fill: '\u2500', right: '' }
 
-export function Table({ columns, data, selected, onSelect, focused = true, separator = false, separatorChars, renderItem, scrollbar, stickyHeader = false }) {
+export function Table({ columns, data, selected, onSelect, focused = true, separator = false, separatorChars, renderItem, scrollbar, stickyHeader = false, gap = 0, itemHeight = 1, scrolloff = 2 }) {
   const { accent = 'cyan' } = useTheme()
 
   const headerRow = jsxs('box', {
@@ -15,9 +15,7 @@ export function Table({ columns, data, selected, onSelect, focused = true, separ
         style: {
           width: col.width,
           flexGrow: col.flexGrow,
-          color: 'gray',
           dim: true,
-          bold: true,
           overflow: 'truncate',
           paddingX: col.paddingX ?? 1,
         },
@@ -26,24 +24,22 @@ export function Table({ columns, data, selected, onSelect, focused = true, separ
     ),
   })
 
+  const sepRow = separator
+    ? (() => {
+        const s = { ...DEFAULT_SEP, ...separatorChars }
+        return jsxs('box', {
+          style: { flexDirection: 'row' },
+          children: [
+            jsx('text', { style: { dim: true }, children: s.left }),
+            jsx('text', { style: { dim: true, flexGrow: 1, overflow: 'nowrap' }, children: s.fill.repeat(1000) }),
+            jsx('text', { style: { dim: true }, children: s.right }),
+          ],
+        })
+      })()
+    : null
+
   const header = separator
-    ? jsxs('box', {
-        style: { flexDirection: 'column' },
-        children: [
-          headerRow,
-          (() => {
-            const s = { ...DEFAULT_SEP, ...separatorChars }
-            return jsxs('box', {
-              style: { flexDirection: 'row' },
-              children: [
-                jsx('text', { style: { color: 'gray', dim: true }, children: s.left }),
-                jsx('text', { style: { color: 'gray', dim: true, flexGrow: 1, overflow: 'nowrap' }, children: s.fill.repeat(1000) }),
-                jsx('text', { style: { color: 'gray', dim: true }, children: s.right }),
-              ],
-            })
-          })(),
-        ],
-      })
+    ? jsxs('box', { style: { flexDirection: 'column' }, children: [headerRow, sepRow] })
     : headerRow
 
   const defaultRenderItem = (row, { selected: isSel }) =>
@@ -64,15 +60,37 @@ export function Table({ columns, data, selected, onSelect, focused = true, separ
       ),
     })
 
-  return jsx(List, {
+  const list = jsx(List, {
     items: data,
     selected,
     onSelect,
     focused,
-    header,
-    headerHeight: separator ? 2 : 1,
     scrollbar,
-    stickyHeader,
+    gap,
+    itemHeight,
+    scrolloff,
     renderItem: renderItem || defaultRenderItem,
+  })
+
+  if (!stickyHeader) {
+    return jsx(List, {
+      items: data,
+      selected,
+      onSelect,
+      focused,
+      header,
+      headerHeight: separator ? 2 : 1,
+      scrollbar,
+      stickyHeader: true,
+      gap,
+      itemHeight,
+      scrolloff,
+      renderItem: renderItem || defaultRenderItem,
+    })
+  }
+
+  return jsxs('box', {
+    style: { flexDirection: 'column', flexGrow: 1 },
+    children: [header, list],
   })
 }

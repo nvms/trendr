@@ -794,6 +794,104 @@ suite('scroll container clips and offsets')
   unmount()
 }
 
+suite('nested text styles')
+{
+  const out = new FakeStream(30, 3)
+  const inp = new FakeInput()
+
+  function App() {
+    return jsxs('text', {
+      style: { color: 'white' },
+      children: [
+        'hello ',
+        jsx('text', { style: { color: 'cyan' }, children: 'world' }),
+        ' end',
+      ],
+    })
+  }
+
+  const { unmount, getBuffer } = mount(App, { stream: out, stdin: inp })
+
+  const buf = getBuffer()
+  const cell = (col) => buf.cells[col]
+
+  assertEq(cell(0).ch, 'h', 'first char')
+  assertEq(cell(0).fg, 'white', 'parent color on first char')
+  assertEq(cell(5).fg, 'white', 'parent color on space')
+  assertEq(cell(6).ch, 'w', 'child first char')
+  assertEq(cell(6).fg, 'cyan', 'child color applied')
+  assertEq(cell(10).fg, 'cyan', 'child color on last char')
+  assertEq(cell(11).ch, ' ', 'after child space')
+  assertEq(cell(11).fg, 'white', 'parent color restored after child')
+  assertEq(cell(12).fg, 'white', 'parent color on trailing text')
+
+  unmount()
+}
+
+suite('nested text with dim attr')
+{
+  const out = new FakeStream(20, 3)
+  const inp = new FakeInput()
+
+  function App() {
+    return jsxs('text', {
+      children: [
+        jsx('text', { style: { color: 'red' }, children: 'key:' }),
+        jsx('text', { style: { color: 'gray', dim: true }, children: ' val' }),
+      ],
+    })
+  }
+
+  const { unmount, getBuffer } = mount(App, { stream: out, stdin: inp })
+
+  const buf = getBuffer()
+  const cell = (col) => buf.cells[col]
+
+  assertEq(cell(0).fg, 'red', 'first segment red')
+  assertEq(cell(3).fg, 'red', 'colon red')
+  assertEq(cell(4).fg, 'gray', 'second segment gray')
+  assert(cell(4).attrs & 2, 'second segment dim')
+
+  unmount()
+}
+
+suite('deeply nested text styles')
+{
+  const out = new FakeStream(20, 3)
+  const inp = new FakeInput()
+
+  function App() {
+    return jsxs('text', {
+      style: { color: 'white' },
+      children: [
+        'A',
+        jsxs('text', { style: { bold: true }, children: [
+          'B',
+          jsx('text', { style: { color: 'blue' }, children: 'C' }),
+          'D',
+        ] }),
+        'E',
+      ],
+    })
+  }
+
+  const { unmount, getBuffer } = mount(App, { stream: out, stdin: inp })
+
+  const buf = getBuffer()
+  const cell = (col) => buf.cells[col]
+
+  assertEq(cell(0).fg, 'white', 'A is white')
+  assert(!(cell(0).attrs & 1), 'A not bold')
+  assert(cell(1).attrs & 1, 'B is bold')
+  assertEq(cell(2).fg, 'blue', 'C is blue')
+  assert(cell(2).attrs & 1, 'C inherits bold')
+  assert(cell(3).attrs & 1, 'D is bold')
+  assert(!(cell(4).attrs & 1), 'E not bold')
+  assertEq(cell(4).fg, 'white', 'E restored to white')
+
+  unmount()
+}
+
 // ----
 
 console.log(`\n${passed} passed, ${failed} failed`)

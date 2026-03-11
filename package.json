@@ -44,6 +44,7 @@
     "shimmer": "node esbuild.config.js && node dist/shimmer.js",
     "spinner": "node esbuild.config.js && node dist/spinner.js",
     "pick-list": "node esbuild.config.js && node dist/pick-list.js",
+    "table-demo": "node esbuild.config.js && node dist/table-demo.js",
     "demo": "node esbuild.config.js && node demo/server.js",
     "demo:build": "node esbuild.config.js"
   },
