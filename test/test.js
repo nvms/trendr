@@ -918,6 +918,99 @@ suite('layout - margin')
   assertEq(tree._resolvedChildren[0]._layout.x, 3, 'marginLeft offset')
 }
 
+suite('layout - flex-grow wrapping text height in row')
+{
+  // flex-growing text in a row should compute wrap height based on its
+  // allocated width (after siblings), not the full container width
+  const longText = 'this is a long piece of text that should wrap to multiple lines when given less width'
+  const tree = resolveTree(
+    jsxs('box', {
+      style: { flexDirection: 'row' },
+      children: [
+        jsx('text', { style: { flexGrow: 1 }, children: longText }),
+        jsx('text', { style: { width: 20 }, children: 'sidebar' }),
+      ],
+    }),
+    null
+  )
+  computeLayout(tree, { x: 0, y: 0, width: 40, height: 20 })
+
+  const textNode = tree._resolvedChildren[0]
+  const sidebarNode = tree._resolvedChildren[1]
+
+  // text gets 40 - 20 = 20 chars wide, so 85 chars of text wraps to ~5 lines
+  assertEq(sidebarNode._layout.x, 20, 'sidebar starts after text column')
+  assertEq(sidebarNode._layout.width, 20, 'sidebar width')
+  assertEq(textNode._layout.width, 20, 'text gets remaining width')
+  assert(textNode._layout.height > 1, 'wrapping text auto-sizes to multiple lines')
+}
+
+suite('layout - flex-grow wrapping text in row uses allocated width not container width')
+{
+  // the bug: text that fits in 50 chars but not in 30 chars should wrap
+  // when the allocated width is 30 (after a 20-wide sibling)
+  const text = 'aaa bbb ccc ddd eee fff ggg hhh iii jjj'
+  const tree = resolveTree(
+    jsxs('box', {
+      style: { flexDirection: 'row' },
+      children: [
+        jsx('text', { style: { flexGrow: 1 }, children: text }),
+        jsx('text', { style: { width: 20 }, children: 'right' }),
+      ],
+    }),
+    null
+  )
+  // at width 50, text column gets 30 chars. text is 39 chars so it wraps to 2 lines
+  computeLayout(tree, { x: 0, y: 0, width: 50, height: 10 })
+
+  const textNode = tree._resolvedChildren[0]
+  assertEq(textNode._layout.width, 30, 'text column gets 50-20=30')
+  assertEq(textNode._layout.height, 2, 'text wraps to 2 lines at 30 width')
+
+  // but at width 60, text column gets 40 chars - text fits on 1 line
+  const tree2 = resolveTree(
+    jsxs('box', {
+      style: { flexDirection: 'row' },
+      children: [
+        jsx('text', { style: { flexGrow: 1 }, children: text }),
+        jsx('text', { style: { width: 20 }, children: 'right' }),
+      ],
+    }),
+    null
+  )
+  computeLayout(tree2, { x: 0, y: 0, width: 60, height: 10 })
+  assertEq(tree2._resolvedChildren[0]._layout.height, 1, 'text fits on 1 line at 40 width')
+}
+
+suite('layout - row height expands for wrapped flex-grow child')
+{
+  // the parent row should expand its height to fit the wrapped text
+  const text = 'aaaa bbbb cccc dddd eeee ffff gggg hhhh'
+  const outer = resolveTree(
+    jsxs('box', {
+      style: { flexDirection: 'column' },
+      children: [
+        jsxs('box', {
+          style: { flexDirection: 'row' },
+          children: [
+            jsx('text', { style: { flexGrow: 1 }, children: text }),
+            jsx('text', { style: { width: 15 }, children: '10min ago' }),
+          ],
+        }),
+        jsx('text', { children: 'next row' }),
+      ],
+    }),
+    null
+  )
+  computeLayout(outer, { x: 0, y: 0, width: 40, height: 20 })
+
+  const row = outer._resolvedChildren[0]
+  const nextRow = outer._resolvedChildren[1]
+  // text column = 40-15=25. text is 39 chars, wraps to 2 lines. row should be 2 tall
+  assert(row._layout.height >= 2, 'row expands for wrapped text')
+  assert(nextRow._layout.y >= 2, 'next row pushed down by expanded row')
+}
+
 // =========================================================================
 // SCHEDULER
 // =========================================================================

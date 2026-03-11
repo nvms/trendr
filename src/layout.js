@@ -302,23 +302,62 @@ function measureIntrinsic(node, availW, availH) {
   let mainTotal = 0
   let crossMax = 0
 
-  for (const child of children) {
-    const cs = childStyle(child)
-    const grow = cs.flexGrow ?? cs.flex ?? 0
+  if (childIsRow) {
+    // two-pass measurement for rows: first measure non-flex children to determine
+    // how much width flex children actually get, then re-measure flex children
+    // at their real width so wrapping text computes the correct height
+    const totalGaps = Math.max(0, children.length - 1) * gap
+    let usedByFixed = totalGaps
+    let totalFlex = 0
+    const infos = []
 
-    const measured = measureChild(child, cs, childIsRow, innerW, innerH)
-    const margin = resolveMargin(cs)
-    const marginMain = childIsRow ? margin.left + margin.right : margin.top + margin.bottom
-    const marginCross = childIsRow ? margin.top + margin.bottom : margin.left + margin.right
+    for (const child of children) {
+      const cs = childStyle(child)
+      const grow = cs.flexGrow ?? cs.flex ?? 0
+      const margin = resolveMargin(cs)
+      const marginMain = margin.left + margin.right
+      const marginCross = margin.top + margin.bottom
 
-    const childMain = (childIsRow ? measured.width : measured.height) + marginMain
-    mainTotal += childMain
+      if (grow > 0) {
+        usedByFixed += marginMain
+        totalFlex += grow
+        infos.push({ child, cs, grow, marginMain, marginCross, measured: null })
+      } else {
+        const measured = measureChild(child, cs, true, innerW, innerH)
+        usedByFixed += measured.width + marginMain
+        infos.push({ child, cs, grow: 0, marginMain, marginCross, measured })
+      }
+    }
 
-    const childCross = (childIsRow ? measured.height : measured.width) + marginCross
-    if (childCross > crossMax) crossMax = childCross
+    const flexSpace = Math.max(0, innerW - usedByFixed)
+
+    for (const info of infos) {
+      let measured = info.measured
+      if (info.grow > 0) {
+        const childW = Math.floor(flexSpace * (info.grow / totalFlex))
+        measured = measureChild(info.child, info.cs, true, childW, innerH)
+      }
+      mainTotal += (measured.width + info.marginMain)
+      const childCross = measured.height + info.marginCross
+      if (childCross > crossMax) crossMax = childCross
+    }
+
+    mainTotal += totalGaps
+  } else {
+    for (const child of children) {
+      const cs = childStyle(child)
+      const measured = measureChild(child, cs, false, innerW, innerH)
+      const margin = resolveMargin(cs)
+      const marginMain = margin.top + margin.bottom
+      const marginCross = margin.left + margin.right
+
+      mainTotal += measured.height + marginMain
+      const childCross = measured.width + marginCross
+      if (childCross > crossMax) crossMax = childCross
+    }
+
+    mainTotal += Math.max(0, children.length - 1) * gap
   }
-
-  mainTotal += Math.max(0, children.length - 1) * gap
 
   return childIsRow
     ? { width: mainTotal + chrome.x, height: crossMax + chrome.y }

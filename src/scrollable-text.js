@@ -19,6 +19,7 @@ export function ScrollableText({ content = '', focused = true, scrollOffset: off
   const maxOffset = Math.max(0, lines.length - (h || 1))
 
   const clamp = (v) => Math.max(0, Math.min(maxOffset, v))
+  const clamped = clamp(offset)
 
   useInput(({ key, ctrl }) => {
     if (!focused) return
@@ -27,30 +28,29 @@ export function ScrollableText({ content = '', focused = true, scrollOffset: off
     const pageH = h || 10
     const half = Math.max(1, Math.floor(pageH / 2))
 
-    if (key === 'up' || key === 'k') setOffset(clamp(offset - 1))
-    else if (key === 'down' || key === 'j') setOffset(clamp(offset + 1))
-    else if (key === 'pageup' || (ctrl && key === 'b')) setOffset(clamp(offset - pageH))
-    else if (key === 'pagedown' || (ctrl && key === 'f')) setOffset(clamp(offset + pageH))
-    else if (ctrl && key === 'u') setOffset(clamp(offset - half))
-    else if (ctrl && key === 'd') setOffset(clamp(offset + half))
+    if (key === 'up' || key === 'k') setOffset(clamp(clamped - 1))
+    else if (key === 'down' || key === 'j') setOffset(clamp(clamped + 1))
+    else if (key === 'pageup' || (ctrl && key === 'b')) setOffset(clamp(clamped - pageH))
+    else if (key === 'pagedown' || (ctrl && key === 'f')) setOffset(clamp(clamped + pageH))
+    else if (ctrl && key === 'u') setOffset(clamp(clamped - half))
+    else if (ctrl && key === 'd') setOffset(clamp(clamped + half))
     else if (key === 'home' || key === 'g') setOffset(0)
     else if (key === 'end' || key === 'G') setOffset(maxOffset)
   })
 
   useMouse((event) => {
-    if (!focused) return
     if (event.action !== 'scroll') return
     if (lines.length <= (h || 1)) return
     const { x, y } = event
     if (x < layout.x || x >= layout.x + layout.width || y < layout.y || y >= layout.y + layout.height) return
-    if (event.direction === 'up') setOffset(clamp(offset - 3))
-    else setOffset(clamp(offset + 3))
+    if (event.direction === 'up') setOffset(clamp(clamped - 3))
+    else setOffset(clamp(clamped + 3))
     event.stopPropagation()
   })
 
   const hasBar = scrollbar && h > 0 && lines.length > h
   const barThumbH = hasBar ? Math.max(1, Math.round((h / lines.length) * h)) : 0
-  const barThumbStart = hasBar && maxOffset > 0 ? Math.round((offset / maxOffset) * (h - barThumbH)) : 0
+  const barThumbStart = hasBar && maxOffset > 0 ? Math.round((clamped / maxOffset) * (h - barThumbH)) : 0
 
   useScrollDrag({
     barX: hasBar ? layout.x + layout.width - 1 : null,
@@ -58,11 +58,11 @@ export function ScrollableText({ content = '', focused = true, scrollOffset: off
     thumbHeight: barThumbH,
     trackHeight: h,
     maxOffset,
-    scrollOffset: offset,
+    scrollOffset: clamped,
     onScroll: (v) => setOffset(clamp(v)),
   })
 
-  const visible = lines.slice(offset, h > 0 ? offset + h : undefined)
+  const visible = lines.slice(clamped, h > 0 ? clamped + h : undefined)
 
   const textStyle = wrap ? undefined : { overflow: 'truncate' }
 
@@ -75,7 +75,7 @@ export function ScrollableText({ content = '', focused = true, scrollOffset: off
 
   const thumbH = Math.max(1, Math.round((h / lines.length) * h))
   const thumbStart = maxOffset > 0
-    ? Math.round((offset / maxOffset) * (h - thumbH))
+    ? Math.round((clamped / maxOffset) * (h - thumbH))
     : 0
 
   const children = visible.map((line, i) => {

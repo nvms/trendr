@@ -4,11 +4,11 @@ import { List } from './list.js'
 
 const DEFAULT_SEP = { left: '', fill: '\u2500', right: '' }
 
-export function Table({ columns, data, selected, onSelect, focused = true, separator = false, separatorChars, renderItem, scrollbar, stickyHeader = false, gap = 0, itemHeight = 1, scrolloff = 2 }) {
+export function Table({ columns, data, selected, onSelect, focused = true, separator = false, separatorChars, renderItem, scrollbar, stickyHeader = false, gap = 0, itemHeight = 1, scrolloff = 2, columnGap = 1 }) {
   const { accent = 'cyan' } = useTheme()
 
   const headerRow = jsxs('box', {
-    style: { flexDirection: 'row' },
+    style: { flexDirection: 'row', gap: columnGap },
     children: columns.map((col, i) =>
       jsx('text', {
         key: i,
@@ -44,7 +44,7 @@ export function Table({ columns, data, selected, onSelect, focused = true, separ
 
   const defaultRenderItem = (row, { selected: isSel }) =>
     jsxs('box', {
-      style: { flexDirection: 'row', bg: isSel ? (focused ? accent : 'gray') : null },
+      style: { flexDirection: 'row', gap: columnGap, bg: isSel ? (focused ? accent : 'gray') : null },
       children: columns.map((col, i) =>
         jsx('text', {
           key: i,
