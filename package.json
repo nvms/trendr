@@ -1,6 +1,6 @@
 {
   "name": "@trendr/core",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "direct-mode TUI renderer with JSX, signals, and per-cell diffing",
   "license": "MIT",
   "type": "module",
