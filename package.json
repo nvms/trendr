@@ -43,6 +43,7 @@
     "progress": "node esbuild.config.js && node dist/progress.js",
     "shimmer": "node esbuild.config.js && node dist/shimmer.js",
     "spinner": "node esbuild.config.js && node dist/spinner.js",
+    "miller-nav": "node esbuild.config.js && node dist/miller-nav.js",
     "pick-list": "node esbuild.config.js && node dist/pick-list.js",
     "table-demo": "node esbuild.config.js && node dist/table-demo.js",
     "demo": "node esbuild.config.js && node demo/server.js",
