@@ -192,6 +192,19 @@ function findScrollContentHeight(node) {
   return null
 }
 
+function findScrollChildHeights(node) {
+  if (!node) return null
+  if (node._childHeights) return node._childHeights
+  if (node._resolved) return findScrollChildHeights(node._resolved)
+  if (node._resolvedChildren) {
+    for (const child of node._resolvedChildren) {
+      const h = findScrollChildHeights(child)
+      if (h != null) return h
+    }
+  }
+  return null
+}
+
 function updateOverlayLayouts(node) {
   if (!node) return
   if (node._instance) {
@@ -205,6 +218,7 @@ function updateOverlayLayouts(node) {
       target.width = rect.width
       target.height = rect.height
       target.contentHeight = ch
+      target.childHeights = findScrollChildHeights(node)
     }
   }
   if (node._resolved) updateOverlayLayouts(node._resolved)
@@ -620,6 +634,7 @@ export function mount(rootComponent, { stream, stdin, title, theme, onExit: onEx
       prev.width = rect.width
       prev.height = rect.height
       prev.contentHeight = ch
+      prev.childHeights = findScrollChildHeights(inst.node)
     }
 
     // layout values changed - re-resolve so components see updated useLayout()
@@ -639,6 +654,7 @@ export function mount(rootComponent, { stream, stdin, title, theme, onExit: onEx
         inst.layout.width = rect.width
         inst.layout.height = rect.height
         inst.layout.contentHeight = ch
+        inst.layout.childHeights = findScrollChildHeights(inst.node)
         inst._dirty = true
       }
       propagateDirty(tree2)

@@ -98,14 +98,17 @@ export function computeLayout(node, rect) {
 
   if (isScroll && flowChildren.length > 0) {
     let maxEdge = 0
+    const heights = []
     for (const child of flowChildren) {
       const cl = getLeaf(child)?._layout
       if (cl) {
         const edge = isRow ? (cl.x + cl.width - innerX) : (cl.y + cl.height - innerY)
         if (edge > maxEdge) maxEdge = edge
+        heights.push(isRow ? cl.width : cl.height)
       }
     }
     node._contentHeight = maxEdge
+    node._childHeights = heights
   }
 
   for (const child of absChildren) {

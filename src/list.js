@@ -18,16 +18,45 @@ export function List({ items, selected: selectedProp, onSelect, renderItem, head
 
   const innerHeaderH = sticky ? 0 : headerH
 
-  // when sticky, layout measures the outer wrapper so we can't derive item height from it
-  // use itemHeight directly and compute content from item count
   const avgH = !sticky && contentH > 0 && items.length > 0
     ? (contentH - headerH) / items.length
     : itemHeight
 
   const scrollViewH = sticky ? viewH - headerH : viewH
-  const scrollContentH = sticky ? items.length * avgH : contentH
+  const scrollContentH = sticky
+    ? (contentH > 0 ? contentH : items.length * itemHeight)
+    : contentH
 
   const maxOffset = Math.max(0, scrollContentH - scrollViewH)
+
+  const childHeights = layout.childHeights
+  const chOffset = (!sticky && header) ? 1 : 0
+
+  let itemTop = 0, itemH = avgH
+  if (childHeights && childHeights.length > chOffset) {
+    for (let i = 0; i < selected + chOffset; i++) {
+      itemTop += (childHeights[i] ?? avgH) + gap
+    }
+    itemH = childHeights[selected + chOffset] ?? avgH
+  } else {
+    itemTop = selected * avgH + innerHeaderH
+    itemH = avgH
+  }
+  const itemBottom = itemTop + itemH
+
+  const offsetToIndex = (offset) => {
+    if (!childHeights || childHeights.length <= chOffset) {
+      return Math.round((offset - innerHeaderH) / Math.max(1, avgH))
+    }
+    let cum = 0
+    for (let j = 0; j < chOffset; j++) cum += (childHeights[j] ?? 0) + gap
+    for (let j = 0; j < items.length; j++) {
+      const h = childHeights[j + chOffset] ?? avgH
+      if (offset < cum + h) return j
+      cum += h + gap
+    }
+    return items.length - 1
+  }
 
   useInput(({ key, ctrl }) => {
     if (!interactive) return
@@ -65,7 +94,7 @@ export function List({ items, selected: selectedProp, onSelect, renderItem, head
     if (event.action === 'press' && event.button === 'left') {
       const headerOffset = sticky ? headerH : (header ? headerH : 0)
       const relY = y - layout.y - headerOffset
-      const idx = Math.floor((relY + scrollOffset) / Math.max(1, avgH))
+      const idx = offsetToIndex(relY + scrollOffset)
       if (idx >= 0 && idx < len) {
         setSelected(idx)
         event.stopPropagation()
@@ -82,15 +111,12 @@ export function List({ items, selected: selectedProp, onSelect, renderItem, head
     thumbHeight: barThumbH,
     trackHeight: scrollViewH,
     maxOffset,
-    scrollOffset: selected * avgH,
+    scrollOffset: itemTop,
     onScroll: (offset) => {
-      const idx = Math.round(offset / Math.max(1, avgH))
+      const idx = offsetToIndex(offset)
       setSelected(Math.max(0, Math.min(items.length - 1, idx)))
     },
   })
-
-  const itemTop = selected * avgH + innerHeaderH
-  const itemBottom = itemTop + avgH
 
   let scrollOffset = 0
   if (scrollViewH > 0 && scrollContentH > scrollViewH) {
