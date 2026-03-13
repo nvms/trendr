@@ -46,6 +46,7 @@
     "miller-nav": "node esbuild.config.js && node dist/miller-nav.js",
     "pick-list": "node esbuild.config.js && node dist/pick-list.js",
     "table-demo": "node esbuild.config.js && node dist/table-demo.js",
+    "menubar": "node esbuild.config.js && node dist/menubar.js",
     "demo": "node esbuild.config.js && node demo/server.js",
     "demo:build": "node esbuild.config.js"
   },
