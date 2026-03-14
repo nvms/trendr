@@ -2,7 +2,7 @@ import { jsx, jsxs } from '../jsx-runtime.js'
 import { createSignal } from './signal.js'
 import { useInput, useMouse, useLayout, useTheme, useScrollDrag } from './hooks.js'
 
-export function ScrollBox({ children, focused = true, scrollOffset: offsetProp, onScroll, scrollbar = false, thumbChar = '\u2588', trackChar = '\u2502', style: userStyle }) {
+export function ScrollBox({ children, focused = true, scrollOffset: offsetProp, onScroll, scrollbar = false, gap = 0, thumbChar = '\u2588', trackChar = '\u2502', style: userStyle }) {
   const { accent = 'cyan' } = useTheme()
   const [offsetInternal, setOffsetInternal] = createSignal(0)
   const layout = useLayout()
@@ -15,6 +15,7 @@ export function ScrollBox({ children, focused = true, scrollOffset: offsetProp, 
   const maxOffset = Math.max(0, contentH - visibleH)
 
   const clamp = (v) => Math.max(0, Math.min(maxOffset, v))
+  const clamped = clamp(offset)
 
   useInput(({ key, ctrl }) => {
     if (!focused) return
@@ -46,7 +47,7 @@ export function ScrollBox({ children, focused = true, scrollOffset: offsetProp, 
 
   const hasBar = scrollbar && visibleH > 0 && contentH > visibleH
   const barThumbH = hasBar ? Math.max(1, Math.round((visibleH / contentH) * visibleH)) : 0
-  const barThumbStart = hasBar && maxOffset > 0 ? Math.round((offset / maxOffset) * (visibleH - barThumbH)) : 0
+  const barThumbStart = hasBar && maxOffset > 0 ? Math.round((clamped / maxOffset) * (visibleH - barThumbH)) : 0
 
   useScrollDrag({
     barX: hasBar ? layout.x + layout.width - 1 : null,
@@ -54,7 +55,7 @@ export function ScrollBox({ children, focused = true, scrollOffset: offsetProp, 
     thumbHeight: barThumbH,
     trackHeight: visibleH,
     maxOffset,
-    scrollOffset: offset,
+    scrollOffset: clamped,
     onScroll: (v) => setOffset(clamp(v)),
   })
 
@@ -64,7 +65,8 @@ export function ScrollBox({ children, focused = true, scrollOffset: offsetProp, 
       flexGrow: 1,
       ...userStyle,
       overflow: 'scroll',
-      scrollOffset: offset,
+      scrollOffset: clamped,
+      gap,
     },
     children,
   })
@@ -77,7 +79,7 @@ export function ScrollBox({ children, focused = true, scrollOffset: offsetProp, 
   if (hasOverflow) {
     const thumbH = Math.max(1, Math.round((visibleH / contentH) * visibleH))
     const thumbStart = maxOffset > 0
-      ? Math.round((offset / maxOffset) * (visibleH - thumbH))
+      ? Math.round((clamped / maxOffset) * (visibleH - thumbH))
       : 0
 
     for (let i = 0; i < visibleH; i++) {

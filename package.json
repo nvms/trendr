@@ -47,6 +47,7 @@
     "pick-list": "node esbuild.config.js && node dist/pick-list.js",
     "table-demo": "node esbuild.config.js && node dist/table-demo.js",
     "menubar": "node esbuild.config.js && node dist/menubar.js",
+    "scrollback-demo": "node esbuild.config.js && node dist/scrollback-demo.js",
     "demo": "node esbuild.config.js && node demo/server.js",
     "demo:build": "node esbuild.config.js"
   },

@@ -53,24 +53,39 @@ export function sliceVisible(text, maxWidth) {
   return result
 }
 
+function extractTrailingAnsi(str) {
+  let active = ''
+  const re = /\x1b\[[0-9;]*m/g
+  let m
+  while ((m = re.exec(str)) !== null) {
+    if (m[0] === '\x1b[0m') active = ''
+    else active += m[0]
+  }
+  return active
+}
+
 export function wordWrap(text, maxWidth) {
   if (maxWidth <= 0) return []
   if (!text) return ['']
 
   const lines = []
+  let carry = ''
 
   for (const rawLine of text.split('\n')) {
     if (rawLine.length === 0) {
-      lines.push('')
+      lines.push(carry || '')
       continue
     }
 
-    if (measureText(rawLine) <= maxWidth) {
-      lines.push(rawLine)
+    const prefixed = carry ? carry + rawLine : rawLine
+
+    if (measureText(prefixed) <= maxWidth) {
+      lines.push(prefixed)
+      carry = extractTrailingAnsi(prefixed)
       continue
     }
 
-    const words = rawLine.split(/\s+/)
+    const words = prefixed.split(/\s+/)
     let line = ''
     let lineWidth = 0
 
@@ -84,8 +99,9 @@ export function wordWrap(text, maxWidth) {
       } else if (lineWidth === 0 && ww > maxWidth) {
         for (const { chunk, width } of visibleChars(word)) {
           if (lineWidth + width > maxWidth) {
+            carry = extractTrailingAnsi(line)
             lines.push(line)
-            line = ''
+            line = carry
             lineWidth = 0
           }
           line += chunk
@@ -95,26 +111,32 @@ export function wordWrap(text, maxWidth) {
         line += ' ' + word
         lineWidth += 1 + ww
       } else if (ww > maxWidth) {
-        if (line) lines.push(line)
-        line = ''
-        lineWidth = 0
+        if (line) {
+          carry = extractTrailingAnsi(line)
+          lines.push(line)
+          line = carry
+          lineWidth = 0
+        }
         for (const { chunk, width } of visibleChars(word)) {
           if (lineWidth + width > maxWidth) {
+            carry = extractTrailingAnsi(line)
             lines.push(line)
-            line = ''
+            line = carry
             lineWidth = 0
           }
           line += chunk
           lineWidth += width
         }
       } else {
+        carry = extractTrailingAnsi(line)
         lines.push(line)
-        line = word
+        line = carry + word
         lineWidth = ww
       }
     }
 
     lines.push(line)
+    carry = extractTrailingAnsi(line)
   }
 
   return lines

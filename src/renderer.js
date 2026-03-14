@@ -338,14 +338,16 @@ function paintTree(node, buf, clip, offset, prevBuf) {
   const childClip = clip ? clipRect(layout, clip) : layout
 
   let childOffset = offset
+  let childPrevBuf = prevBuf
   if (style.overflow === 'scroll') {
     const scrollY = style.scrollOffset ?? 0
     childOffset = { x: offset?.x ?? 0, y: (offset?.y ?? 0) - scrollY }
+    childPrevBuf = null
   }
 
   if (node._resolvedChildren) {
     for (const child of node._resolvedChildren) {
-      paintTree(child, buf, childClip, childOffset, prevBuf)
+      paintTree(child, buf, childClip, childOffset, childPrevBuf)
     }
   }
 }
@@ -584,7 +586,7 @@ function resolveForFrame(element, parent, instances, counters, visited, scope) {
   return node
 }
 
-export function mount(rootComponent, { stream, stdin, title, theme, onExit: onExitCb } = {}) {
+export function mount(rootComponent, { stream, stdin, title, theme, onExit: onExitCb, altScreen = true } = {}) {
   const out = stream ?? process.stdout
   const inp = stdin ?? process.stdin
 
@@ -724,7 +726,7 @@ export function mount(rootComponent, { stream, stdin, title, theme, onExit: onEx
 
   setSchedulerHook(scheduler.requestFrame)
 
-  out.write(ansi.altScreen + ansi.hideCursor + ansi.clearScreen + ansi.enableMouse + (title ? ansi.setTitle(title) : ''))
+  out.write((altScreen ? ansi.altScreen : '') + ansi.hideCursor + ansi.clearScreen + ansi.enableMouse + (title ? ansi.setTitle(title) : ''))
   if (inp.isTTY && inp.setRawMode) inp.setRawMode(true)
 
   frame()
@@ -764,7 +766,7 @@ export function mount(rootComponent, { stream, stdin, title, theme, onExit: onEx
     }
     instances.clear()
 
-    out.write(ansi.sgrReset + ansi.disableMouse + ansi.showCursor + ansi.exitAltScreen)
+    out.write(ansi.sgrReset + ansi.disableMouse + ansi.showCursor + (altScreen ? ansi.exitAltScreen : ansi.moveTo(height, 1) + '\n'))
     if (inp.isTTY && inp.setRawMode) inp.setRawMode(false)
     activeContext = null
     setSchedulerHook(null)

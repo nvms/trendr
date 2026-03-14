@@ -91,5 +91,27 @@ console.log('MOUNT: basic counter')
   assert(out.output.includes('\x1b[?25h'), 'unmount shows cursor')
 }
 
+console.log('MOUNT: main screen mode')
+{
+  const out = new FakeStream(30, 8)
+  const inp = new FakeInput()
+
+  function App() {
+    return jsx('text', { children: 'inline mode' })
+  }
+
+  const { unmount } = mount(App, { stream: out, stdin: inp, altScreen: false })
+  const strip = s => s.replace(/\x1b\[[?]?[0-9;]*[a-zA-Z]/g, '').replace(/\x1b\[[0-9;]*m/g, '')
+
+  assert(!out.output.includes('\x1b[?1049h'), 'mount does not enter alt screen in main screen mode')
+  assert(strip(out.output).includes('inlinemode'), 'main screen mode still renders content')
+
+  out.output = ''
+  unmount()
+
+  assert(!out.output.includes('\x1b[?1049l'), 'unmount does not exit alt screen in main screen mode')
+  assert(out.output.includes('\x1b[8;1H\n'), 'unmount moves cursor below the ui in main screen mode')
+}
+
 console.log(`\n${passed} passed, ${failed} failed`)
 if (failed > 0) process.exit(1)
