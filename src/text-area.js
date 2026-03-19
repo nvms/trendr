@@ -115,6 +115,13 @@ export function TextArea({ onSubmit, onCancel, onChange, placeholder, focused = 
     const v = value()
     const c = cursor()
 
+    if (key === 'paste') {
+      const pasted = event.text || ''
+      update(v.slice(0, c) + pasted + v.slice(c), c + pasted.length)
+      event.stopPropagation()
+      return
+    }
+
     const isSubmitKey = submitOnEnter
       ? (key === 'return' && !meta)
       : (meta && key === '\r')

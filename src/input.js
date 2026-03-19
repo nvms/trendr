@@ -153,7 +153,23 @@ export function createInputHandler(stream) {
     }
   }
 
+  function isPaste(data) {
+    const s = typeof data === 'string' ? data : data.toString()
+    return s.length > 1 && !s.startsWith('\x1b') && (s.includes('\n') || s.includes('\r'))
+  }
+
   function onData(data) {
+    if (isPaste(data)) {
+      const text = (typeof data === 'string' ? data : data.toString()).replace(/\r\n?/g, '\n')
+      const event = { key: 'paste', text, ctrl: false, meta: false, shift: false, raw: text }
+      event.stopPropagation = () => { event._stopped = true }
+      const snapshot = [...keyListeners].reverse()
+      for (const fn of snapshot) {
+        fn(event)
+        if (event._stopped) break
+      }
+      return
+    }
     for (const key of splitKeys(data)) {
       dispatch(key)
     }
