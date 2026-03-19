@@ -86,38 +86,57 @@ function paintBorder(buf, rect, borderStyle, fg, edges) {
     : BORDER_CHARS.single
 
   const { x, y, width, height } = rect
-  if (width < 2 || height < 2) return
+  if (width < 1 || height < 1) return
 
   const cell = (ch) => ({ ch, fg: fg ?? null, bg: null, attrs: 0 })
   const { top, right, bottom, left } = edges
 
-  if (top && left) buf.cells[y * buf.width + x] = cell(chars.tl)
-  else if (top) buf.cells[y * buf.width + x] = cell(chars.h)
+  const x2 = x + width - 1
+  const y2 = y + height - 1
+  const singleRow = height === 1
+  const singleCol = width === 1
+
+  // top-left corner
+  if (top && left) buf.cells[y * buf.width + x] = cell(singleRow || singleCol ? (singleRow && singleCol ? chars.v : singleRow ? chars.h : chars.v) : chars.tl)
+  else if (top && !singleCol) buf.cells[y * buf.width + x] = cell(chars.h)
   else if (left) buf.cells[y * buf.width + x] = cell(chars.v)
 
-  if (top && right) buf.cells[y * buf.width + x + width - 1] = cell(chars.tr)
-  else if (top) buf.cells[y * buf.width + x + width - 1] = cell(chars.h)
-  else if (right) buf.cells[y * buf.width + x + width - 1] = cell(chars.v)
+  // top-right corner
+  if (!singleCol) {
+    if (top && right) buf.cells[y * buf.width + x2] = cell(singleRow ? chars.h : chars.tr)
+    else if (top) buf.cells[y * buf.width + x2] = cell(chars.h)
+    else if (right) buf.cells[y * buf.width + x2] = cell(chars.v)
+  }
 
-  if (bottom && left) buf.cells[(y + height - 1) * buf.width + x] = cell(chars.bl)
-  else if (bottom) buf.cells[(y + height - 1) * buf.width + x] = cell(chars.h)
-  else if (left) buf.cells[(y + height - 1) * buf.width + x] = cell(chars.v)
+  // bottom-left corner
+  if (!singleRow) {
+    if (bottom && left) buf.cells[y2 * buf.width + x] = cell(singleCol ? chars.v : chars.bl)
+    else if (bottom && !singleCol) buf.cells[y2 * buf.width + x] = cell(chars.h)
+    else if (left) buf.cells[y2 * buf.width + x] = cell(chars.v)
+  }
 
-  if (bottom && right) buf.cells[(y + height - 1) * buf.width + x + width - 1] = cell(chars.br)
-  else if (bottom) buf.cells[(y + height - 1) * buf.width + x + width - 1] = cell(chars.h)
-  else if (right) buf.cells[(y + height - 1) * buf.width + x + width - 1] = cell(chars.v)
+  // bottom-right corner
+  if (!singleRow && !singleCol) {
+    if (bottom && right) buf.cells[y2 * buf.width + x2] = cell(chars.br)
+    else if (bottom) buf.cells[y2 * buf.width + x2] = cell(chars.h)
+    else if (right) buf.cells[y2 * buf.width + x2] = cell(chars.v)
+  }
 
-  if (top) for (let col = x + 1; col < x + width - 1; col++)
+  // top edge
+  if (top) for (let col = x + 1; col < x2; col++)
     buf.cells[y * buf.width + col] = cell(chars.h)
 
-  if (bottom) for (let col = x + 1; col < x + width - 1; col++)
-    buf.cells[(y + height - 1) * buf.width + col] = cell(chars.h)
+  // bottom edge
+  if (bottom && !singleRow) for (let col = x + 1; col < x2; col++)
+    buf.cells[y2 * buf.width + col] = cell(chars.h)
 
-  if (left) for (let row = y + 1; row < y + height - 1; row++)
+  // left edge
+  if (left) for (let row = y + 1; row < y2; row++)
     buf.cells[row * buf.width + x] = cell(chars.v)
 
-  if (right) for (let row = y + 1; row < y + height - 1; row++)
-    buf.cells[row * buf.width + x + width - 1] = cell(chars.v)
+  // right edge
+  if (right) for (let row = y + 1; row < y2; row++)
+    buf.cells[row * buf.width + x2] = cell(chars.v)
 }
 
 function paintJunctions(buf, rect, borderStyle, fg, children, edges) {
