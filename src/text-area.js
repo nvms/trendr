@@ -87,9 +87,15 @@ function ensureVisible(cursorRow, scroll, height, totalLines) {
   return scroll
 }
 
-export function TextArea({ onSubmit, onCancel, onChange, placeholder, focused = true, maxHeight = 10, clearOnSubmit = true, cursor: cursorProp }) {
+export function TextArea({ onSubmit, onCancel, onChange, placeholder, focused = true, maxHeight = 10, clearOnSubmit = true, cursor: cursorProp, value: valueProp }) {
   const [value, setValue] = createSignal('')
   const [cursor, setCursor] = createSignal(0)
+  const _prev = registerHook(() => ({ value: undefined }))
+  if (valueProp !== undefined && valueProp !== _prev.value) {
+    _prev.value = valueProp
+    setValue(valueProp)
+    setCursor(valueProp.length)
+  }
   const ref = registerHook(() => ({ scroll: 0, goalCol: null }))
   const layout = useLayout()
   const { cursorStyle, reset: resetBlink } = useCursor(cursorProp, focused)
