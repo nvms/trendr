@@ -892,6 +892,51 @@ suite('deeply nested text styles')
   unmount()
 }
 
+suite('list scroll to short item after tall item')
+{
+  const out = new FakeStream(30, 10)
+  const inp = new FakeInput()
+
+  // item 0 is 1 row, item 1 is 15 rows (taller than viewport)
+  const items = ['short', 'tall\n'.repeat(14) + 'tall-end']
+
+  function App() {
+    const [sel, setSel] = createSignal(0)
+    return jsx(List, {
+      items,
+      selected: sel(),
+      onSelect: setSel,
+      focused: true,
+      renderItem: (item, { selected }) =>
+        jsx('text', { children: item }),
+    })
+  }
+
+  const { unmount } = mount(App, { stream: out, stdin: inp })
+  await tick()
+
+  let grid = parseScreen(out.output, 30, 10)
+  assert(findInGrid(grid, 'short') != null, 'short item visible initially')
+
+  // select the tall item
+  out.clear()
+  inp.key('down')
+  await tick(100)
+
+  grid = parseScreen(out.output, 30, 10, grid)
+  assert(findInGrid(grid, 'tall-end') != null, 'bottom of tall item visible')
+
+  // now go back up to the short item
+  out.clear()
+  inp.key('up')
+  await tick(100)
+
+  grid = parseScreen(out.output, 30, 10, grid)
+  assert(findInGrid(grid, 'short') != null, 'short item visible after navigating up from tall item')
+
+  unmount()
+}
+
 // ----
 
 console.log(`\n${passed} passed, ${failed} failed`)

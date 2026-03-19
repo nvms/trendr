@@ -1,15 +1,22 @@
 import { jsx, jsxs } from '../jsx-runtime.js'
 import { createSignal } from './signal.js'
 import { useInput, useMouse, useLayout, useTheme, useScrollDrag } from './hooks.js'
+import { registerHook } from './renderer.js'
 
-export function List({ items, selected: selectedProp, onSelect, renderItem, header, headerHeight = 1, focused = true, interactive = focused, itemHeight = 1, scrollbar = false, stickyHeader = false, gap = 0, scrolloff = 2 }) {
+export function List({ items, selected: selectedProp, onSelect, onCursorChange, renderItem, header, headerHeight = 1, focused = true, interactive = focused, itemHeight = 1, scrollbar = false, stickyHeader = false, gap = 0, scrolloff = 2 }) {
   const { accent = 'cyan' } = useTheme()
   const [selectedInternal, setSelectedInternal] = createSignal(0)
   const [scrollState, setScrollState] = createSignal(0)
   const layout = useLayout()
+  const prevCursor = registerHook(() => ({ index: -1 }))
 
   const selected = selectedProp ?? selectedInternal()
   const setSelected = onSelect ?? setSelectedInternal
+
+  if (onCursorChange && selected !== prevCursor.index && items.length > 0) {
+    prevCursor.index = selected
+    onCursorChange(items[selected], selected)
+  }
 
   const viewH = layout.height
   const contentH = layout.contentHeight ?? 0
@@ -124,6 +131,10 @@ export function List({ items, selected: selectedProp, onSelect, renderItem, head
     scrollOffset = scrollState()
     if (itemTop - margin < scrollOffset) scrollOffset = itemTop - margin
     if (itemBottom + margin > scrollOffset + scrollViewH) scrollOffset = itemBottom + margin - scrollViewH
+    scrollOffset = Math.max(0, Math.min(maxOffset, Math.round(scrollOffset)))
+    // hard guarantee: selected item must be visible regardless of margin overshoot
+    if (itemTop < scrollOffset) scrollOffset = itemTop
+    if (itemBottom > scrollOffset + scrollViewH) scrollOffset = itemBottom - scrollViewH
     scrollOffset = Math.max(0, Math.min(maxOffset, Math.round(scrollOffset)))
     if (scrollOffset !== scrollState()) setScrollState(scrollOffset)
   }

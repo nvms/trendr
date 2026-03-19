@@ -1,6 +1,35 @@
-import { createSignalRaw } from './signal.js'
+import { createSignalRaw, onCleanup } from './signal.js'
 import { registerHook } from './renderer.js'
 import { useInput } from './hooks.js'
+
+let focusTrapStack = []
+
+export function useFocusTrap(active) {
+  const state = registerHook(() => {
+    const id = Symbol()
+    onCleanup(() => {
+      const idx = focusTrapStack.indexOf(id)
+      if (idx >= 0) focusTrapStack.splice(idx, 1)
+    })
+    return { id, wasActive: false }
+  })
+
+  if (active && !state.wasActive) {
+    focusTrapStack.push(state.id)
+    state.wasActive = true
+  } else if (!active && state.wasActive) {
+    const idx = focusTrapStack.indexOf(state.id)
+    if (idx >= 0) focusTrapStack.splice(idx, 1)
+    state.wasActive = false
+  }
+
+  useInput((event) => {
+    if (!active) return
+    if (event.key === 'tab' || event.key === 'shift-tab') {
+      event.stopPropagation()
+    }
+  })
+}
 
 export function useFocus({ initial, cycle = 'tab' } = {}) {
   const state = registerHook(() => {
@@ -93,6 +122,7 @@ export function useFocus({ initial, cycle = 'tab' } = {}) {
     const cur = state.current()
 
     if (state.stack.length > 0) return
+    if (focusTrapStack.length > 0) return
 
     if (cycle === 'tab' && (key === 'tab' || key === 'shift-tab')) {
       const idx = findTopLevel(cur)

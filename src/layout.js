@@ -259,7 +259,7 @@ function measureChild(child, cs, isRow, availW, availH) {
     const text = extractText(leaf)
     const overflow = cs.overflow
     if (!text) { w = explicitW ?? 0; h = explicitH ?? 1 }
-    else if (overflow === 'nowrap' || overflow === 'truncate') {
+    else if (overflow === 'nowrap' || overflow === 'truncate' || overflow === 'clip') {
       w = explicitW ?? Math.min(availW, measureText(text))
       h = explicitH ?? 1
     } else {

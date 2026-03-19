@@ -1,9 +1,10 @@
 import { jsx, jsxs } from '../jsx-runtime.js'
 import { createSignal } from './signal.js'
 import { useInput, useLayout, useTheme, useCursor } from './hooks.js'
+import { registerHook } from './renderer.js'
 import { List } from './list.js'
 
-export function PickList({ items, onSelect, onCancel, onChange, focused = true, placeholder = 'search...', filter: filterFn, renderItem, maxVisible = 10, scrollbar = false, scrolloff = 0, itemHeight = 1, itemGap = 0, gap = 0, clearOnSelect = false, style: userStyle, cursor: cursorProp }) {
+export function PickList({ items, onSelect, onCancel, onChange, onCursorChange, focused = true, placeholder = 'search...', filter: filterFn, renderItem, maxVisible = 10, scrollbar = false, scrolloff = 0, itemHeight = 1, itemGap = 0, gap = 0, clearOnSelect = false, style: userStyle, cursor: cursorProp }) {
   const { accent = 'cyan' } = useTheme()
   const defaults = {
     borderColor: accent,
@@ -32,6 +33,14 @@ export function PickList({ items, onSelect, onCancel, onChange, focused = true, 
   let cursor = listCursor()
   if (cursor >= filtered.length) cursor = Math.max(0, filtered.length - 1)
   if (cursor !== listCursor()) setListCursor(cursor)
+
+  const prevCursor = registerHook(() => ({ index: -1, item: undefined }))
+  const cursorItem = filtered.length > 0 ? filtered[cursor] : undefined
+  if (onCursorChange && (cursor !== prevCursor.index || cursorItem !== prevCursor.item)) {
+    prevCursor.index = cursor
+    prevCursor.item = cursorItem
+    if (cursorItem !== undefined) onCursorChange(cursorItem, cursor)
+  }
 
   function updateText(v, c) {
     setQuery(v)

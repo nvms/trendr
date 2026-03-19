@@ -321,7 +321,8 @@ function paintTree(node, buf, clip, offset, prevBuf) {
     if (!text) return
 
     const truncate = style.overflow === 'truncate'
-    const wrap = style.overflow !== 'nowrap' && !truncate
+    const clip = style.overflow === 'clip'
+    const wrap = style.overflow !== 'nowrap' && !truncate && !clip
 
     if (wrap) {
       const lines = wordWrap(text, layout.width)

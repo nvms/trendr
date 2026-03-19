@@ -87,28 +87,36 @@ function ensureVisible(cursorRow, scroll, height, totalLines) {
   return scroll
 }
 
-export function TextArea({ onSubmit, onCancel, onChange, placeholder, focused = true, maxHeight = 10, clearOnSubmit = true, cursor: cursorProp, value: valueProp, submitOnEnter = false }) {
+export function TextArea({ onSubmit, onCancel, onChange, onKeyDown, placeholder, focused = true, maxHeight = 10, clearOnSubmit = true, cursor: cursorProp, value: valueProp, submitOnEnter = false }) {
   const [value, setValue] = createSignal('')
   const [cursor, setCursor] = createSignal(0)
-  const _prev = registerHook(() => ({ value: undefined }))
-  if (valueProp !== undefined && valueProp !== _prev.value) {
-    _prev.value = valueProp
+  if (valueProp !== undefined && valueProp !== value()) {
     setValue(valueProp)
-    setCursor(valueProp.length)
+    setCursor(c => Math.min(c, valueProp.length))
   }
   const ref = registerHook(() => ({ scroll: 0, goalCol: null }))
   const layout = useLayout()
   const { cursorStyle, reset: resetBlink } = useCursor(cursorProp, focused)
 
-  function update(v, c) {
-    setValue(v)
+  function update(next, c) {
+    const prev = value()
+    setValue(next)
     setCursor(c)
     ref.goalCol = null
-    if (onChange) onChange(v)
+    if (onChange) onChange(next, prev)
   }
 
   useInput((event) => {
     if (!focused) return
+
+    if (onKeyDown) {
+      event.value = value()
+      if (onKeyDown(event)) {
+        event.stopPropagation()
+        return
+      }
+    }
+
     resetBlink()
 
     const { key, raw, ctrl, meta } = event
