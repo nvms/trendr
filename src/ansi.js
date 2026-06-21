@@ -43,14 +43,25 @@ const NAMED_COLORS = {
   brightBlue: 12, brightMagenta: 13, brightCyan: 14, brightWhite: 15,
 }
 
+function expandHex(color) {
+  if (color.length === 7) return color
+  if (color.length === 4) {
+    const r = color[1], g = color[2], b = color[3]
+    return `#${r}${r}${g}${g}${b}${b}`
+  }
+  return null
+}
+
 function parseColor(color, offset) {
   if (color == null) return null
   if (typeof color === 'number') return `${offset};5;${color}`
   if (color in NAMED_COLORS) return `${offset};5;${NAMED_COLORS[color]}`
-  if (color.startsWith('#') && color.length === 7) {
-    const r = parseInt(color.slice(1, 3), 16)
-    const g = parseInt(color.slice(3, 5), 16)
-    const b = parseInt(color.slice(5, 7), 16)
+  if (color.charCodeAt(0) === 35) {
+    const hex = expandHex(color)
+    if (!hex) return null
+    const r = parseInt(hex.slice(1, 3), 16)
+    const g = parseInt(hex.slice(3, 5), 16)
+    const b = parseInt(hex.slice(5, 7), 16)
     return `${offset};2;${r};${g};${b}`
   }
   return null

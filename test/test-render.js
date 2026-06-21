@@ -1,8 +1,9 @@
 import { EventEmitter } from 'events'
-import { mount, createSignal, useInput, useFocus, useTheme } from '../index.js'
+import { mount, createSignal, createEffect, useInput, useFocus, useTheme } from '../index.js'
 import { TextInput } from '../src/text-input.js'
 import { List } from '../src/list.js'
 import { ScrollableText } from '../src/scrollable-text.js'
+import { Modal } from '../src/modal.js'
 import { jsx, jsxs, Fragment } from '../jsx-runtime.js'
 
 let passed = 0
@@ -933,6 +934,53 @@ suite('list scroll to short item after tall item')
 
   grid = parseScreen(out.output, 30, 10, grid)
   assert(findInGrid(grid, 'short') != null, 'short item visible after navigating up from tall item')
+
+  unmount()
+}
+
+// a focus trap (used by Modal) must not disable tab for the focus manager
+// living inside the modal - it should only stop tab leaking to managers below
+suite('tab cycles focus inside a modal focus trap')
+{
+  const out = new FakeStream(40, 12)
+  const inp = new FakeInput()
+
+  let innerCur, bgCur
+
+  function InnerForm() {
+    const fm = useFocus({ initial: 'f1' })
+    fm.item('f1'); fm.item('f2'); fm.item('f3')
+    createEffect(() => { innerCur = fm.current() })
+    return jsx('text', { children: 'x' })
+  }
+
+  function App() {
+    const bg = useFocus({ initial: 'list' })
+    bg.item('list'); bg.item('other')
+    createEffect(() => { bgCur = bg.current() })
+    const [open, setOpen] = createSignal(false)
+    if (!open()) setOpen(true)
+    return jsxs('box', {
+      style: { flexDirection: 'column', height: 10 },
+      children: [
+        jsx('text', { children: 'bg' }),
+        jsx(Modal, { open: open(), width: 20, children: jsx(InnerForm, {}) }),
+      ],
+    })
+  }
+
+  const { unmount } = mount(App, { stream: out, stdin: inp, altScreen: false })
+  await tick()
+  assertEq(innerCur, 'f1', 'modal: inner focus starts at f1')
+
+  inp.send('\t')
+  await tick()
+  assertEq(innerCur, 'f2', 'modal: tab moves inner focus f1 -> f2')
+  assertEq(bgCur, 'list', 'modal: tab does not leak to background focus manager')
+
+  inp.send('\t')
+  await tick()
+  assertEq(innerCur, 'f3', 'modal: tab continues cycling inner focus f2 -> f3')
 
   unmount()
 }

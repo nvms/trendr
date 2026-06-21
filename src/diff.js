@@ -56,6 +56,15 @@ function writeSgr(fg, bg, attrs) {
   buf[pos++] = 0x6d
 }
 
+function expandHex(color) {
+  if (color.length === 7) return color
+  if (color.length === 4) {
+    const r = color[1], g = color[2], b = color[3]
+    return `#${r}${r}${g}${g}${b}${b}`
+  }
+  return null
+}
+
 function writeColor(color, offset) {
   if (typeof color === 'number' || color in NAMED_COLORS) {
     const idx = typeof color === 'number' ? color : NAMED_COLORS[color]
@@ -65,10 +74,12 @@ function writeColor(color, offset) {
     buf[pos++] = 53 // '5'
     buf[pos++] = 0x3b
     writeNum(idx)
-  } else if (color.charCodeAt(0) === 35 && color.length === 7) {
-    const r = parseInt(color.slice(1, 3), 16)
-    const g = parseInt(color.slice(3, 5), 16)
-    const b = parseInt(color.slice(5, 7), 16)
+  } else if (color.charCodeAt(0) === 35) {
+    const hex = expandHex(color)
+    if (!hex) return
+    const r = parseInt(hex.slice(1, 3), 16)
+    const g = parseInt(hex.slice(3, 5), 16)
+    const b = parseInt(hex.slice(5, 7), 16)
     buf[pos++] = 0x3b
     writeNum(offset)
     buf[pos++] = 0x3b
