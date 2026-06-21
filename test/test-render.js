@@ -1082,6 +1082,97 @@ suite('inline mode streams a live item then graduates it to scrollback')
   unmount()
 }
 
+// Menu component
+
+import { Menu } from '../index.js'
+
+suite('Menu windows to maxVisible and scrolls with the active item')
+{
+  const out = new FakeStream(40, 12)
+  const inp = new FakeInput()
+
+  const items = Array.from({ length: 10 }, (_, i) => `item${i}`)
+  let cur = -1
+  let chosen = null
+
+  function App() {
+    const [sel, setSel] = createSignal(0)
+    return jsx(Menu, {
+      items,
+      selected: sel(),
+      onSelect: (i) => { cur = i; setSel(i) },
+      onSubmit: (it) => { chosen = it },
+      focused: true,
+      maxVisible: 5,
+      scrolloff: 2,
+    })
+  }
+
+  const { unmount, getBuffer } = mount(App, { stream: out, stdin: inp, altScreen: false })
+  await tick()
+
+  // read the real cell buffer rather than re-parsing minimal ANSI diffs
+  const screen = () => {
+    const b = getBuffer()
+    const rows = []
+    for (let y = 0; y < b.height; y++) {
+      let line = ''
+      for (let x = 0; x < b.width; x++) line += b.cells[y * b.width + x].ch || ' '
+      rows.push(line)
+    }
+    return rows.join('\n')
+  }
+
+  let s = screen()
+  assert(s.includes('item0'), 'menu: first item visible initially')
+  assert(!s.includes('item9'), 'menu: tenth item windowed out initially')
+  assert(s.includes('›'), 'menu: active arrow rendered')
+
+  for (let i = 0; i < 6; i++) { inp.send('\x1b[B'); await tick() }
+  assertEq(cur, 6, 'menu: down arrows moved active to index 6')
+
+  inp.send('\x10'); await tick() // ctrl+p moves up
+  assertEq(cur, 5, 'menu: ctrl+p moves selection up')
+  inp.send('\x0e'); await tick() // ctrl+n moves down
+  assertEq(cur, 6, 'menu: ctrl+n moves selection down')
+
+  s = screen()
+  assert(s.includes('item6'), 'menu: active item6 visible after scrolling')
+  assert(!s.includes('item0'), 'menu: item0 scrolled out of the window')
+
+  inp.send('\r')
+  await tick()
+  assertEq(chosen, 'item6', 'menu: enter submits the active item')
+
+  unmount()
+}
+
+suite('Menu ignores navigation when not focused')
+{
+  const out = new FakeStream(40, 12)
+  const inp = new FakeInput()
+
+  let cur = 0
+  function App() {
+    const [sel, setSel] = createSignal(0)
+    return jsx(Menu, {
+      items: ['a', 'b', 'c'],
+      selected: sel(),
+      onSelect: (i) => { cur = i; setSel(i) },
+      focused: false,
+    })
+  }
+
+  const { unmount } = mount(App, { stream: out, stdin: inp, altScreen: false })
+  await tick()
+
+  inp.send('\x1b[B')
+  await tick()
+  assertEq(cur, 0, 'menu: unfocused menu does not move on arrow key')
+
+  unmount()
+}
+
 // ----
 
 console.log(`\n${passed} passed, ${failed} failed`)

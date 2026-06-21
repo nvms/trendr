@@ -1,12 +1,40 @@
-import { mount, createSignal, Scrollback } from '../index.js'
+import { mount, createSignal, Shimmer, Menu, Scrollback } from '../index.js'
 import { TextArea } from '../src/text-area.js'
 
-const ACCENT = '#f59e0b'
+const ACCENT = '#60a5fa'
 
 const REPLIES = [
-  'staying on the main screen is the whole trick - finished messages commit once into native scrollback and the composer stays pinned below. scroll up with your mouse to read the history.',
-  'this reply streams in a few words at a time, then freezes into scrollback once it stops changing. nothing above the composer ever redraws again.',
-  'enter sends, shift+enter drops to a new line. the composer grows as you type and the live region tracks its height every frame.',
+  'staying on the main screen is the whole trick. instead of swapping to the alternate screen buffer the way a full-screen tui does, the renderer keeps drawing into the normal buffer and only ever repaints a small live region at the bottom. every finished message is printed exactly once and then committed straight into your terminal native scrollback, where it freezes and is never touched again. that means you can scroll up with your mouse or trackpad just like you would in any other shell session, select text, and copy it, all without the framework getting in the way. the composer down here stays pinned no matter how long the transcript above it grows.',
+  'this reply is streaming in a few words at a time so you can actually watch the live region update. while it is arriving the spinner and shimmer to the left tell you the model is still working, and the little counter beside them ticks up one second at a time so you have a sense of how long the response is taking. the moment the stream stops, this whole block stops changing, graduates into scrollback as a single immutable message, and the thinking indicator disappears. nothing above the composer ever redraws after that point, which is what keeps the whole thing fast and flicker free.',
+  'enter sends your message and shift plus enter drops to a new line, so you can write multi line prompts without accidentally firing them off early. the composer grows downward as you type and the live region measures its height every single frame, so the bottom of the screen always lines up correctly no matter how tall the input gets. try pasting a few paragraphs in and watch it expand, then send it and watch your text commit upward into the history above while a fresh reply starts streaming in right where the old one was.',
+]
+
+const COMMANDS = [
+  { name: 'clear', desc: 'Clear the conversation and free the context window' },
+  { name: 'compact', desc: 'Summarize the conversation so far into a shorter form' },
+  { name: 'model', desc: 'Switch the active model for this session' },
+  { name: 'review', desc: 'Review a pull request and leave inline comments' },
+  { name: 'cost', desc: 'Show token usage and estimated cost so far' },
+  { name: 'config', desc: 'Open the settings panel' },
+  { name: 'init', desc: 'Generate a project guide for this repository' },
+  { name: 'resume', desc: 'Pick up a previous conversation where you left off' },
+  { name: 'export', desc: 'Save the current conversation to a file' },
+  { name: 'help', desc: 'List every command and what it does' },
+]
+
+const BANNER = [
+'┏━┃┛┃ ┃┏━┃',
+'┏━┛┃┏┛ ┏━┃',
+'┛  ┛┛ ┛┛ ┛',
+ // '⣀⡀ ⠄ ⢀⣀ ⢀⡀',
+ // '⡧⠜ ⠇ ⠣⠤ ⠣⠜',
+// '╭─╮╷╭─╴╭─╮',
+// '├─╯││  │ │',
+// '╵  ╵╰─╴╰─╯',
+  // '  ▘    ',
+  // '▛▌▌▛▘▛▌',
+  // '▙▌▌▙▖▙▌',
+  // '▌      ',
 ]
 
 function now() {
@@ -14,26 +42,58 @@ function now() {
   return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
 }
 
-function Message({ from, text, at }) {
-  const isYou = from === 'you'
+function Message({ from, text, at, kind }) {
+  if (kind === 'banner') {
+    return (
+      <box style={{ flexDirection: 'column', paddingX: 2 }}>
+        {BANNER.map((line, i) => (
+          <text key={i} style={{ color: '#a78bfa' }}>{line}</text>
+        ))}
+      </box>
+    )
+  }
+
+  // your own messages echo the composer: same dark bar, a muted timestamp on
+  // the top row, your text in the middle, and an empty bottom row from paddingY
+  if (from === 'you') {
+    return (
+      <box style={{ flexDirection: 'column' }}>
+        <text> </text>
+        <box style={{ bg: '#1e1e22', flexDirection: 'column', paddingX: 2, paddingY: 1 }}>
+          <text style={{ color: '#6b7280' }}>{at}</text>
+          <text style={{ color: '#f9fafb' }}>{text}</text>
+        </box>
+      </box>
+    )
+  }
+
   return (
     <box style={{ flexDirection: 'column', paddingX: 2 }}>
       <text> </text>
-      <box style={{ flexDirection: 'row', gap: 2 }}>
-        <text style={{ color: '#4b5563' }}>{at}</text>
-        <text style={{ color: isYou ? '#60a5fa' : '#a78bfa', bold: true }}>{isYou ? 'you' : 'trend-agent'}</text>
-      </box>
-      <text style={{ color: isYou ? '#f9fafb' : '#e5e7eb' }}>{text}</text>
+      <text style={{ color: '#4b5563' }}>{at}</text>
+      <text style={{ color: '#e5e7eb' }}>{text}</text>
     </box>
   )
 }
 
 function Chat() {
-  const [history, setHistory] = createSignal([])
+  const [history, setHistory] = createSignal([{ kind: 'banner' }])
   const [streaming, setStreaming] = createSignal(null)
   const [streamAt, setStreamAt] = createSignal('')
+  const [startedAt, setStartedAt] = createSignal(0)
   const [busy, setBusy] = createSignal(false)
   const [turn, setTurn] = createSignal(0)
+  const [input, setInput] = createSignal('')
+  const [cmdIndex, setCmdIndex] = createSignal(0)
+  const [notice, setNotice] = createSignal('')
+
+  function runCommand(c) {
+    setInput('')
+    const msg = `ran /${c.name}`
+    setNotice(msg)
+    // self-clearing so a later command does not get wiped by an older timer
+    setTimeout(() => setNotice(n => (n === msg ? '' : n)), 2500)
+  }
 
   function stream(words, i) {
     if (i >= words.length) {
@@ -43,7 +103,7 @@ function Chat() {
       return
     }
     setStreaming(words.slice(0, i + 1).join(' '))
-    setTimeout(() => stream(words, i + 1), 45)
+    setTimeout(() => stream(words, i + 1), 55)
   }
 
   function send(text) {
@@ -52,37 +112,96 @@ function Chat() {
     setHistory(h => [...h, { from: 'you', text: value, at: now() }])
     setBusy(true)
     setStreamAt(now())
+    setStartedAt(Date.now())
     setStreaming('')
     const reply = REPLIES[turn() % REPLIES.length]
     setTurn(t => t + 1)
-    setTimeout(() => stream(reply.split(' '), 0), 200)
+    setTimeout(() => stream(reply.split(' '), 0), 400)
   }
+
+  const elapsed = busy() ? Math.max(0, Math.floor((Date.now() - startedAt()) / 1000)) : 0
+
+  // fake token accounting, roughly 4 chars per token, plus a base system
+  // prompt so the input count looks realistic from the first turn
+  const estTokens = (s) => Math.ceil(s.length / 4)
+  const inTokens = 1280 + history().filter(m => m.from === 'you').reduce((a, m) => a + estTokens(m.text), 0)
+  const outTokens = history().filter(m => m.from === 'trend-agent').reduce((a, m) => a + estTokens(m.text), 0)
+    + (streaming() ? estTokens(streaming()) : 0)
+
+  // slash command palette: only when the input starts with "/" and you are
+  // still typing the command token (no space yet). escape clears the input,
+  // which drops the list out of the live region automatically
+  const slashQuery = input().startsWith('/') ? input().slice(1) : null
+  const showCommands = slashQuery !== null && !slashQuery.includes(' ')
+  const matchedCommands = showCommands
+    ? COMMANDS.filter(c => c.name.startsWith(slashQuery.toLowerCase()))
+    : []
 
   return (
     <box style={{ flexDirection: 'column' }}>
       <Scrollback items={history()} render={(m) => <Message {...m} />} />
 
-      {streaming() != null && (
+      {streaming() && (
         <Message from="trend-agent" at={streamAt()} text={`${streaming()}▋`} />
+      )}
+
+      {busy() && (
+        <box style={{ flexDirection: 'row', paddingX: 2, marginTop: 1 }}>
+          <Shimmer color="#a78bfa" highlight="white" duration={1500} reverse>Responding</Shimmer>
+          <text style={{ color: '#4b5563' }}>{` (${elapsed}s)`}</text>
+        </box>
       )}
 
       <box style={{ bg: '#1e1e22', flexDirection: 'row', paddingX: 2, paddingY: 1, marginTop: 1 }}>
         <text style={{ color: ACCENT, bold: true }}>{'❯'}</text>
         <text> </text>
         <TextArea
+          value={input()}
+          onChange={(v) => { setInput(v); setCmdIndex(0) }}
+          onCancel={() => setInput('')}
           onSubmit={send}
           submitOnEnter
           clearOnSubmit
           maxHeight={8}
-          placeholder="message trend-agent - enter to send, shift+enter for newline"
+          placeholder="message trend-agent - enter to send, / for commands"
           cursor={{ blink: true, bg: ACCENT, color: 'black' }}
         />
       </box>
 
-      <box style={{ flexDirection: 'row', paddingX: 2 }}>
-        <text style={{ color: '#6b7280' }}>{`${history().length} message${history().length === 1 ? '' : 's'} in scrollback`}</text>
+      {showCommands && (
+        <box style={{ flexDirection: 'column', paddingX: 2, marginTop: 1 }}>
+          {matchedCommands.length === 0 ? (
+            <text style={{ color: '#4b5563' }}>no matching commands</text>
+          ) : (
+            <Menu
+              items={matchedCommands}
+              selected={cmdIndex()}
+              onSelect={setCmdIndex}
+              onSubmit={runCommand}
+              focused={showCommands}
+              maxVisible={5}
+              scrolloff={2}
+              renderItem={(c, { active }) => (
+                <box style={{ flexDirection: 'row' }}>
+                  <text style={{ color: ACCENT }}>{active ? '› ' : '  '}</text>
+                  <text style={{ color: active ? ACCENT : '#6b7280' }}>{`/${c.name}`.padEnd(12)}</text>
+                  <text style={{ color: active ? '#cbd5e1' : '#4b5563' }}>{c.desc}</text>
+                </box>
+              )}
+            />
+          )}
+        </box>
+      )}
+
+      <box style={{ flexDirection: 'row', paddingX: 2, gap: 1 }}>
+        {notice() ? <text style={{ color: '#34d399' }}>{notice()}</text> : null}
         <box style={{ flexGrow: 1 }} />
-        <text style={{ color: busy() ? ACCENT : '#34d399' }}>{busy() ? 'streaming' : 'ready'}</text>
+        <text style={{ color: '#a78bfa' }}>claude-opus-4-8</text>
+        <text style={{ color: '#4b5563' }}>↑</text>
+        <text style={{ color: '#6b7280' }}>{`${inTokens.toLocaleString()} in`}</text>
+        <text style={{ color: '#374151' }}>·</text>
+        <text style={{ color: '#4b5563' }}>↓</text>
+        <text style={{ color: '#6b7280' }}>{`${outTokens.toLocaleString()} out`}</text>
       </box>
     </box>
   )

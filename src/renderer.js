@@ -666,6 +666,29 @@ export function mount(rootComponent, { stream, stdin, title, theme, onExit: onEx
   let prevLiveLines = 0
   let prevLiveText = null
 
+  // mirror per-instance layout (incl. scroll contentHeight/childHeights) back
+  // onto each instance so useLayout() consumers like List/Menu can window.
+  // returns whether anything changed, so the caller can re-resolve once and let
+  // those components observe the freshly measured values
+  function syncInstanceLayouts() {
+    let changed = false
+    for (const inst of instances.values()) {
+      const rect = inst.node?._availableRect ?? inst.node?._layout
+      if (!rect) continue
+      const ch = findScrollContentHeight(inst.node)
+      if (!inst.layout) inst.layout = { x: 0, y: 0, width: 0, height: 0 }
+      const p = inst.layout
+      if (p.width !== rect.width || p.height !== rect.height || p.contentHeight !== ch) changed = true
+      p.x = rect.x
+      p.y = rect.y
+      p.width = rect.width
+      p.height = rect.height
+      p.contentHeight = ch
+      p.childHeights = findScrollChildHeights(inst.node)
+    }
+    return changed
+  }
+
   function inlineFrame() {
     const prevCtx = activeContext
     activeContext = ctx
@@ -674,7 +697,7 @@ export function mount(rootComponent, { stream, stdin, title, theme, onExit: onEx
     const counters = new Map()
     const visited = new Set()
     const element = { type: rootComponent, props: {}, key: null }
-    const tree = resolveForFrame(element, null, instances, counters, visited, '')
+    let tree = resolveForFrame(element, null, instances, counters, visited, '')
 
     const sb = findScrollback(tree)
     const items = sb?.props?.items ?? []
@@ -691,8 +714,17 @@ export function mount(rootComponent, { stream, stdin, title, theme, onExit: onEx
     // which we can't un-print, so just resync the counter
     flushedCount = items.length
 
-    const liveHeight = Math.min(height, Math.max(1, intrinsicHeight(tree, width, height)))
+    let liveHeight = Math.min(height, Math.max(1, intrinsicHeight(tree, width, height)))
     computeLayout(tree, { x: 0, y: 0, width, height: liveHeight })
+
+    if (syncInstanceLayouts()) {
+      counters.clear()
+      visited.clear()
+      tree = resolveForFrame(element, null, instances, counters, visited, '')
+      liveHeight = Math.min(height, Math.max(1, intrinsicHeight(tree, width, height)))
+      computeLayout(tree, { x: 0, y: 0, width, height: liveHeight })
+      syncInstanceLayouts()
+    }
 
     for (const [key, inst] of instances) {
       if (!visited.has(key)) {
