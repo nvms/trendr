@@ -52,12 +52,43 @@ export function parseMouse(raw) {
   return { type: 'mouse', action, button: buttonName, x, y }
 }
 
+const MODIFY_OTHER_RE = /^\x1b\[27;(\d+);(\d+)~$/
+const CSI_U_RE = /^\x1b\[(\d+)(?:;(\d+))?u$/
+
+function codeToKey(code) {
+  if (code === 13 || code === 10) return 'return'
+  if (code === 9) return 'tab'
+  if (code === 27) return 'escape'
+  if (code === 32) return 'space'
+  if (code === 127 || code === 8) return 'backspace'
+  return String.fromCodePoint(code)
+}
+
+// modifier param is 1-based with a bitmask in the low bits: shift=1, alt=2,
+// ctrl=4 (so plain=1, shift=2, ctrl=5, etc)
+function modifiedKey(code, mod, raw) {
+  const bits = Math.max(0, mod - 1)
+  return {
+    key: codeToKey(code),
+    ctrl: (bits & 4) !== 0,
+    meta: (bits & 2) !== 0,
+    shift: (bits & 1) !== 0,
+    raw,
+  }
+}
+
 export function parseKey(data) {
   const raw = typeof data === 'string' ? data : data.toString()
 
   if (SPECIAL_KEYS[raw]) {
     return { key: SPECIAL_KEYS[raw], ctrl: false, meta: false, shift: false, raw }
   }
+
+  let m = MODIFY_OTHER_RE.exec(raw)
+  if (m) return modifiedKey(parseInt(m[2], 10), parseInt(m[1], 10), raw)
+
+  m = CSI_U_RE.exec(raw)
+  if (m) return modifiedKey(parseInt(m[1], 10), m[2] ? parseInt(m[2], 10) : 1, raw)
 
   if (raw.length === 1) {
     const code = raw.charCodeAt(0)
@@ -90,21 +121,12 @@ export function splitKeys(data) {
   while (i < raw.length) {
     if (raw[i] === '\x1b') {
       if (i + 1 < raw.length && raw[i + 1] === '[') {
+        // generic csi: optional private marker, any number of ;-separated
+        // numeric params, then a final byte. covers arrows, mouse (\x1b[<..M),
+        // csi-u (\x1b[13;2u) and modifyOtherKeys (\x1b[27;2;13~)
         let j = i + 2
-        // sgr mouse: \x1b[<Cb;Cx;CyM or m
-        if (j < raw.length && raw[j] === '<') {
-          j++
-          while (j < raw.length && ((raw[j] >= '0' && raw[j] <= '9') || raw[j] === ';')) j++
-          if (j < raw.length) j++
-          keys.push(raw.slice(i, j))
-          i = j
-          continue
-        }
-        while (j < raw.length && raw[j] >= '0' && raw[j] <= '9') j++
-        if (j < raw.length && raw[j] === ';') {
-          j++
-          while (j < raw.length && raw[j] >= '0' && raw[j] <= '9') j++
-        }
+        if (j < raw.length && (raw[j] === '<' || raw[j] === '?')) j++
+        while (j < raw.length && ((raw[j] >= '0' && raw[j] <= '9') || raw[j] === ';' || raw[j] === ':')) j++
         if (j < raw.length) j++
         keys.push(raw.slice(i, j))
         i = j

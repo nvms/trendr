@@ -985,6 +985,103 @@ suite('tab cycles focus inside a modal focus trap')
   unmount()
 }
 
+// inline / scrollback mode
+
+import { Scrollback } from '../index.js'
+
+function stripAnsi(s) {
+  return s.replace(/\x1b\[[0-9;]*[A-Za-z]/g, '').replace(/\x1b\][^\x07]*\x07/g, '')
+}
+
+suite('inline mode commits scrollback items once and keeps a live region')
+{
+  const out = new FakeStream(40, 12)
+  const inp = new FakeInput()
+
+  let push
+
+  function App() {
+    const [items, setItems] = createSignal([])
+    const [status, setStatus] = createSignal('ready')
+    push = (text) => setItems(xs => [...xs, { text }])
+    globalThis.__setStatus = setStatus
+    return jsxs('box', {
+      style: { flexDirection: 'column' },
+      children: [
+        jsx(Scrollback, { items: items(), render: (m) => jsx('text', { children: m.text }) }),
+        jsx('text', { children: `status: ${status()}` }),
+      ],
+    })
+  }
+
+  const { unmount } = mount(App, { stream: out, stdin: inp, inline: true })
+  await tick()
+
+  assert(stripAnsi(out.output).includes('status: ready'), 'inline: live region rendered')
+  assert(!out.output.includes('\x1b[?1049h'), 'inline: never enters alt screen')
+  assert(!out.output.includes('\x1b[2J'), 'inline: never clears the whole screen')
+
+  out.clear()
+  push('hello world')
+  await tick()
+  const afterFirst = out.output
+  assert(stripAnsi(afterFirst).includes('hello world'), 'inline: committed item printed')
+
+  out.clear()
+  globalThis.__setStatus('thinking')
+  await tick()
+  const afterStatus = out.output
+  assert(stripAnsi(afterStatus).includes('status: thinking'), 'inline: live region updates')
+  assert(!stripAnsi(afterStatus).includes('hello world'), 'inline: committed item not re-emitted')
+
+  unmount()
+  delete globalThis.__setStatus
+}
+
+suite('inline mode streams a live item then graduates it to scrollback')
+{
+  const out = new FakeStream(40, 12)
+  const inp = new FakeInput()
+
+  let setStreaming, commit
+
+  function App() {
+    const [history, setHistory] = createSignal([])
+    const [streaming, setStreamingSig] = createSignal(null)
+    setStreaming = setStreamingSig
+    commit = () => { setHistory(h => [...h, { text: streaming() }]); setStreamingSig(null) }
+    return jsxs('box', {
+      style: { flexDirection: 'column' },
+      children: [
+        jsx(Scrollback, { items: history(), render: (m) => jsx('text', { children: m.text }) }),
+        streaming() != null ? jsx('text', { children: streaming() }) : null,
+      ],
+    })
+  }
+
+  const { unmount } = mount(App, { stream: out, stdin: inp, inline: true })
+  await tick()
+
+  setStreaming('par')
+  await tick()
+  out.clear()
+  setStreaming('partial reply')
+  await tick()
+  assert(stripAnsi(out.output).includes('partial reply'), 'inline: streaming text redraws in live region')
+
+  out.clear()
+  commit()
+  await tick()
+  assert(stripAnsi(out.output).includes('partial reply'), 'inline: finalized reply committed to scrollback')
+
+  out.clear()
+  setStreaming('next')
+  await tick()
+  assert(!stripAnsi(out.output).includes('partial reply'), 'inline: graduated reply is frozen, not re-emitted')
+
+  unmount()
+}
+
 // ----
 
 console.log(`\n${passed} passed, ${failed} failed`)

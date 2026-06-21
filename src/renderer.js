@@ -1,6 +1,7 @@
 import { createBuffer, clearBuffer, fillRect, writeText, dimBuffer, blitRect } from './buffer.js'
 import { diff } from './diff.js'
-import { computeLayout, resolveBorderEdges } from './layout.js'
+import { bufferToLines } from './serialize.js'
+import { computeLayout, resolveBorderEdges, intrinsicHeight } from './layout.js'
 import { Fragment } from './element.js'
 import { createScheduler } from './scheduler.js'
 import { createInputHandler } from './input.js'
@@ -606,7 +607,40 @@ function resolveForFrame(element, parent, instances, counters, visited, scope) {
   return node
 }
 
-export function mount(rootComponent, { stream, stdin, title, theme, onExit: onExitCb, altScreen = true } = {}) {
+function findScrollback(node) {
+  if (!node) return null
+  if (typeof node.type === 'function' && node.type.__scrollback) return node
+  if (node._resolved) {
+    const found = findScrollback(node._resolved)
+    if (found) return found
+  }
+  if (node._resolvedChildren) {
+    for (const child of node._resolvedChildren) {
+      const found = findScrollback(child)
+      if (found) return found
+    }
+  }
+  return null
+}
+
+// render a one-shot element (a committed scrollback item) to ANSI lines. it
+// gets its own throwaway instance map so it never pollutes the live tree's
+// cache, and scopes are disposed immediately since committed content is frozen
+function renderElementToLines(element, width) {
+  if (element == null) return []
+  const instances = new Map()
+  const counters = new Map()
+  const tree = resolveForFrame(element, null, instances, counters, null, '')
+  const h = Math.max(1, intrinsicHeight(tree, width, 100000))
+  computeLayout(tree, { x: 0, y: 0, width, height: h })
+  const buf = createBuffer(width, h)
+  paintTree(tree, buf, null, null, null)
+  const lines = bufferToLines(buf)
+  for (const inst of instances.values()) disposeScope(inst.scope)
+  return lines
+}
+
+export function mount(rootComponent, { stream, stdin, title, theme, onExit: onExitCb, altScreen = true, inline = false } = {}) {
   const out = stream ?? process.stdout
   const inp = stdin ?? process.stdin
 
@@ -625,6 +659,72 @@ export function mount(rootComponent, { stream, stdin, title, theme, onExit: onEx
   const instances = new Map()
   let forceFullPaint = false
   let prevHadOverlays = false
+
+  // inline mode state: how many scrollback items have been committed, how many
+  // lines the live region occupied last emit, and that emit's text for skipping
+  let flushedCount = 0
+  let prevLiveLines = 0
+  let prevLiveText = null
+
+  function inlineFrame() {
+    const prevCtx = activeContext
+    activeContext = ctx
+    overlays = []
+
+    const counters = new Map()
+    const visited = new Set()
+    const element = { type: rootComponent, props: {}, key: null }
+    const tree = resolveForFrame(element, null, instances, counters, visited, '')
+
+    const sb = findScrollback(tree)
+    const items = sb?.props?.items ?? []
+    const renderItem = sb?.props?.render
+
+    let committed = ''
+    if (renderItem && items.length > flushedCount) {
+      for (let i = flushedCount; i < items.length; i++) {
+        const lines = renderElementToLines(renderItem(items[i], i), width)
+        for (const ln of lines) committed += ln + '\r\n'
+      }
+    }
+    // items can only grow while mounted; a shrink means the app reset its log,
+    // which we can't un-print, so just resync the counter
+    flushedCount = items.length
+
+    const liveHeight = Math.min(height, Math.max(1, intrinsicHeight(tree, width, height)))
+    computeLayout(tree, { x: 0, y: 0, width, height: liveHeight })
+
+    for (const [key, inst] of instances) {
+      if (!visited.has(key)) {
+        disposeScope(inst.scope)
+        instances.delete(key)
+      }
+    }
+
+    const liveBuf = createBuffer(width, liveHeight)
+    paintTree(tree, liveBuf, null, null, null)
+    const liveLines = bufferToLines(liveBuf)
+    lastInlineBuf = liveBuf
+
+    activeContext = prevCtx
+
+    const liveText = liveLines.join('\r\n')
+    if (!committed && liveText === prevLiveText) return
+
+    let out_ = ''
+    if (prevLiveLines > 0) {
+      out_ += '\r'
+      if (prevLiveLines > 1) out_ += ansi.moveUp(prevLiveLines - 1)
+      out_ += ansi.clearDown
+    }
+    out_ += committed + liveText
+
+    out.write(ansi.hideCursor + out_)
+    prevLiveLines = liveLines.length
+    prevLiveText = liveText
+  }
+
+  let lastInlineBuf = null
 
   function frame() {
     const prevCtx = activeContext
@@ -741,20 +841,37 @@ export function mount(rootComponent, { stream, stdin, title, theme, onExit: onEx
 
   const scheduler = createScheduler({
     fps: 60,
-    onFrame: frame,
+    onFrame: inline ? inlineFrame : frame,
   })
 
   setSchedulerHook(scheduler.requestFrame)
 
-  out.write((altScreen ? ansi.altScreen : '') + ansi.hideCursor + ansi.clearScreen + ansi.enableMouse + (title ? ansi.setTitle(title) : ''))
+  // inline mode stays on the main screen buffer so native scrollback survives:
+  // no alt screen, no clear, no mouse capture (so the terminal handles scroll
+  // and text selection itself)
+  if (inline) {
+    out.write(ansi.hideCursor + (title ? ansi.setTitle(title) : ''))
+  } else {
+    out.write((altScreen ? ansi.altScreen : '') + ansi.hideCursor + ansi.clearScreen + ansi.enableMouse + (title ? ansi.setTitle(title) : ''))
+  }
   if (inp.isTTY && inp.setRawMode) inp.setRawMode(true)
 
-  frame()
+  if (inline) inlineFrame()
+  else frame()
   scheduler.requestFrame()
 
   const onResize = () => {
     width = out.columns ?? 80
     height = out.rows ?? 24
+    if (inline) {
+      // the terminal reflows committed history on its own; drop our live-region
+      // geometry and repaint it fresh below wherever the cursor landed
+      prevLiveLines = 0
+      prevLiveText = null
+      out.write('\r\n')
+      scheduler.forceFrame()
+      return
+    }
     prev = createBuffer(width, height)
     curr = createBuffer(width, height)
     out.write(ansi.clearScreen)
@@ -786,7 +903,11 @@ export function mount(rootComponent, { stream, stdin, title, theme, onExit: onEx
     }
     instances.clear()
 
-    out.write(ansi.sgrReset + ansi.disableMouse + ansi.showCursor + (altScreen ? ansi.exitAltScreen : ansi.moveTo(height, 1) + '\n'))
+    if (inline) {
+      out.write(ansi.sgrReset + ansi.showCursor + '\r\n')
+    } else {
+      out.write(ansi.sgrReset + ansi.disableMouse + ansi.showCursor + (altScreen ? ansi.exitAltScreen : ansi.moveTo(height, 1) + '\n'))
+    }
     if (inp.isTTY && inp.setRawMode) inp.setRawMode(false)
     activeContext = null
     setSchedulerHook(null)
@@ -799,6 +920,11 @@ export function mount(rootComponent, { stream, stdin, title, theme, onExit: onEx
   process.on('exit', onExit)
 
   function repaint() {
+    if (inline) {
+      prevLiveText = null
+      scheduler.forceFrame()
+      return
+    }
     prev = createBuffer(width, height)
     curr = createBuffer(width, height)
     forceFullPaint = true
@@ -808,5 +934,5 @@ export function mount(rootComponent, { stream, stdin, title, theme, onExit: onEx
 
   ctx.repaint = repaint
 
-  return { unmount, repaint, getBuffer: () => prev }
+  return { unmount, repaint, getBuffer: () => (inline ? lastInlineBuf : prev) }
 }

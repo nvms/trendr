@@ -119,7 +119,7 @@ export function TextArea({ onSubmit, onCancel, onChange, onKeyDown, placeholder,
 
     resetBlink()
 
-    const { key, raw, ctrl, meta } = event
+    const { key, raw, ctrl, meta, shift } = event
     const v = value()
     const c = cursor()
 
@@ -131,10 +131,10 @@ export function TextArea({ onSubmit, onCancel, onChange, onKeyDown, placeholder,
     }
 
     const isSubmitKey = submitOnEnter
-      ? (key === 'return' && !meta)
+      ? (key === 'return' && !meta && !shift)
       : (meta && key === '\r')
     const isNewlineKey = submitOnEnter
-      ? (meta && key === '\r')
+      ? ((shift && key === 'return') || (meta && key === '\r'))
       : (key === 'return')
 
     if (isSubmitKey) {

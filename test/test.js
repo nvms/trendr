@@ -1065,6 +1065,35 @@ suite('input - parseKey meta')
   assert(e.meta, 'meta flag')
 }
 
+suite('input - parseKey modified return (modifyOtherKeys)')
+{
+  const e = parseKey('\x1b[27;2;13~')
+  assertEq(e.key, 'return', 'shift+enter is return')
+  assert(e.shift, 'shift flag set')
+  assert(!e.meta && !e.ctrl, 'no other modifiers')
+}
+
+suite('input - parseKey modified return (csi-u)')
+{
+  const e = parseKey('\x1b[13;2u')
+  assertEq(e.key, 'return', 'shift+enter is return')
+  assert(e.shift, 'shift flag set')
+}
+
+suite('input - splitKeys keeps modifyOtherKeys sequence intact')
+{
+  const keys = splitKeys('\x1b[27;2;13~')
+  assertEq(keys.length, 1, 'one key, not split on semicolons')
+  assertEq(keys[0], '\x1b[27;2;13~', 'full sequence preserved')
+}
+
+suite('input - splitKeys csi-u sequence intact')
+{
+  const keys = splitKeys('ab\x1b[13;2uc')
+  assertEq(keys.length, 4, 'a, b, csi-u, c')
+  assertEq(keys[2], '\x1b[13;2u', 'csi-u sequence preserved')
+}
+
 suite('input - parseKey function keys')
 {
   assertEq(parseKey('\x1bOP').key, 'f1', 'F1')

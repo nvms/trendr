@@ -246,6 +246,10 @@ function layoutFlex(children, ctx) {
   }
 }
 
+export function intrinsicHeight(node, availW, availH) {
+  return measureChild(node, childStyle(node), false, availW, availH).height
+}
+
 function measureChild(child, cs, isRow, availW, availH) {
   const leaf = getLeaf(child)
   if (!leaf) return { width: 0, height: 0 }
