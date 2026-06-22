@@ -11,6 +11,7 @@ export const showCursor = `${ESC}?25h`
 export const clearScreen = `${ESC}2J`
 export const clearLine = `${ESC}2K`
 export const clearDown = `${ESC}0J`
+export const clearScrollback = `${ESC}3J`
 export const altScreen = `${ESC}?1049h`
 export const exitAltScreen = `${ESC}?1049l`
 export const sgrReset = `${ESC}0m`

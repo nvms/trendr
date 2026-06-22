@@ -23,9 +23,7 @@ const COMMANDS = [
 ]
 
 const BANNER = [
-'┏━┃┛┃ ┃┏━┃',
-'┏━┛┃┏┛ ┏━┃',
-'┛  ┛┛ ┛┛ ┛',
+';D',
  // '⣀⡀ ⠄ ⢀⣀ ⢀⡀',
  // '⡧⠜ ⠇ ⠣⠤ ⠣⠜',
 // '╭─╮╷╭─╴╭─╮',
@@ -37,12 +35,7 @@ const BANNER = [
   // '▌      ',
 ]
 
-function now() {
-  const d = new Date()
-  return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
-}
-
-function Message({ from, text, at, kind }) {
+function Message({ from, text, kind }) {
   if (kind === 'banner') {
     return (
       <box style={{ flexDirection: 'column', paddingX: 2 }}>
@@ -53,14 +46,13 @@ function Message({ from, text, at, kind }) {
     )
   }
 
-  // your own messages echo the composer: same dark bar, a muted timestamp on
-  // the top row, your text in the middle, and an empty bottom row from paddingY
+  // your own messages echo the composer: same dark bar, an empty top row, your
+  // text in the middle, and an empty bottom row from paddingY
   if (from === 'you') {
     return (
       <box style={{ flexDirection: 'column' }}>
         <text> </text>
         <box style={{ bg: '#1e1e22', flexDirection: 'column', paddingX: 2, paddingY: 1 }}>
-          <text style={{ color: '#6b7280' }}>{at}</text>
           <text style={{ color: '#f9fafb' }}>{text}</text>
         </box>
       </box>
@@ -70,7 +62,6 @@ function Message({ from, text, at, kind }) {
   return (
     <box style={{ flexDirection: 'column', paddingX: 2 }}>
       <text> </text>
-      <text style={{ color: '#4b5563' }}>{at}</text>
       <text style={{ color: '#e5e7eb' }}>{text}</text>
     </box>
   )
@@ -79,7 +70,6 @@ function Message({ from, text, at, kind }) {
 function Chat() {
   const [history, setHistory] = createSignal([{ kind: 'banner' }])
   const [streaming, setStreaming] = createSignal(null)
-  const [streamAt, setStreamAt] = createSignal('')
   const [startedAt, setStartedAt] = createSignal(0)
   const [busy, setBusy] = createSignal(false)
   const [turn, setTurn] = createSignal(0)
@@ -97,7 +87,7 @@ function Chat() {
 
   function stream(words, i) {
     if (i >= words.length) {
-      setHistory(h => [...h, { from: 'trend-agent', text: streaming(), at: streamAt() }])
+      setHistory(h => [...h, { from: 'trend-agent', text: streaming() }])
       setStreaming(null)
       setBusy(false)
       return
@@ -109,9 +99,8 @@ function Chat() {
   function send(text) {
     const value = text.trim()
     if (!value || busy()) return
-    setHistory(h => [...h, { from: 'you', text: value, at: now() }])
+    setHistory(h => [...h, { from: 'you', text: value }])
     setBusy(true)
-    setStreamAt(now())
     setStartedAt(Date.now())
     setStreaming('')
     const reply = REPLIES[turn() % REPLIES.length]
@@ -142,7 +131,7 @@ function Chat() {
       <Scrollback items={history()} render={(m) => <Message {...m} />} />
 
       {streaming() && (
-        <Message from="trend-agent" at={streamAt()} text={`${streaming()}▋`} />
+        <Message from="trend-agent" text={`${streaming()}▋`} />
       )}
 
       {busy() && (
@@ -163,7 +152,7 @@ function Chat() {
           submitOnEnter
           clearOnSubmit
           maxHeight={8}
-          placeholder="message trend-agent - enter to send, / for commands"
+          placeholder="enter to send, / for commands"
           cursor={{ blink: true, bg: ACCENT, color: 'black' }}
         />
       </box>

@@ -660,10 +660,12 @@ export function mount(rootComponent, { stream, stdin, title, theme, onExit: onEx
   let forceFullPaint = false
   let prevHadOverlays = false
 
-  // inline mode state: how many scrollback items have been committed, how many
-  // lines the live region occupied last emit, and that emit's text for skipping
+  // inline mode state: how many scrollback items have been committed, the
+  // visible width of each line the live region last emitted (so a later resize
+  // can compute how many physical rows they reflowed into), and that emit's
+  // text for skipping unchanged frames
   let flushedCount = 0
-  let prevLiveLines = 0
+  let prevLineLens = []
   let prevLiveText = null
 
   // mirror per-instance layout (incl. scroll contentHeight/childHeights) back
@@ -743,16 +745,25 @@ export function mount(rootComponent, { stream, stdin, title, theme, onExit: onEx
     const liveText = liveLines.join('\r\n')
     if (!committed && liveText === prevLiveText) return
 
+    // the cursor rests at the end of the last live line between frames. erase
+    // the previous live region before repainting: since it was drawn, a resize
+    // may have reflowed each of its lines into ceil(visibleWidth / width) rows,
+    // so step back over that real physical height rather than the logical line
+    // count - otherwise a shrink leaves the extra wrapped rows stranded as
+    // ghost bars. history above is left to the terminal's own reflow
+    let phys = 0
+    for (const len of prevLineLens) phys += Math.max(1, Math.ceil(len / width))
+
     let out_ = ''
-    if (prevLiveLines > 0) {
+    if (phys > 0) {
       out_ += '\r'
-      if (prevLiveLines > 1) out_ += ansi.moveUp(prevLiveLines - 1)
+      if (phys > 1) out_ += ansi.moveUp(phys - 1)
       out_ += ansi.clearDown
     }
     out_ += committed + liveText
 
     out.write(ansi.hideCursor + out_)
-    prevLiveLines = liveLines.length
+    prevLineLens = liveLines.map(l => measureText(l))
     prevLiveText = liveText
   }
 
@@ -896,11 +907,16 @@ export function mount(rootComponent, { stream, stdin, title, theme, onExit: onEx
     width = out.columns ?? 80
     height = out.rows ?? 24
     if (inline) {
-      // the terminal reflows committed history on its own; drop our live-region
-      // geometry and repaint it fresh below wherever the cursor landed
-      prevLiveLines = 0
+      // a resize reflows committed scrollback unpredictably, and a relative
+      // erase of the live region cannot reliably track it across terminals.
+      // rebuild instead: wipe the screen and scrollback, reset the commit
+      // cursor, and re-commit the whole transcript cleanly at the new width
+      width = out.columns ?? 80
+      height = out.rows ?? 24
+      out.write(ansi.clearScrollback + ansi.clearScreen + ansi.moveTo(1, 1))
+      flushedCount = 0
+      prevLineLens = []
       prevLiveText = null
-      out.write('\r\n')
       scheduler.forceFrame()
       return
     }
