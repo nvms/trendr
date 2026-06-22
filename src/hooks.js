@@ -1,10 +1,6 @@
-import { onCleanup, createSignal as rawCreateSignal, createSignalRaw } from './signal.js'
+import { onCleanup, createSignalRaw } from './signal.js'
 import { getContext, getTheme, getCursor, registerHook, getInstanceLayout, getFrameStats } from './renderer.js'
 import { setTitle } from './ansi.js'
-
-export function useState(initial) {
-  return registerHook(() => rawCreateSignal(initial))
-}
 
 export function useInput(handler) {
   const ref = registerHook(() => {
