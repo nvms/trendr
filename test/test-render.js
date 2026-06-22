@@ -1,6 +1,7 @@
 import { EventEmitter } from 'events'
 import { mount, createSignal, createEffect, useInput, useFocus, useTheme } from '../index.js'
 import { TextInput } from '../src/text-input.js'
+import { TextArea } from '../src/text-area.js'
 import { List } from '../src/list.js'
 import { ScrollableText } from '../src/scrollable-text.js'
 import { Modal } from '../src/modal.js'
@@ -1169,6 +1170,62 @@ suite('Menu ignores navigation when not focused')
   inp.send('\x1b[B')
   await tick()
   assertEq(cur, 0, 'menu: unfocused menu does not move on arrow key')
+
+  unmount()
+}
+
+// text-area ctrl+u
+
+suite('text-area ctrl+u clears a line then eats the line break upward')
+{
+  const out = new FakeStream(40, 10)
+  const inp = new FakeInput()
+  let value = ''
+
+  function App() {
+    return jsx(TextArea, { onChange: (v) => { value = v }, focused: true })
+  }
+
+  const { unmount } = mount(App, { stream: out, stdin: inp, altScreen: false })
+  await tick()
+
+  for (const ch of 'aaa') { inp.send(ch); await tick() }
+  inp.send('\r'); await tick()
+  for (const ch of 'bbb') { inp.send(ch); await tick() }
+  inp.send('\r'); await tick()
+  for (const ch of 'ccc') { inp.send(ch); await tick() }
+  await tick()
+  assertEq(value, 'aaa\nbbb\nccc', 'typed three lines')
+
+  inp.send('\x15'); await tick()
+  assertEq(value, 'aaa\nbbb', 'ctrl+u removes the last line and moves up')
+  inp.send('\x15'); await tick()
+  assertEq(value, 'aaa', 'ctrl+u again eats the next line up')
+  inp.send('\x15'); await tick()
+  assertEq(value, '', 'ctrl+u on the first line just clears it')
+
+  unmount()
+}
+
+suite('text-area ctrl+u mid-line only deletes back to the line start')
+{
+  const out = new FakeStream(40, 10)
+  const inp = new FakeInput()
+  let value = ''
+
+  function App() {
+    return jsx(TextArea, { onChange: (v) => { value = v }, focused: true })
+  }
+
+  const { unmount } = mount(App, { stream: out, stdin: inp, altScreen: false })
+  await tick()
+
+  for (const ch of 'hello') { inp.send(ch); await tick() }
+  // move cursor left twice -> between 'hel' and 'lo'
+  inp.send('\x1b[D'); await tick()
+  inp.send('\x1b[D'); await tick()
+  inp.send('\x15'); await tick()
+  assertEq(value, 'lo', 'ctrl+u deletes only before the cursor on the line, keeps the rest')
 
   unmount()
 }

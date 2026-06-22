@@ -1,4 +1,4 @@
-import { mount, createSignal, Shimmer, Menu, Scrollback } from '../index.js'
+import { mount, createSignal, Shimmer, Menu, Modal, Scrollback } from '../index.js'
 import { TextArea } from '../src/text-area.js'
 
 const ACCENT = '#60a5fa'
@@ -10,6 +10,7 @@ const REPLIES = [
 ]
 
 const COMMANDS = [
+  { name: 'modal', desc: 'Open a sample MCP servers modal (esc to close)' },
   { name: 'clear', desc: 'Clear the conversation and free the context window' },
   { name: 'compact', desc: 'Summarize the conversation so far into a shorter form' },
   { name: 'model', desc: 'Switch the active model for this session' },
@@ -76,9 +77,11 @@ function Chat() {
   const [input, setInput] = createSignal('')
   const [cmdIndex, setCmdIndex] = createSignal(0)
   const [notice, setNotice] = createSignal('')
+  const [showModal, setShowModal] = createSignal(false)
 
   function runCommand(c) {
     setInput('')
+    if (c.name === 'modal') { setShowModal(true); return }
     const msg = `ran /${c.name}`
     setNotice(msg)
     // self-clearing so a later command does not get wiped by an older timer
@@ -192,6 +195,18 @@ function Chat() {
         <text style={{ color: '#4b5563' }}>↓</text>
         <text style={{ color: '#6b7280' }}>{`${outTokens.toLocaleString()} out`}</text>
       </box>
+
+      <Modal open={showModal()} onClose={() => setShowModal(false)} title="MCP Servers" width={56}>
+        <text style={{ color: '#6b7280' }}>{'⌕  search...'}</text>
+        <text> </text>
+        <text style={{ color: '#7dd3fc' }}>{'▸ ▪ atlas       (global)   8/18'}</text>
+        <text style={{ color: '#9ca3af' }}>{'  ▪ ledger      (global)  24/24'}</text>
+        <text style={{ color: '#9ca3af' }}>{'  ▫ forge       (global)   0/12'}</text>
+        <text style={{ color: '#9ca3af' }}>{'  ▫ beacon      (global)   0/9'}</text>
+        <text style={{ color: '#9ca3af' }}>{'  ▪ almanac     (global)  31/31'}</text>
+        <text> </text>
+        <text style={{ color: '#4b5563' }}>{'↑↓ navigate   space toggle   esc close'}</text>
+      </Modal>
     </box>
   )
 }

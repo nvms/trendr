@@ -221,10 +221,21 @@ export function TextArea({ onSubmit, onCancel, onChange, onKeyDown, placeholder,
     }
 
     if (ctrl && raw === '\x15') {
-      const before = v.slice(0, c)
-      const nlIdx = before.lastIndexOf('\n')
-      const lineStart = nlIdx + 1
-      update(v.slice(0, lineStart) + v.slice(c), lineStart)
+      const lineStart = v.lastIndexOf('\n', c - 1) + 1
+      const rest = v.slice(c)
+      const lineEmptyAfter = rest.length === 0 || rest[0] === '\n'
+      if (c > lineStart && !(lineEmptyAfter && lineStart > 0)) {
+        // delete to start of the current line, staying on it
+        update(v.slice(0, lineStart) + rest, lineStart)
+      } else if (lineStart > 0) {
+        // nothing left to delete on this line (or the line is now empty): remove
+        // the line break above and land at the end of the previous line, so
+        // repeated ctrl+u keeps eating lines upward
+        update(v.slice(0, lineStart - 1) + rest, lineStart - 1)
+      } else if (c > lineStart) {
+        // first line: just clear it
+        update(rest, 0)
+      }
       event.stopPropagation()
       return
     }

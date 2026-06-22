@@ -668,6 +668,13 @@ export function mount(rootComponent, { stream, stdin, title, theme, onExit: onEx
   let prevLineLens = []
   let prevLiveText = null
 
+  // while a modal/overlay is open, inline mode renders it fullscreen on the
+  // alternate screen. the terminal saves the main screen on entry and restores
+  // it exactly on exit, so the committed transcript and native scrollback are
+  // never touched
+  let overlayActive = false
+  let overlayPrev = null
+
   // mirror per-instance layout (incl. scroll contentHeight/childHeights) back
   // onto each instance so useLayout() consumers like List/Menu can window.
   // returns whether anything changed, so the caller can re-resolve once and let
@@ -700,6 +707,67 @@ export function mount(rootComponent, { stream, stdin, title, theme, onExit: onEx
     const visited = new Set()
     const element = { type: rootComponent, props: {}, key: null }
     let tree = resolveForFrame(element, null, instances, counters, visited, '')
+
+    // a registered overlay (e.g. a Modal) takes over the screen. render it on
+    // the alternate buffer so the inline transcript is saved/restored by the
+    // terminal around it - no scrollback wipe, no relative-erase guesswork.
+    // we reconstruct the visible transcript + live region into the alt buffer
+    // as a backdrop so the conversation still shows behind the modal
+    if (overlays.length > 0) {
+      if (!overlayActive) {
+        out.write(ansi.altScreen + ansi.hideCursor + ansi.clearScreen)
+        overlayActive = true
+        overlayPrev = createBuffer(width, height)
+      }
+      const overlayCurr = createBuffer(width, height)
+
+      const sbNode = findScrollback(tree)
+      const sbItems = sbNode?.props?.items ?? []
+      const sbRender = sbNode?.props?.render
+      const bg = []
+      if (sbRender) {
+        for (let i = 0; i < sbItems.length; i++) bg.push(...renderElementToLines(sbRender(sbItems[i], i), width))
+      }
+      const lh = Math.min(height, Math.max(1, intrinsicHeight(tree, width, height)))
+      computeLayout(tree, { x: 0, y: 0, width, height: lh })
+      const lbuf = createBuffer(width, lh)
+      paintTree(tree, lbuf, null, null, null)
+      bg.push(...bufferToLines(lbuf))
+
+      // show the tail that fits, top-aligned (matches the main screen's view)
+      const visible = bg.slice(Math.max(0, bg.length - height))
+      for (let i = 0; i < visible.length; i++) writeText(overlayCurr, 0, i, visible[i], null, null, 0)
+
+      for (const { element: ovEl, backdrop } of overlays) {
+        const ovTree = resolveForFrame(ovEl, null, instances, counters, visited, '')
+        if (!ovTree) continue
+        computeLayout(ovTree, { x: 0, y: 0, width, height })
+        updateOverlayLayouts(ovTree)
+        if (backdrop) dimBuffer(overlayCurr)
+        clearOverlayRect(ovTree, overlayCurr)
+        paintTree(ovTree, overlayCurr, null, null, null)
+      }
+
+      for (const [key, inst] of instances) {
+        if (!visited.has(key)) {
+          disposeScope(inst.scope)
+          instances.delete(key)
+        }
+      }
+      activeContext = prevCtx
+      const { output } = diff(overlayPrev, overlayCurr)
+      if (output) out.write(ansi.hideCursor + output)
+      overlayPrev = overlayCurr
+      return
+    }
+
+    if (overlayActive) {
+      // modal closed: the terminal restores the saved main screen exactly
+      out.write(ansi.exitAltScreen)
+      overlayActive = false
+      overlayPrev = null
+      prevLiveText = null
+    }
 
     const sb = findScrollback(tree)
     const items = sb?.props?.items ?? []
@@ -907,12 +975,20 @@ export function mount(rootComponent, { stream, stdin, title, theme, onExit: onEx
     width = out.columns ?? 80
     height = out.rows ?? 24
     if (inline) {
+      width = out.columns ?? 80
+      height = out.rows ?? 24
+      if (overlayActive) {
+        // on the alternate screen: just clear and re-render the modal centered
+        // at the new size. the saved main screen is restored on close
+        overlayPrev = createBuffer(width, height)
+        out.write(ansi.clearScreen)
+        scheduler.forceFrame()
+        return
+      }
       // a resize reflows committed scrollback unpredictably, and a relative
       // erase of the live region cannot reliably track it across terminals.
       // rebuild instead: wipe the screen and scrollback, reset the commit
       // cursor, and re-commit the whole transcript cleanly at the new width
-      width = out.columns ?? 80
-      height = out.rows ?? 24
       out.write(ansi.clearScrollback + ansi.clearScreen + ansi.moveTo(1, 1))
       flushedCount = 0
       prevLineLens = []
@@ -952,7 +1028,7 @@ export function mount(rootComponent, { stream, stdin, title, theme, onExit: onEx
     instances.clear()
 
     if (inline) {
-      out.write(ansi.sgrReset + ansi.showCursor + '\r\n')
+      out.write((overlayActive ? ansi.exitAltScreen : '') + ansi.sgrReset + ansi.showCursor + '\r\n')
     } else {
       out.write(ansi.sgrReset + ansi.disableMouse + ansi.showCursor + (altScreen ? ansi.exitAltScreen : ansi.moveTo(height, 1) + '\n'))
     }
