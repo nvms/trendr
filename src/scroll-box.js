@@ -24,12 +24,12 @@ export function ScrollBox({ children, focused = true, scrollOffset: offsetProp, 
     const pageH = visibleH || 10
     const half = Math.max(1, Math.floor(pageH / 2))
 
-    if (key === 'up' || key === 'k') setOffset(clamp(offset - 1))
-    else if (key === 'down' || key === 'j') setOffset(clamp(offset + 1))
-    else if (key === 'pageup' || (ctrl && key === 'b')) setOffset(clamp(offset - pageH))
-    else if (key === 'pagedown' || (ctrl && key === 'f')) setOffset(clamp(offset + pageH))
-    else if (ctrl && key === 'u') setOffset(clamp(offset - half))
-    else if (ctrl && key === 'd') setOffset(clamp(offset + half))
+    if (key === 'up' || key === 'k') setOffset(clamp(clamped - 1))
+    else if (key === 'down' || key === 'j') setOffset(clamp(clamped + 1))
+    else if (key === 'pageup' || (ctrl && key === 'b')) setOffset(clamp(clamped - pageH))
+    else if (key === 'pagedown' || (ctrl && key === 'f')) setOffset(clamp(clamped + pageH))
+    else if (ctrl && key === 'u') setOffset(clamp(clamped - half))
+    else if (ctrl && key === 'd') setOffset(clamp(clamped + half))
     else if (key === 'home' || key === 'g') setOffset(0)
     else if (key === 'end' || key === 'G') setOffset(maxOffset)
   })
@@ -40,8 +40,8 @@ export function ScrollBox({ children, focused = true, scrollOffset: offsetProp, 
     if (contentH <= visibleH) return
     const { x, y } = event
     if (x < layout.x || x >= layout.x + layout.width || y < layout.y || y >= layout.y + layout.height) return
-    if (event.direction === 'up') setOffset(clamp(offset - 3))
-    else setOffset(clamp(offset + 3))
+    if (event.direction === 'up') setOffset(clamp(clamped - 3))
+    else setOffset(clamp(clamped + 3))
     event.stopPropagation()
   })
 

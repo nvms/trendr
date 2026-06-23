@@ -1,4 +1,9 @@
-import { mount, createSignal, Shimmer, Menu, Modal, Scrollback } from '../index.js'
+// the alt-screen counterpart to inline-chat.jsx: the same fake coding agent,
+// same look and feel, but rendered fullscreen on the alternate screen buffer
+// instead of committing to native scrollback. because the terminal's own
+// scrollback is unavailable here, the transcript lives in an in-app ScrollBox
+// and a focus manager (tab) switches between scrolling history and composing
+import { mount, createSignal, Shimmer, Menu, Modal, ScrollBox, useFocus } from '../index.js'
 import { TextArea } from '../src/text-area.js'
 
 const ACCENT = '#6BE795'
@@ -25,15 +30,6 @@ const COMMANDS = [
 
 const BANNER = [
   'pico',
- // '⣀⡀ ⠄ ⢀⣀ ⢀⡀',
- // '⡧⠜ ⠇ ⠣⠤ ⠣⠜',
-// '╭─╮╷╭─╴╭─╮',
-// '├─╯││  │ │',
-// '╵  ╵╰─╴╰─╯',
-  // '  ▘    ',
-  // '▛▌▌▛▘▛▌',
-  // '▙▌▌▙▖▙▌',
-  // '▌      ',
 ]
 
 function Message({ from, text, kind }) {
@@ -47,8 +43,6 @@ function Message({ from, text, kind }) {
     )
   }
 
-  // your own messages echo the composer: same dark bar, an empty top row, your
-  // text in the middle, and an empty bottom row from paddingY
   if (from === 'you') {
     return (
       <box style={{ flexDirection: 'column' }}>
@@ -79,12 +73,20 @@ function Chat() {
   const [notice, setNotice] = createSignal('')
   const [showModal, setShowModal] = createSignal(false)
 
+  // in-app scroll position. while following, the feed stays pinned to the
+  // bottom (a huge offset clamps to the end inside ScrollBox)
+  const [offset, setOffset] = createSignal(0)
+  const [follow, setFollow] = createSignal(true)
+
+  const fm = useFocus({ initial: 'input' })
+  fm.item('feed')
+  fm.item('input')
+
   function runCommand(c) {
     setInput('')
     if (c.name === 'modal') { setShowModal(true); return }
     const msg = `ran /${c.name}`
     setNotice(msg)
-    // self-clearing so a later command does not get wiped by an older timer
     setTimeout(() => setNotice(n => (n === msg ? '' : n)), 2500)
   }
 
@@ -103,6 +105,7 @@ function Chat() {
     const value = text.trim()
     if (!value || busy()) return
     setHistory(h => [...h, { from: 'you', text: value }])
+    setFollow(true) // sending snaps back to the bottom
     setBusy(true)
     setStartedAt(Date.now())
     setStreaming('')
@@ -113,16 +116,11 @@ function Chat() {
 
   const elapsed = busy() ? Math.max(0, Math.floor((Date.now() - startedAt()) / 1000)) : 0
 
-  // fake token accounting, roughly 4 chars per token, plus a base system
-  // prompt so the input count looks realistic from the first turn
   const estTokens = (s) => Math.ceil(s.length / 4)
   const inTokens = 1280 + history().filter(m => m.from === 'you').reduce((a, m) => a + estTokens(m.text), 0)
   const outTokens = history().filter(m => m.from === 'trend-agent').reduce((a, m) => a + estTokens(m.text), 0)
     + (streaming() ? estTokens(streaming()) : 0)
 
-  // slash command palette: only when the input starts with "/" and you are
-  // still typing the command token (no space yet). escape clears the input,
-  // which drops the list out of the live region automatically
   const slashQuery = input().startsWith('/') ? input().slice(1) : null
   const showCommands = slashQuery !== null && !slashQuery.includes(' ')
   const matchedCommands = showCommands
@@ -130,12 +128,17 @@ function Chat() {
     : []
 
   return (
-    <box style={{ flexDirection: 'column' }}>
-      <Scrollback items={history()} render={(m) => <Message {...m} />} />
-
-      {streaming() && (
-        <Message from="trend-agent" text={`${streaming()}▋`} />
-      )}
+    <box style={{ flexDirection: 'column', height: '100%' }}>
+      <ScrollBox
+        style={{ flexGrow: 1 }}
+        focused={fm.is('feed')}
+        scrollOffset={follow() ? 1e9 : offset()}
+        onScroll={(next) => { setFollow(false); setOffset(next) }}
+        scrollbar
+      >
+        {history().map((m, i) => <Message key={i} {...m} />)}
+        {streaming() && <Message key="streaming" from="trend-agent" text={`${streaming()}▋`} />}
+      </ScrollBox>
 
       {busy() && (
         <box style={{ flexDirection: 'row', paddingX: 2, marginTop: 1 }}>
@@ -154,9 +157,9 @@ function Chat() {
           onSubmit={send}
           submitOnEnter
           clearOnSubmit
-          focused={!showModal()}
+          focused={fm.is('input') && !showModal()}
           maxHeight={8}
-          placeholder="enter to send, / for commands"
+          placeholder="enter to send, / for commands, tab to scroll"
           cursor={{ blink: true, bg: ACCENT, color: 'black' }}
         />
       </box>
@@ -187,7 +190,9 @@ function Chat() {
       )}
 
       <box style={{ flexDirection: 'row', paddingX: 2, gap: 1 }}>
-        {notice() ? <text style={{ color: '#34d399' }}>{notice()}</text> : null}
+        {notice()
+          ? <text style={{ color: '#34d399' }}>{notice()}</text>
+          : <text style={{ color: '#4b5563' }}>{fm.is('feed') ? 'feed · tab to compose' : 'tab to scroll history'}</text>}
         <box style={{ flexGrow: 1 }} />
         <text style={{ color: ACCENT }}>claude-opus-4-8</text>
         <text style={{ color: '#4b5563' }}>↑</text>
@@ -213,7 +218,6 @@ function Chat() {
 }
 
 mount(Chat, {
-  inline: true,
-  title: 'trend inline chat',
+  title: 'trend alt-buffer chat',
   theme: { accent: ACCENT },
 })

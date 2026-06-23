@@ -1230,6 +1230,38 @@ suite('text-area ctrl+u mid-line only deletes back to the line start')
   unmount()
 }
 
+// ScrollBox
+
+import { ScrollBox } from '../index.js'
+
+suite('ScrollBox first scroll-up from an out-of-range (follow) offset moves one row')
+{
+  const out = new FakeStream(20, 6)
+  const inp = new FakeInput()
+  let lastScroll = null
+
+  function App() {
+    return jsx(ScrollBox, {
+      focused: true,
+      scrollOffset: 1e9, // a "follow the bottom" sentinel - clamps to maxOffset
+      onScroll: (v) => { lastScroll = v },
+      children: Array.from({ length: 20 }, (_, i) => jsx('text', { key: i, children: `line ${i}` })),
+    })
+  }
+
+  const { unmount } = mount(App, { stream: out, stdin: inp, altScreen: false })
+  await tick()
+  await tick()
+
+  // 20 lines of content, 6 rows visible -> maxOffset 14. one up press should
+  // land at 13, not 14 (the bug was the first press being absorbed by the sentinel)
+  inp.send('\x1b[A')
+  await tick()
+  assertEq(lastScroll, 13, 'first up from the follow sentinel moves to maxOffset-1')
+
+  unmount()
+}
+
 // ----
 
 console.log(`\n${passed} passed, ${failed} failed`)
