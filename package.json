@@ -16,7 +16,7 @@
     "./jsx-dev-runtime": "./jsx-runtime.js"
   },
   "scripts": {
-    "test": "node test/test.js && node test/test-e2e.js && node test/test-mount.js && node test/test-render.js",
+    "test": "node test/test.js && node test/test-e2e.js && node test/test-mount.js && node test/test-render.js && node test/test-diff.js",
     "build": "node esbuild.config.js",
     "counter": "node esbuild.config.js && node dist/counter.js",
     "dashboard": "node esbuild.config.js && node dist/dashboard.js",
@@ -28,6 +28,7 @@
     "focus-demo": "node esbuild.config.js && node dist/focus-demo.js",
     "modal-form": "node esbuild.config.js && node dist/modal-form.js",
     "highlight": "node esbuild.config.js && node dist/highlight.js src",
+    "diff": "node esbuild.config.js && node dist/diff.js",
     "multi-row-list": "node esbuild.config.js && node dist/multi-row-list.js",
     "plasma": "node esbuild.config.js && node dist/plasma.js",
     "rain": "node esbuild.config.js && node dist/rain.js",

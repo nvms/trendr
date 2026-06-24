@@ -4,6 +4,7 @@ import { TextInput } from '../src/text-input.js'
 import { TextArea } from '../src/text-area.js'
 import { List } from '../src/list.js'
 import { ScrollableText } from '../src/scrollable-text.js'
+import { Diff } from '../src/diff-view.js'
 import { Modal } from '../src/modal.js'
 import { jsx, jsxs, Fragment } from '../jsx-runtime.js'
 
@@ -1258,6 +1259,61 @@ suite('ScrollBox first scroll-up from an out-of-range (follow) offset moves one 
   inp.send('\x1b[A')
   await tick()
   assertEq(lastScroll, 13, 'first up from the follow sentinel moves to maxOffset-1')
+
+  unmount()
+}
+
+suite('Diff renders gutter numbers and changed content')
+{
+  const out = new FakeStream(48, 8)
+  const inp = new FakeInput()
+
+  function App() {
+    return jsx(Diff, {
+      before: 'const a = 1\nconst b = 2\nconst c = 3',
+      after: 'const a = 1\nconst b = 99\nconst c = 3',
+      focused: true,
+    })
+  }
+
+  const { unmount } = mount(App, { stream: out, stdin: inp, altScreen: false })
+  await tick()
+
+  const grid = parseScreen(out.output, 48, 8)
+  const text = gridText(grid)
+  assert(text.includes('const b = 2'), 'removed line is rendered')
+  assert(text.includes('const b = 99'), 'added line is rendered')
+  assert(findInGrid(grid, '-') != null, 'deletion marker present')
+  assert(findInGrid(grid, '+') != null, 'addition marker present')
+  // unchanged surrounding lines stay as single context rows (not duplicated)
+  const occurrences = text.split('\n').filter(l => l.includes('const a = 1')).length
+  assertEq(occurrences, 1, 'context line shown once')
+
+  unmount()
+}
+
+suite('Diff scrolls with j/k when focused')
+{
+  const out = new FakeStream(40, 4)
+  const inp = new FakeInput()
+
+  const before = Array.from({ length: 30 }, (_, i) => `line ${i}`).join('\n')
+  const after = before + '\nappended'
+
+  function App() {
+    return jsx(Diff, { before, after, focused: true, scrollbar: false })
+  }
+
+  const { unmount } = mount(App, { stream: out, stdin: inp, altScreen: false })
+  await tick()
+
+  const top = gridText(parseScreen(out.output, 40, 4))
+  assert(top.includes('line 0'), 'starts at the top of the diff')
+
+  inp.send('G')
+  await tick()
+  const bottom = gridText(parseScreen(out.output, 40, 4))
+  assert(bottom.includes('appended'), 'jumps to the appended line at the bottom')
 
   unmount()
 }

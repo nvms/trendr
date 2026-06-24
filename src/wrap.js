@@ -53,6 +53,45 @@ export function sliceVisible(text, maxWidth) {
   return result
 }
 
+// extracts the visible codepoint range [start, end) from an ANSI string while
+// carrying the SGR state active at the cut, so syntax colors survive a slice.
+// start/end count codepoints, matching the diff engine's intra ranges
+export function sliceVisibleRange(text, start, end) {
+  let idx = 0
+  let active = ''
+  let out = ''
+  let opened = false
+  let i = 0
+
+  while (i < text.length && idx < end) {
+    if (text[i] === '\x1b' && text[i + 1] === '[') {
+      const e = text.indexOf('m', i + 2)
+      if (e !== -1) {
+        const seq = text.slice(i, e + 1)
+        if (seq === '\x1b[0m' || seq === '\x1b[m') active = ''
+        else active += seq
+        if (opened) out += seq
+        i = e + 1
+        continue
+      }
+    }
+    const code = text.codePointAt(i)
+    const len = code > 0xffff ? 2 : 1
+    if (idx >= start) {
+      if (!opened) {
+        out += active
+        opened = true
+      }
+      out += text.slice(i, i + len)
+    }
+    idx++
+    i += len
+  }
+
+  if (opened && active) out += '\x1b[0m'
+  return out
+}
+
 function extractTrailingAnsi(str) {
   let active = ''
   const re = /\x1b\[[0-9;]*m/g
