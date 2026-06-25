@@ -112,6 +112,7 @@ export function Diff({
     if (event.action !== 'scroll' || rows.length <= h) return
     const { x, y } = event
     if (x < layout.x || x >= layout.x + layout.width || y < layout.y || y >= layout.y + layout.height) return
+    if (event.direction !== 'up' && event.direction !== 'down') return
     setOffset(clamp(clamped + (event.direction === 'up' ? -3 : 3)))
     event.stopPropagation()
   })

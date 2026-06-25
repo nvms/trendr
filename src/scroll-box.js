@@ -35,11 +35,12 @@ export function ScrollBox({ children, focused = true, scrollOffset: offsetProp, 
   })
 
   useMouse((event) => {
-    if (!focused) return
+    // wheel scrolls by position, not keyboard focus - whatever is under the cursor
     if (event.action !== 'scroll') return
     if (contentH <= visibleH) return
     const { x, y } = event
     if (x < layout.x || x >= layout.x + layout.width || y < layout.y || y >= layout.y + layout.height) return
+    if (event.direction !== 'up' && event.direction !== 'down') return
     if (event.direction === 'up') setOffset(clamp(clamped - 3))
     else setOffset(clamp(clamped + 3))
     event.stopPropagation()

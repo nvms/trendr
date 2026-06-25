@@ -1318,6 +1318,38 @@ suite('Diff scrolls with j/k when focused')
   unmount()
 }
 
+suite('ScrollBox ignores horizontal wheel scroll')
+{
+  const out = new FakeStream(20, 6)
+  const inp = new FakeInput()
+  let last = 0
+
+  function App() {
+    const [off, setOff] = createSignal(0)
+    return jsx(ScrollBox, {
+      focused: true,
+      scrollOffset: off(),
+      onScroll: (v) => { last = v; setOff(v) },
+      children: Array.from({ length: 20 }, (_, i) => jsx('text', { key: i, children: `line ${i}` })),
+    })
+  }
+
+  const { unmount } = mount(App, { stream: out, stdin: inp, altScreen: false })
+  await tick()
+  await tick()
+
+  inp.send('\x1b[<65;5;3M'); await tick() // wheel down
+  inp.send('\x1b[<65;5;3M'); await tick()
+  const afterDown = last
+  assert(afterDown > 0, 'vertical wheel-down scrolled the view')
+
+  inp.send('\x1b[<66;5;3M'); await tick() // wheel left (horizontal)
+  inp.send('\x1b[<66;5;3M'); await tick()
+  assertEq(last, afterDown, 'horizontal wheel does not move the vertical offset')
+
+  unmount()
+}
+
 // ----
 
 console.log(`\n${passed} passed, ${failed} failed`)

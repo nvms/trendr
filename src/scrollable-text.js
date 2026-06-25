@@ -43,6 +43,7 @@ export function ScrollableText({ content = '', focused = true, scrollOffset: off
     if (lines.length <= (h || 1)) return
     const { x, y } = event
     if (x < layout.x || x >= layout.x + layout.width || y < layout.y || y >= layout.y + layout.height) return
+    if (event.direction !== 'up' && event.direction !== 'down') return
     if (event.direction === 'up') setOffset(clamp(clamped - 3))
     else setOffset(clamp(clamped + 3))
     event.stopPropagation()

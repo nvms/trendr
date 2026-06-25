@@ -1,5 +1,5 @@
 import { jsx } from '../jsx-runtime.js'
-import { useInput, useTheme } from './hooks.js'
+import { useInput, useMouse, useTheme } from './hooks.js'
 import { registerOverlay } from './renderer.js'
 import { useFocusTrap } from './focus.js'
 
@@ -14,6 +14,13 @@ export function Modal({ open, onClose, title, children, width: w = 40, border = 
       onClose?.()
       event.stopPropagation()
     }
+  })
+
+  // the backdrop captures mouse events so scroll/clicks don't leak to whatever
+  // is behind the modal. the modal's own content registers later, so it still
+  // handles its own mouse first
+  useMouse((event) => {
+    if (open) event.stopPropagation()
   })
 
   if (!open) return null

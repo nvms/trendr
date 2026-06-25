@@ -11,11 +11,12 @@ Published as `@trendr/core`. ESM only (`"type": "module"`). JavaScript, no TypeS
 ## Commands
 
 ```bash
-npm test                  # runs all four test files sequentially
-node test/test.js         # unit tests (buffer, diff, ansi, signals, jsx, layout, wrap)
+npm test                  # runs all five test files sequentially
+node test/test.js         # unit tests (buffer, diff, ansi, signals, jsx, layout, wrap, input)
 node test/test-e2e.js     # e2e tests (signal persistence, hook idempotency, diff minimality)
 node test/test-mount.js   # mount integration test with fake streams
 node test/test-render.js  # render tests (layout, components, scrolling, theming)
+node test/test-diff.js    # Diff component / diff-engine tests
 
 node esbuild.config.js    # build examples from examples/*.jsx -> dist/
 npm run counter           # build + run a specific example

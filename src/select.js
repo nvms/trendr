@@ -36,6 +36,7 @@ function SelectDropdown({ items, cursor, scroll, visibleCount, onSelect, onClose
 
     if (event.action === 'scroll') {
       if (!inside) return
+      if (event.direction !== 'up' && event.direction !== 'down') return
       if (event.direction === 'up') onCursorChange(Math.max(0, cursor - 1))
       else onCursorChange(Math.min(items.length - 1, cursor + 1))
       event.stopPropagation()
@@ -181,6 +182,7 @@ export function Select({ items, selected, onSelect, focused = false, overlay = f
   useMouse((event) => {
     if (event.action === 'scroll') {
       if (!focused || !open()) return
+      if (event.direction !== 'up' && event.direction !== 'down') return
       const len = items.length
       if (event.direction === 'up') setCursor(c => Math.max(0, c - 1))
       else setCursor(c => Math.min(len - 1, c + 1))

@@ -5,7 +5,7 @@ import { resolveTree, Fragment, flattenChildren, walkTree } from '../src/element
 import { computeLayout } from '../src/layout.js'
 import { wordWrap, measureText, stripAnsi, sliceVisible } from '../src/wrap.js'
 import { createScheduler } from '../src/scheduler.js'
-import { parseKey, splitKeys } from '../src/input.js'
+import { parseKey, splitKeys, parseMouse } from '../src/input.js'
 import { jsx, jsxs } from '../jsx-runtime.js'
 import * as ansi from '../src/ansi.js'
 import { wrapForEditor, cursorToDisplay, displayToCursor } from '../src/text-area.js'
@@ -1099,6 +1099,16 @@ suite('input - parseKey function keys')
   assertEq(parseKey('\x1bOP').key, 'f1', 'F1')
   assertEq(parseKey('\x1bOQ').key, 'f2', 'F2')
   assertEq(parseKey('\x1b[15~').key, 'f5', 'F5')
+}
+
+suite('input - parseMouse wheel directions')
+{
+  // wheel codes: 64 up, 65 down, 66 left, 67 right. trackpads emit left/right
+  // during a vertical scroll - they must NOT be folded into 'down'
+  assertEq(parseMouse('\x1b[<64;5;3M').direction, 'up', 'wheel up')
+  assertEq(parseMouse('\x1b[<65;5;3M').direction, 'down', 'wheel down')
+  assertEq(parseMouse('\x1b[<66;5;3M').direction, 'left', 'wheel left is horizontal, not down')
+  assertEq(parseMouse('\x1b[<67;5;3M').direction, 'right', 'wheel right is horizontal, not down')
 }
 
 suite('input - splitKeys single char')

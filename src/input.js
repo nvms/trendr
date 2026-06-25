@@ -44,7 +44,10 @@ export function parseMouse(raw) {
   const motion = (cb & 32) !== 0
 
   if (scroll) {
-    return { type: 'mouse', action: 'scroll', direction: button === 0 ? 'up' : 'down', x, y }
+    // wheel codes: 0 up, 1 down, 2 left, 3 right (trackpads emit left/right
+    // during a vertical scroll - don't fold those into 'down')
+    const direction = button === 0 ? 'up' : button === 1 ? 'down' : button === 2 ? 'left' : 'right'
+    return { type: 'mouse', action: 'scroll', direction, x, y }
   }
 
   const buttonName = button === 0 ? 'left' : button === 1 ? 'middle' : 'right'

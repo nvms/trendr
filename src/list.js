@@ -92,6 +92,7 @@ export function List({ items, selected: selectedProp, onSelect, onCursorChange, 
     if (x < layout.x || x >= layout.x + layout.width || y < layout.y || y >= layout.y + layout.height) return
 
     if (event.action === 'scroll') {
+      if (event.direction !== 'up' && event.direction !== 'down') return
       if (event.direction === 'up') setSelected(Math.max(0, selected - 1))
       else setSelected(Math.min(len - 1, selected + 1))
       event.stopPropagation()
