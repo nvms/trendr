@@ -3,8 +3,33 @@
   "version": "0.2.16",
   "description": "direct-mode TUI renderer with JSX, signals, and per-cell diffing",
   "license": "MIT",
+  "author": "Jonathan Pyers",
   "type": "module",
   "main": "./index.js",
+  "sideEffects": false,
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/nvms/trendr.git"
+  },
+  "bugs": {
+    "url": "https://github.com/nvms/trendr/issues"
+  },
+  "homepage": "https://github.com/nvms/trendr#readme",
+  "keywords": [
+    "tui",
+    "terminal",
+    "renderer",
+    "jsx",
+    "signals",
+    "cli",
+    "ansi",
+    "flexbox",
+    "console",
+    "components"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
   "files": [
     "src",
     "index.js",
@@ -16,42 +41,10 @@
     "./jsx-dev-runtime": "./jsx-runtime.js"
   },
   "scripts": {
-    "test": "node test/test.js && node test/test-e2e.js && node test/test-mount.js && node test/test-render.js && node test/test-diff.js",
+    "test": "node test/test.js && node test/test-e2e.js && node test/test-mount.js && node test/test-render.js && node test/test-diff.js && node test/test-input.js && node test/test-components.js",
     "build": "node esbuild.config.js",
-    "counter": "node esbuild.config.js && node dist/counter.js",
-    "dashboard": "node esbuild.config.js && node dist/dashboard.js",
-    "chat": "node esbuild.config.js && node dist/chat.js",
-    "explorer": "node esbuild.config.js && node dist/explorer.js",
-    "layout": "node esbuild.config.js && node dist/layout.js",
-    "components": "node esbuild.config.js && node dist/components.js",
-    "reader": "node esbuild.config.js && node dist/reader.js",
-    "focus-demo": "node esbuild.config.js && node dist/focus-demo.js",
-    "modal-form": "node esbuild.config.js && node dist/modal-form.js",
-    "highlight": "node esbuild.config.js && node dist/highlight.js src",
-    "diff": "node esbuild.config.js && node dist/diff.js",
-    "multi-row-list": "node esbuild.config.js && node dist/multi-row-list.js",
-    "plasma": "node esbuild.config.js && node dist/plasma.js",
-    "rain": "node esbuild.config.js && node dist/rain.js",
-    "animation": "node esbuild.config.js && node dist/animation.js",
-    "texture": "node esbuild.config.js && node dist/texture.js",
-    "absolute": "node esbuild.config.js && node dist/absolute.js",
-    "scroll-box": "node esbuild.config.js && node dist/scroll-box.js",
-    "split-pane": "node esbuild.config.js && node dist/split-pane.js",
-    "custom-table": "node esbuild.config.js && node dist/custom-table.js",
-    "async": "node esbuild.config.js && node dist/async.js",
-    "timeout": "node esbuild.config.js && node dist/timeout.js",
-    "task": "node esbuild.config.js && node dist/task.js",
-    "progress": "node esbuild.config.js && node dist/progress.js",
-    "shimmer": "node esbuild.config.js && node dist/shimmer.js",
-    "spinner": "node esbuild.config.js && node dist/spinner.js",
-    "miller-nav": "node esbuild.config.js && node dist/miller-nav.js",
-    "pick-list": "node esbuild.config.js && node dist/pick-list.js",
-    "table-demo": "node esbuild.config.js && node dist/table-demo.js",
-    "menubar": "node esbuild.config.js && node dist/menubar.js",
-    "inline-chat": "node esbuild.config.js && node dist/inline-chat.js",
-    "alt-buffer-chat": "node esbuild.config.js && node dist/alt-buffer-chat.js",
-    "demo": "node esbuild.config.js && node demo/server.js",
-    "demo:build": "node esbuild.config.js"
+    "ex": "node scripts/run-example.js",
+    "demo": "node esbuild.config.js && node demo/server.js"
   },
   "devDependencies": {
     "esbuild": "^0.25.0",

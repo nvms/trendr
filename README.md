@@ -8,7 +8,7 @@
 
 JSX components, signals, per-cell diffing and flexbox without React and [Yoga](https://github.com/facebook/yoga/issues/1859). Terminals are character grids, not DOM trees. Why reconcile a virtual DOM to write escape sequences?
 
-4-16x faster frame times and 580x less I/O per render than popular TUI frameworks. No dependencies. [benchmarks](bench/README.md)
+No dependencies. In the included [benchmarks](bench/README.md), median frame times are 4.5x faster than ink on the dashboard and list-scrolling scenarios, 10.5x on ink's own rerender benchmark, and 24.8x on the resize-storm worst case; against neo-blessed the range is 1.9x to 8.6x. In the single-cell scenario (a 10,000-cell screen where only a corner counter changes), per-cell diffing writes 17 bytes per frame where ink writes about 9.9KB - though ink defers its terminal writes, so bytes written is not directly comparable between the two (see the notes in bench/README.md).
 
 https://github.com/user-attachments/assets/6e84bb4b-a99e-46f2-a235-1ee4be62c0ae
 
@@ -21,7 +21,7 @@ npm i @trendr/core
 Requires esbuild (or similar) for JSX transformation.
 
 ```json
-{ "jsx": "automatic", "jsxImportSource": "trend" }
+{ "jsx": "automatic", "jsxImportSource": "@trendr/core" }
 ```
 
 ```jsx
@@ -46,7 +46,40 @@ function App() {
 mount(App)
 ```
 
-`mount(Component, { stream?, stdin?, title?, theme? })` enters alt screen and returns `{ unmount, repaint }`. Renders on demand when signals change, capped at 60fps.
+`mount(Component, options)` starts the render loop. Frames render on demand when signals change, capped at 60fps.
+
+Options:
+
+- `stream` - output stream, default `process.stdout`
+- `stdin` - input stream, default `process.stdin`
+- `title` - terminal window title
+- `theme` - theme object, see [Theming](#theming)
+- `onExit` - called after ctrl-c unmounts the app; when provided it replaces the default `process.exit(0)`
+- `altScreen` - enter the alternate screen buffer, default `true`
+- `inline` - inline mode, default `false` (see [Inline mode](#inline-mode))
+
+Returns `{ unmount, repaint, getBuffer }`. `unmount` tears down input handling and restores the terminal, `repaint` forces a full repaint, `getBuffer` returns the last rendered cell buffer.
+
+### Inline mode
+
+`mount(App, { inline: true })` renders below the shell prompt instead of taking over the screen. The UI is split into a committed transcript and a live region. Committed content goes inside `<Scrollback items={...} render={...} />`: items are append-only, each new item is rendered once, printed into native terminal scrollback, and never touched again, so it scrolls and copies like normal terminal output. Everything outside `Scrollback` is the live region, which re-renders in place below the transcript.
+
+```jsx
+import { mount, Scrollback } from '@trendr/core'
+
+function Chat() {
+  return (
+    <box style={{ flexDirection: 'column' }}>
+      <Scrollback items={history()} render={(msg) => <Message {...msg} />} />
+      <TextArea onSubmit={send} />
+    </box>
+  )
+}
+
+mount(Chat, { inline: true })
+```
+
+While an overlay (such as a Modal) is open, inline mode temporarily switches to the alternate screen and restores the transcript when it closes, so native scrollback is preserved. See [inline-chat](examples/inline-chat.jsx) for a full example.
 
 ### Theming
 
@@ -302,6 +335,26 @@ stdout.write(altScreen + hideCursor)
 repaint()
 ```
 
+### useTitle
+
+Sets the terminal window title.
+
+```jsx
+useTitle('my app')
+```
+
+### useFrameStats
+
+Returns stats for the last rendered frame.
+
+```jsx
+const { changed, total, bytes, fps } = useFrameStats()
+// changed: cells that differed from the previous frame
+// total:   cells in the buffer (width * height)
+// bytes:   bytes written to the stream for the frame
+// fps:     rolling frames-per-second estimate
+```
+
 ### useTheme
 
 Returns the current theme object. See [Theming](#theming).
@@ -309,6 +362,20 @@ Returns the current theme object. See [Theming](#theming).
 ```jsx
 const { accent } = useTheme()
 ```
+
+### useCursor
+
+Drives the text cursor for input-style components using the theme's cursor config (blink, style, colors). Pass an optional per-component cursor config and whether the component is focused.
+
+```jsx
+const { config, visible, cursorStyle, reset } = useCursor(cursorProp, focused)
+
+// cursorStyle(): style object for the cursor cell (null when hidden or unfocused)
+// visible():     blink state signal
+// reset():       restart the blink cycle (call on keystrokes)
+```
+
+The built-in inputs (TextInput, TextArea, PickList) use this internally and accept a `cursor` prop that is forwarded here.
 
 ### useFocus
 
@@ -320,6 +387,9 @@ Register named items in tab order. The focus manager tracks which is active.
 import { useFocus } from '@trendr/core'
 
 const fm = useFocus({ initial: 'input' })
+// options: initial (name focused at mount),
+//          cycle: 'tab' (default) handles tab/shift-tab cycling;
+//          any other value disables it so you can drive focus yourself
 
 // declaration order = tab order
 fm.item('input')     // tab stop 0
@@ -354,6 +424,16 @@ Stack-based focus for modals - push saves current focus, pop restores it:
 ```jsx
 fm.push('modal')  // save current focus, switch to 'modal'
 fm.pop()          // restore previous focus
+```
+
+### useFocusTrap
+
+While active, stops tab/shift-tab from propagating past the calling component, so focus managers registered earlier in the tree do not also cycle. Handlers fire innermost-first: a `useFocus` inside the trapped subtree still receives the tab first, then the trap halts it. Useful for modals with their own focus manager.
+
+```jsx
+import { useFocusTrap } from '@trendr/core'
+
+useFocusTrap(modalOpen)
 ```
 
 ### useToast
@@ -404,6 +484,9 @@ Single-line text input with horizontal scrolling.
 <TextInput
   focused={fm.is('search')}
   placeholder="search..."
+  initialValue="prefill"  // starting value
+  clearOnSubmit={false}   // reset to empty on Enter (default false)
+  cursor={{ blink: true }} // per-component cursor config (overrides theme)
   onChange={v => {}}   // every keystroke
   onSubmit={v => {}}   // Enter
   onCancel={() => {}}  // Escape (only stopPropagates if provided)
@@ -422,10 +505,17 @@ Multi-line text input. Auto-grows up to `maxHeight`, then scrolls.
 <TextArea
   focused={fm.is('input')}
   placeholder="write something..."
-  maxHeight={10}         // default 10
-  onChange={v => {}}     // every edit
-  onSubmit={v => {}}     // Alt+Enter
-  onCancel={() => {}}    // Escape
+  maxHeight={10}           // default 10
+  value={draft()}          // controlled value (optional)
+  submitOnEnter={false}    // default false: Alt+Enter submits, Enter inserts newline.
+                           // true flips it: Enter submits, Shift/Alt+Enter inserts newline
+  clearOnSubmit={true}     // reset to empty on submit (default true)
+  cursor={{ blink: true }} // per-component cursor config (overrides theme)
+  onChange={(v, prev) => {}} // every edit, receives new and previous value
+  onSubmit={v => {}}       // submit key (see submitOnEnter)
+  onCancel={() => {}}      // Escape
+  onKeyDown={event => {}}  // raw key hook before internal handling;
+                           // return true to consume the key (event.value is the current text)
 />
 ```
 
@@ -442,12 +532,15 @@ Scrollable list with keyboard navigation.
   items={data}
   selected={selectedIndex}  // controlled, or omit for internal state
   onSelect={setIndex}
+  onCursorChange={(item, index) => {}} // fires when the highlighted item changes
   focused={fm.is('list')}
   scrollbar={true}          // default false
   scrolloff={2}             // items of margin from edges when scrolling (default 2)
   interactive={true}        // handle keyboard input (default: same as focused)
   header={<text>title</text>}
   headerHeight={1}          // default 1, rows the header occupies
+  stickyHeader={false}      // keep the header pinned while the list scrolls (default false)
+  gap={0}                   // blank rows between items (default 0)
   renderItem={(item, { selected, index, focused }) => (
     <text style={{ bg: selected ? (focused ? accent : 'gray') : null }}>{item.name}</text>
   )}
@@ -488,7 +581,7 @@ Filterable list with live search. Text input at the top filters a scrollable lis
   onChange={query => {}}       // every keystroke in the filter
   clearOnSelect={false}        // reset filter on select (default false)
   scrollbar={true}             // default false
-  scrolloff={2}                // items of margin from edges (default 2, inherited from List)
+  scrolloff={0}                // items of margin from edges (default 0)
   gap={1}                      // space between input and list (default 0)
   filter={(query, item) => {}} // custom filter (default: case-insensitive includes)
 />
@@ -513,6 +606,31 @@ Multi-row items with `renderItem`, `itemHeight`, and `itemGap`:
 
 Keys: type to filter, up/down or ctrl-n/ctrl-p to navigate, enter to select, escape to cancel. All bash-style editing keys work (ctrl-a/e/u/k/w).
 
+### Menu
+
+Used in [inline-chat](examples/inline-chat.jsx)
+
+Windowed single-select list with no text input of its own. Shows at most `maxVisible` rows and scrolls as the cursor moves. It pairs with an external input, such as a slash-command palette above a TextArea: render it near the input and, while focused, it intercepts up/down/enter before the input sees them.
+
+```jsx
+<Menu
+  items={commands}
+  selected={index}          // controlled, or omit for internal state
+  onSelect={setIndex}       // cursor moved
+  onSubmit={(item, index) => {}} // Enter
+  onCancel={() => {}}       // Escape (only stopPropagates if provided)
+  focused={showPalette}
+  maxVisible={5}            // default 5
+  scrolloff={2}             // default 2
+  itemHeight={1}            // rows per item (default 1)
+  gap={0}                   // blank rows between items (default 0)
+  arrow="›"                 // marker before the active item (default '›')
+  renderItem={(item, { active }) => <text>{item.name}</text>}
+/>
+```
+
+Keys: up/down or ctrl-p/ctrl-n, enter to submit, escape to cancel.
+
 ### Table
 
 Used in [components](examples/components.jsx), [custom-table](examples/custom-table.jsx)
@@ -532,6 +650,12 @@ Column-based data table. Uses List internally.
   focused={fm.is('table')}
   separator={true}              // horizontal rule below header
   separatorChars={{ left: '', fill: '─', right: '' }}  // customizable
+  columnGap={1}                 // spaces between columns (default 1)
+  stickyHeader={false}          // pin header row while scrolling (default false)
+  gap={0}                       // blank rows between data rows (default 0)
+  itemHeight={1}                // rows per data row, for multi-row rendering (default 1)
+  scrolloff={2}                 // rows of margin from edges when scrolling (default 2)
+  scrollbar={false}             // default false
 />
 ```
 
@@ -567,6 +691,35 @@ Used in [chat](examples/chat.jsx)
 
 Keys: left/right, tab/shift-tab. Wraps around.
 
+### MenuBar
+
+Used in [menubar](examples/menubar.jsx)
+
+Horizontal menu bar with dropdown submenus rendered as overlays. Menu and item hotkeys are underlined in their labels and activate directly.
+
+```jsx
+<MenuBar
+  items={[
+    {
+      label: 'File',
+      hotkey: 'f',
+      children: [
+        { label: 'New', hotkey: 'n' },
+        { label: 'Open', hotkey: 'o', value: 'open-file' },
+      ],
+    },
+    { label: 'Edit', hotkey: 'e', children: [/* ... */] },
+  ]}
+  focused={fm.is('menu')}
+  maxVisible={10}       // dropdown rows before scrolling (default 10)
+  onSelect={({ menu, item, value }) => {}}
+  hotkeyColor="cyan"    // hotkey letter color (default: theme accent)
+  style={{}}            // pass-through style for the bar row
+/>
+```
+
+Keys: h/l or left/right to move between menus, enter/space to open, j/k or up/down inside a dropdown, enter/space to select, escape to close. Pressing a hotkey letter opens that menu or selects that item.
+
 ### Select
 
 Used in [modal-form](examples/modal-form.jsx), [components](examples/components.jsx), [focus-demo](examples/focus-demo.jsx)
@@ -580,6 +733,7 @@ Dropdown selector. Can render inline or as overlay.
   onSelect={setColor}
   focused={fm.is('color')}
   overlay={false}          // true renders as floating overlay
+  maxVisible={10}          // rows shown before the dropdown scrolls (default 10)
   placeholder="pick one..."
   openIcon="▲"             // default ▲
   closedIcon="▼"           // default ▼
@@ -738,7 +892,8 @@ Centered overlay with dimmed backdrop. Height is driven by content.
   open={isOpen}
   onClose={() => setOpen(false)}
   title="Confirm"
-  width={40}     // default 40
+  width={40}       // default 40
+  border="round"   // 'single' | 'double' | 'round' | 'bold' (default 'round')
 >
   <text>Are you sure?</text>
   <Button label="ok" onPress={() => setOpen(false)} focused={fm.is('ok')} />
@@ -746,6 +901,34 @@ Centered overlay with dimmed backdrop. Height is driven by content.
 ```
 
 Keys: escape to close.
+
+### registerOverlay
+
+The mechanism behind Modal, Select's dropdown mode, and toasts. Registers an element to be laid out and painted above the main tree for the current frame. Overlays are collected fresh every frame, so call it during render and gate it on your own open state.
+
+```jsx
+import { registerOverlay } from '@trendr/core'
+
+function Palette({ open }) {
+  if (open) {
+    registerOverlay(
+      <box style={{ position: 'absolute', top: 2, left: 4, width: 40, border: 'round' }}>
+        <text>palette</text>
+      </box>,
+      { backdrop: true },
+    )
+  }
+  return null
+}
+```
+
+Options:
+
+- `backdrop` - lay the overlay out over the full screen and dim everything behind it
+- `fullscreen` - full-screen layout without dimming
+- `capture` - while this overlay is registered, key and mouse events are dispatched only to handlers inside the overlay's subtree (the registering component, components rendered in its overlay tree, and overlays they open in turn). Everything else is skipped, except mount-level handlers like the built-in ctrl+c exit. Modal sets this, which is why content behind an open modal never reacts to input regardless of mount order. When several capturing overlays are open, the most recently registered one wins.
+
+With neither positioning flag, the overlay is anchored just below the calling component's layout rectangle, which is how Select positions its dropdown.
 
 ### ScrollableText
 
@@ -760,6 +943,7 @@ Scrollable text viewer. ANSI escape sequences are parsed and rendered, so syntax
   scrollOffset={offset}    // controlled, or omit for internal state
   onScroll={setOffset}
   scrollbar={true}         // default false
+  width={60}               // wrap width override (default: measured layout width)
   wrap={false}             // default true, false truncates long lines
   thumbChar="█"            // default █
   trackChar="│"            // default │
@@ -767,6 +951,46 @@ Scrollable text viewer. ANSI escape sequences are parsed and rendered, so syntax
 ```
 
 Keys: same as List (j/k, g/G, ctrl-d/u, ctrl-f/b, pageup/pagedown).
+
+### Diff
+
+Used in [diff](examples/diff.jsx)
+
+Unified diff viewer with line numbers, word-level change highlighting, and optional syntax highlighting. Input is one of three forms: `before`/`after` strings, a unified `patch` string (`git diff` output), or structured `hunks`.
+
+```jsx
+<Diff
+  before={oldSource}       // or patch="diff --git ..." or hunks={[...]}
+  after={newSource}
+  language="js"            // passed to highlight (default 'text')
+  filename="src/app.js"    // optional header row with +/- stats
+  highlight={(code, lang) => ansiString} // optional syntax highlighter
+  wordDiff={true}          // word-level ranges within changed lines (default true)
+  context={3}              // context lines around changes, folds the rest (default Infinity)
+  lineNumbers={true}       // default true
+  focused={true}
+  scrollOffset={offset}    // controlled, or omit for internal state
+  onScroll={setOffset}
+  scrollbar={true}         // default true
+  colors={{ addBg: '#10301a' }} // palette overrides
+/>
+```
+
+The `highlight` function must be synchronous - the render loop cannot await. For async highlighters like shiki, pre-highlight into a cache before mounting and return cached results (see [diff](examples/diff.jsx)).
+
+Keys: j/k or up/down, ctrl-d/u half page, ctrl-f/b or pageup/pagedown full page, g/home for top, G/end for bottom.
+
+`computeDiff` is the pure core, exported for building custom diff UIs:
+
+```js
+import { computeDiff } from '@trendr/core'
+
+const { rows, stats } = computeDiff({ before, after, patch, hunks, wordDiff, context })
+// rows:  { type: 'context' | 'add' | 'del' | 'hunk' | 'meta' | 'fold',
+//          oldNo, newNo, text, intra }
+//        intra is an array of [start, end] changed ranges for word diff
+// stats: { additions, deletions }
+```
 
 ### ScrollBox
 
@@ -829,6 +1053,34 @@ Nesting works:
 </SplitPane>
 ```
 
+### MillerNav
+
+Used in [miller-nav](examples/miller-nav.jsx)
+
+Miller-column navigator in the style of Finder's column view. Columns show the path from root to the active item; children are fetched on demand with a synchronous `getChildren`.
+
+```jsx
+<MillerNav
+  rootItems={items}
+  getChildren={item => item.children ?? []}  // synchronous, returns an array
+  hasChildren={item => !!item.children}      // optional, marks items that can expand
+  onSelectionChange={({ item, breadcrumb, column }) => {}}
+  focused={fm.is('nav')}
+  interactive={true}        // handle keyboard input (default: same as focused)
+  scrollbar={false}         // default false
+  peekColumn={true}         // preview column for the active item's children (default true)
+  maxChars={{ focused: 20, unfocused: 10 }}  // column width caps, or a single number
+  divider={true}            // vertical divider between columns (default true)
+  dividerChar="▏"           // default '▏'
+  dividerColor="#333333"    // default '#333333'
+  renderItem={(item, { selected, focused, column }) => <text>{item.name}</text>}
+/>
+```
+
+Items are strings or objects with a `name` or `label` field.
+
+Keys: j/k or up/down to move within a column, l/right to descend, h/left to go back, ctrl-d/u half page.
+
 ## Animation
 
 Physics-based animation. Animated values are signals that trigger re-renders.
@@ -871,20 +1123,22 @@ x.set(newTarget)
 x.onTick((value) => { /* called each frame while animating */ })
 ```
 
-## Build
+## Development
 
-Uses esbuild. JSX configured with `jsxImportSource: 'trend'`.
+Inside this repo, examples import from the local alias `trend`, which a custom esbuild plugin in `esbuild.config.js` resolves to the local source; published consumers configure `jsxImportSource: '@trendr/core'` as shown in [Usage](#usage).
 
-```
-node esbuild.config.js
-```
-
-Examples run via npm scripts:
+Build the examples:
 
 ```
-npm run counter
-npm run chat
-npm run dashboard
-npm run explorer
-npm run highlight
+npm run build
 ```
+
+Run one:
+
+```
+npm run ex counter
+npm run ex chat
+npm run ex highlight
+```
+
+`npm run ex` without a name lists all available examples.

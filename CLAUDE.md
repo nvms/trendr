@@ -4,23 +4,25 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this is
 
-trend is a direct-mode TUI renderer for Node.js with JSX, signals, and per-cell diffing. It's a framework for building terminal UIs - an alternative to ink and neo-blessed, benchmarked at 4-16x faster.
+trend is a direct-mode TUI renderer for Node.js with JSX, signals, and per-cell diffing. It's a framework for building terminal UIs - an alternative to ink and neo-blessed, with faster frame times in every benchmarked scenario (4.5-24.8x vs ink, 1.9-8.6x vs neo-blessed; see bench/).
 
 Published as `@trendr/core`. ESM only (`"type": "module"`). JavaScript, no TypeScript.
 
 ## Commands
 
 ```bash
-npm test                  # runs all five test files sequentially
-node test/test.js         # unit tests (buffer, diff, ansi, signals, jsx, layout, wrap, input)
-node test/test-e2e.js     # e2e tests (signal persistence, hook idempotency, diff minimality)
-node test/test-mount.js   # mount integration test with fake streams
-node test/test-render.js  # render tests (layout, components, scrolling, theming)
-node test/test-diff.js    # Diff component / diff-engine tests
+npm test                    # runs all seven test files sequentially
+node test/test.js           # unit tests (buffer, diff, ansi, signals, jsx, layout, wrap)
+node test/test-e2e.js       # e2e tests (signal lifecycle, hook idempotency, diff minimality)
+node test/test-mount.js     # mount integration test with fake streams
+node test/test-render.js    # render tests (layout, components, scrolling, theming)
+node test/test-diff.js      # Diff component / diff-engine tests
+node test/test-input.js     # input parsing, paste, focus, hotkeys, text editing
+node test/test-components.js # component library (list, table, select, radio, ...)
 
-node esbuild.config.js    # build examples from examples/*.jsx -> dist/
-npm run counter           # build + run a specific example
-npm run chat              # (same pattern for: dashboard, explorer, layout, components, reader, focus-demo, modal-form, highlight)
+node esbuild.config.js      # build examples from examples/*.jsx -> dist/
+npm run ex                  # list available examples
+npm run ex counter          # build + run a specific example (counter, chat, dashboard, ...)
 ```
 
 Tests use a custom minimal test harness (assert/assertEq/suite), not a framework. No test runner config needed.
@@ -62,7 +64,7 @@ Each in `src/`: `text-input.js`, `text-area.js`, `list.js`, `table.js`, `tabs.js
 
 ### Overlays
 
-`registerOverlay` (from renderer) is how modals, select dropdowns, and toasts render above the main tree. They compute layout independently and paint after the main pass.
+`registerOverlay` (from renderer) is how modals, select dropdowns, and toasts render above the main tree. They compute layout independently and paint after the main pass. An overlay registered with `capture: true` (Modal does this) restricts input dispatch to handlers owned by its own subtree: instances created while an overlay tree resolves are tagged with the overlay's owner, and the input handler walks that chain at dispatch time. Mount-level handlers (owner null, e.g. the ctrl+c exit) always stay eligible.
 
 ## Build
 

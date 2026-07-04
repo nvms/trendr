@@ -1,4 +1,4 @@
-export { mount } from './src/renderer.js'
+export { mount, registerOverlay } from './src/renderer.js'
 export { createSignal } from './src/signal.js'
 export { createEffect, createMemo, batch, untrack, onCleanup } from './src/signal.js'
 export { useInput, useMouse, useResize, useInterval, useTimeout, useLayout, useStdout, useRepaint, useTitle, useTheme, useCursor, useFrameStats, useAsync } from './src/hooks.js'
