@@ -1,144 +1,10 @@
 import { jsx } from '../jsx-runtime.js'
 import { createSignal } from './signal.js'
 import { useInput, useMouse, useLayout, useTheme } from './hooks.js'
-import { registerOverlay, getInstanceLayout, getContext, registerHook } from './renderer.js'
+import { getInstanceLayout, getContext } from './renderer.js'
+import { Dropdown, followCursor, placeDropdown, overlayDropdown } from './dropdown.js'
 
 const itemLabel = (item) => String(item?.label ?? item)
-
-function SelectDropdown({ items, cursor, scroll, visibleCount, onSelect, onClose, onCursorChange, renderItem, style: s, accent, dropWidth }) {
-  const layout = useLayout()
-  const drag = registerHook(() => ({ active: false, startY: 0, startCursor: 0 }))
-
-  useMouse((event) => {
-    if (event.action === 'release') {
-      if (drag.active) drag.active = false
-      return
-    }
-
-    if (event.action === 'drag' && drag.active) {
-      const thumbH = Math.max(1, Math.round((visibleCount / items.length) * visibleCount))
-      const dy = event.y - drag.startY
-      const travel = Math.max(1, visibleCount - thumbH)
-      const ratio = (items.length - 1) / travel
-      const idx = Math.max(0, Math.min(items.length - 1, Math.round(drag.startCursor + dy * ratio)))
-      onCursorChange(idx)
-      event.stopPropagation()
-      return
-    }
-
-    // layout not yet computed - consume event but don't act
-    if (layout.width === 0 || layout.height === 0) {
-      event.stopPropagation()
-      return
-    }
-
-    const { x, y } = event
-    const boxRight = layout.x + dropWidth
-    const inside = x >= layout.x && x < boxRight && y >= layout.y && y < layout.y + layout.height
-
-    if (event.action === 'scroll') {
-      if (!inside) return
-      if (event.direction !== 'up' && event.direction !== 'down') return
-      if (event.direction === 'up') onCursorChange(Math.max(0, cursor - 1))
-      else onCursorChange(Math.min(items.length - 1, cursor + 1))
-      event.stopPropagation()
-      return
-    }
-
-    if (event.action !== 'press' || event.button !== 'left') return
-
-    if (!inside) {
-      onClose()
-      event.stopPropagation()
-      return
-    }
-
-    const scrollable = items.length > visibleCount
-    if (scrollable && x >= boxRight - 4) {
-      const maxSc = items.length - visibleCount
-      const thumbH = Math.max(1, Math.round((visibleCount / items.length) * visibleCount))
-      const thumbStart = maxSc > 0 ? Math.round((scroll / maxSc) * (visibleCount - thumbH)) : 0
-      const barY = layout.y + 1 + thumbStart
-      if (y >= barY && y < barY + thumbH) {
-        drag.active = true
-        drag.startY = y
-        drag.startCursor = cursor
-      }
-      event.stopPropagation()
-      return
-    }
-
-    const relY = y - layout.y - 1
-    if (relY >= 0 && relY < visibleCount) {
-      const clickedIdx = relY + scroll
-      if (clickedIdx >= 0 && clickedIdx < items.length) {
-        onSelect(items[clickedIdx])
-        event.stopPropagation()
-      }
-    }
-  })
-
-  const scrollable = items.length > visibleCount
-  const visible = items.slice(scroll, scroll + visibleCount)
-  const thumbH = scrollable ? Math.max(1, Math.round((visibleCount / items.length) * visibleCount)) : 0
-  const maxSc = items.length - visibleCount
-  const thumbStart = scrollable && maxSc > 0 ? Math.round((scroll / maxSc) * (visibleCount - thumbH)) : 0
-  const maxLen = items.reduce((m, v) => Math.max(m, itemLabel(v).length), 0)
-
-  const dropdownChildren = visible.map((item, vi) => {
-    const i = vi + scroll
-    const isCursor = i === cursor
-
-    const row = (content) => {
-      if (!scrollable) return content
-      const barIsThumb = vi >= thumbStart && vi < thumbStart + thumbH
-      return jsx('box', {
-        key: i,
-        style: { flexDirection: 'row' },
-        children: [
-          content,
-          jsx('text', {
-            style: { color: barIsThumb ? accent : 'gray', dim: !barIsThumb },
-            children: ' ' + (barIsThumb ? '█' : '│'),
-          }),
-        ],
-      })
-    }
-
-    if (renderItem) {
-      const content = jsx('box', {
-        key: scrollable ? undefined : i,
-        style: { bg: isCursor ? s.cursorBg : s.bg, flexGrow: 1 },
-        children: renderItem(item, { selected: isCursor, index: i }),
-      })
-      return row(content)
-    }
-
-    const content = jsx('box', {
-      key: scrollable ? undefined : i,
-      style: { bg: isCursor ? s.cursorBg : s.bg, paddingX: 1, flexGrow: 1 },
-      children: jsx('text', {
-        style: { color: isCursor ? s.cursorTextColor : s.color },
-        children: itemLabel(item),
-      }),
-    })
-    return row(content)
-  })
-
-  const dropdownH = visibleCount + 2
-
-  return jsx('box', {
-    style: {
-      flexDirection: 'column',
-      border: s.border,
-      borderColor: s.borderColor,
-      height: dropdownH,
-      width: maxLen + 4 + (scrollable ? 2 : 0),
-      bg: s.bg,
-    },
-    children: dropdownChildren,
-  })
-}
 
 export function Select({ items = [], selected, onSelect, onFocus, focused = false, overlay = false, maxVisible = 10, placeholder = 'select...', renderItem, style: userStyle, openIcon = '▲', closedIcon = '▼' }) {
   const { accent = 'cyan' } = useTheme()
@@ -230,7 +96,7 @@ export function Select({ items = [], selected, onSelect, onFocus, focused = fals
 
   if (!open() || items.length === 0) return collapsed
 
-  let maxRows = Math.min(items.length, maxVisible)
+  let visibleCount = Math.min(items.length, maxVisible)
   let direction = 'down'
   let instLayout = null
   let termW = 80
@@ -241,66 +107,55 @@ export function Select({ items = [], selected, onSelect, onFocus, focused = fals
     const ctx = getContext()
     termH = ctx?.stream?.rows ?? 24
     termW = ctx?.stream?.columns ?? 80
-    const anchorY = instLayout.y + 1
-    const spaceBelow = termH - anchorY - 2
-    const spaceAbove = instLayout.y - 2
-
-    if (spaceBelow >= maxRows) {
-      maxRows = Math.min(maxRows, spaceBelow)
-    } else if (spaceAbove > spaceBelow) {
-      direction = 'up'
-      maxRows = Math.min(maxRows, spaceAbove)
-    } else {
-      maxRows = Math.min(maxRows, spaceBelow)
-    }
-    maxRows = Math.max(1, maxRows)
+    const placed = placeDropdown({ anchorTop: instLayout.y, itemCount: items.length, maxVisible, termH })
+    direction = placed.direction
+    visibleCount = placed.visibleCount
   }
-
-  const visibleCount = maxRows
 
   const cur = Math.min(cursor(), items.length - 1)
-  const sc = scroll()
-  let newScroll = sc
-  if (cur < sc) newScroll = cur
-  else if (cur >= sc + visibleCount) newScroll = cur - visibleCount + 1
-  newScroll = Math.max(0, Math.min(newScroll, items.length - visibleCount))
-  if (newScroll !== sc) setScroll(newScroll)
-
-  const handleSelect = (item) => {
-    onSelect?.(item)
-    setOpen(false)
-  }
-
-  const handleClose = () => setOpen(false)
+  const newScroll = followCursor(cur, scroll(), visibleCount, items.length)
+  if (newScroll !== scroll()) setScroll(newScroll)
 
   const maxLen = items.reduce((m, v) => Math.max(m, itemLabel(v).length), 0)
   const scrollable = items.length > visibleCount
   const dropWidth = maxLen + 4 + (scrollable ? 2 : 0)
 
-  const dropdown = jsx(SelectDropdown, {
+  const renderRow = (item, { index, isCursor }) => {
+    if (renderItem) {
+      return jsx('box', {
+        style: { bg: isCursor ? s.cursorBg : s.bg, flexGrow: 1 },
+        children: renderItem(item, { selected: isCursor, index }),
+      })
+    }
+    return jsx('box', {
+      style: { bg: isCursor ? s.cursorBg : s.bg, paddingX: 1, flexGrow: 1 },
+      children: jsx('text', {
+        style: { color: isCursor ? s.cursorTextColor : s.color },
+        children: itemLabel(item),
+      }),
+    })
+  }
+
+  const dropdown = jsx(Dropdown, {
     items,
     cursor: cur,
     scroll: newScroll,
     visibleCount,
-    onSelect: handleSelect,
-    onClose: handleClose,
+    width: dropWidth,
+    onSubmit: (item) => {
+      onSelect?.(item)
+      setOpen(false)
+    },
+    onClose: () => setOpen(false),
     onCursorChange: (idx) => setCursor(idx),
-    renderItem,
-    style: s,
-    accent,
-    dropWidth,
+    renderRow,
+    style: { border: s.border, borderColor: s.borderColor, bg: s.bg, accent },
   })
 
   if (overlay) {
     const dropdownH = visibleCount + 2
     const absY = direction === 'up' ? instLayout.y - dropdownH : instLayout.y + 1
-    registerOverlay(jsx('box', {
-      style: { width: termW, height: termH },
-      children: jsx('box', {
-        style: { position: 'absolute', top: Math.max(0, absY), left: instLayout.x },
-        children: dropdown,
-      }),
-    }), { fullscreen: true })
+    overlayDropdown({ x: instLayout.x, y: absY, termW, termH, dropdown })
     return collapsed
   }
 
