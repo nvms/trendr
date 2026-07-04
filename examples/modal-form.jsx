@@ -47,7 +47,7 @@ function UserForm({ user, onSave, onCancel }) {
       <Select
         items={['admin', 'editor', 'viewer', 'moderator', 'analyst', 'support', 'billing', 'developer', 'designer', 'manager', 'intern', 'contractor', 'auditor', 'ops', 'security']}
         selected={role()}
-        onSelect={setRole}
+        onChange={setRole}
         focused={fm.is('role')}
         overlay
       />
@@ -65,7 +65,7 @@ function UserForm({ user, onSave, onCancel }) {
       <Radio
         options={['dark', 'light', 'system']}
         selected={theme()}
-        onSelect={setTheme}
+        onChange={setTheme}
         focused={fm.is('theme')}
       />
 

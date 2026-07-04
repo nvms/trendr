@@ -476,6 +476,10 @@ fm.item('results')
 <List focused={fm.is('results')} />
 ```
 
+**Callback conventions.** `onChange(value)` fires when a committed value changes (Select, Radio, Tabs, Checkbox, TextInput). `onSubmit(item)` or `onSubmit(payload)` fires when an item or action is committed (Menu, PickList, MenuBar, TextArea, Button). `onSelect(index)` fires when the cursor moves in list-navigation components (List, Table, Menu) and pairs with `selected` for controlled use; `onCursorChange(item, index)` is the same notification with the item included.
+
+**Focused defaults.** Navigation components (List, Table, Menu, PickList, MillerNav) default to `focused: true` so a lone component responds immediately. Activation components (Select, Checkbox, Radio, Button, MenuBar) default to `focused: false` so space/enter can't trigger unfocused controls. Pass `focused` explicitly in multi-widget apps. List gates mouse handling on `focused` and keyboard handling on `interactive` - parents like PickList set `interactive: false` to own the keyboard while leaving mouse handling local.
+
 ### TextInput
 
 Used in [explorer](examples/explorer.jsx), [modal-form](examples/modal-form.jsx), [focus-demo](examples/focus-demo.jsx)
@@ -578,10 +582,10 @@ Filterable list with live search. Text input at the top filters a scrollable lis
   items={data}
   focused={fm.is('search')}
   placeholder="search..."
-  onSelect={item => {}}       // Enter on highlighted item
+  onSubmit={item => {}}       // Enter on highlighted item
   onCancel={() => {}}          // Escape
   onChange={query => {}}       // every keystroke in the filter
-  clearOnSelect={false}        // reset filter on select (default false)
+  clearOnSubmit={false}        // reset filter on submit (default false)
   scrollbar={true}             // default false
   scrolloff={0}                // items of margin from edges (default 0)
   gap={1}                      // space between input and list (default 0)
@@ -686,7 +690,7 @@ Used in [chat](examples/chat.jsx)
 <Tabs
   items={['general', 'settings', 'logs']}
   selected={activeTab}
-  onSelect={setTab}
+  onChange={setTab}
   focused={fm.is('tabs')}
 />
 ```
@@ -714,7 +718,7 @@ Horizontal menu bar with dropdown submenus rendered as overlays. Menu and item h
   ]}
   focused={fm.is('menu')}
   maxVisible={10}       // dropdown rows before scrolling (default 10)
-  onSelect={({ menu, item, value }) => {}}
+  onSubmit={({ menu, item, value }) => {}}
   hotkeyColor="cyan"    // hotkey letter color (default: theme accent)
   style={{}}            // pass-through style for the bar row
 />
@@ -732,7 +736,7 @@ Dropdown selector. Can render inline or as overlay.
 <Select
   items={['red', 'green', 'blue']}
   selected={color}
-  onSelect={setColor}
+  onChange={setColor}
   focused={fm.is('color')}
   overlay={false}          // true renders as floating overlay
   maxVisible={10}          // rows shown before the dropdown scrolls (default 10)
@@ -775,7 +779,7 @@ Used in [modal-form](examples/modal-form.jsx), [components](examples/components.
 <Radio
   options={['small', 'medium', 'large']}
   selected={size}
-  onSelect={setSize}
+  onChange={setSize}
   focused={fm.is('size')}
 />
 ```

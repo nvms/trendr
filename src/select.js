@@ -6,7 +6,7 @@ import { Dropdown, followCursor, placeDropdown, overlayDropdown } from './dropdo
 
 const itemLabel = (item) => String(item?.label ?? item)
 
-export function Select({ items = [], selected, onSelect, onFocus, focused = false, overlay = false, maxVisible = 10, placeholder = 'select...', renderItem, style: userStyle, openIcon = '▲', closedIcon = '▼' }) {
+export function Select({ items = [], selected, onChange, onFocus, focused = false, overlay = false, maxVisible = 10, placeholder = 'select...', renderItem, style: userStyle, openIcon = '▲', closedIcon = '▼' }) {
   const { accent = 'cyan', accentText = 'black', muted = 'gray' } = useTheme()
   const defaults = {
     border: 'single',
@@ -42,7 +42,7 @@ export function Select({ items = [], selected, onSelect, onFocus, focused = fals
     if (key === 'up' || key === 'k') { setCursor(c => Math.max(0, c - 1)); event.stopPropagation() }
     else if (key === 'down' || key === 'j') { setCursor(c => Math.min(len - 1, c + 1)); event.stopPropagation() }
     else if (key === 'return' || key === 'space') {
-      if (len > 0) onSelect?.(items[Math.min(cursor(), len - 1)])
+      if (len > 0) onChange?.(items[Math.min(cursor(), len - 1)])
       setOpen(false)
       event.stopPropagation()
     }
@@ -143,7 +143,7 @@ export function Select({ items = [], selected, onSelect, onFocus, focused = fals
     visibleCount,
     width: dropWidth,
     onSubmit: (item) => {
-      onSelect?.(item)
+      onChange?.(item)
       setOpen(false)
     },
     onClose: () => setOpen(false),

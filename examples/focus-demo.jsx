@@ -112,7 +112,7 @@ function App() {
           <Select
             items={['dark', 'light', 'solarized', 'monokai']}
             selected={theme()}
-            onSelect={setTheme}
+            onChange={setTheme}
             focused={fm.is('theme')}
             overlay
           />
@@ -136,7 +136,7 @@ function App() {
           <Radio
             options={['2 spaces', '4 spaces', 'tabs']}
             selected={indent()}
-            onSelect={setIndent}
+            onChange={setIndent}
             focused={fm.is('indent')}
           />
           <box style={{ height: 1 }} />

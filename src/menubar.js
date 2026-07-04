@@ -33,7 +33,7 @@ function renderHotkeyLabel(label, hotkey, { hotkeyColor, textColor, bold, hotkey
   return jsxs('box', { style: { flexDirection: 'row' }, children: parts })
 }
 
-export function MenuBar({ items, focused = false, maxVisible = 10, onSelect, hotkeyColor: hotkeyColorProp, style: userStyle }) {
+export function MenuBar({ items, focused = false, maxVisible = 10, onSubmit, hotkeyColor: hotkeyColorProp, style: userStyle }) {
   const { accent = 'cyan', accentText = 'black' } = useTheme()
   const hotkeyColor = hotkeyColorProp ?? accent
 
@@ -83,7 +83,7 @@ export function MenuBar({ items, focused = false, maxVisible = 10, onSelect, hot
         if (len > 0) {
           const child = children[cursor()]
           if (child) {
-            onSelect?.({ menu: menu.label, item: child.label ?? child, value: child.value ?? child.label ?? child })
+            onSubmit?.({ menu: menu.label, item: child.label ?? child, value: child.value ?? child.label ?? child })
           }
         }
         setOpenIndex(-1)
@@ -100,7 +100,7 @@ export function MenuBar({ items, focused = false, maxVisible = 10, onSelect, hot
       const childMatch = children.findIndex(c => c.hotkey && c.hotkey.toLowerCase() === key.toLowerCase())
       if (childMatch >= 0) {
         const child = children[childMatch]
-        onSelect?.({ menu: menu.label, item: child.label ?? child, value: child.value ?? child.label ?? child })
+        onSubmit?.({ menu: menu.label, item: child.label ?? child, value: child.value ?? child.label ?? child })
         setOpenIndex(-1)
         event.stopPropagation()
         return
@@ -172,7 +172,7 @@ export function MenuBar({ items, focused = false, maxVisible = 10, onSelect, hot
     const dropWidth = maxLen + 4 + (scrollable ? 2 : 0)
 
     const commit = (item) => {
-      onSelect?.({ menu: openMenu.label, item: item.label ?? item, value: item.value ?? item.label ?? item })
+      onSubmit?.({ menu: openMenu.label, item: item.label ?? item, value: item.value ?? item.label ?? item })
       setOpenIndex(-1)
     }
 

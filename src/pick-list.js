@@ -4,7 +4,7 @@ import { useInput, useLayout, useTheme, useCursor } from './hooks.js'
 import { registerHook } from './renderer.js'
 import { List } from './list.js'
 
-export function PickList({ items, onSelect, onCancel, onChange, onCursorChange, focused = true, placeholder = 'search...', filter: filterFn, renderItem, maxVisible = 10, scrollbar = false, scrolloff = 0, itemHeight = 1, itemGap = 0, gap = 0, clearOnSelect = false, style: userStyle, cursor: cursorProp }) {
+export function PickList({ items, onSubmit, onCancel, onChange, onCursorChange, focused = true, placeholder = 'search...', filter: filterFn, renderItem, maxVisible = 10, scrollbar = false, scrolloff = 0, itemHeight = 1, itemGap = 0, gap = 0, clearOnSubmit = false, style: userStyle, cursor: cursorProp }) {
   const { accent = 'cyan', accentText = 'black', muted = 'gray' } = useTheme()
   const defaults = {
     borderColor: accent,
@@ -73,9 +73,9 @@ export function PickList({ items, onSelect, onCancel, onChange, onCursorChange, 
     if (key === 'pagedown') { if (len > 0) setListCursor(c => Math.min(len - 1, c + 10)); event.stopPropagation(); return }
 
     if (key === 'return') {
-      if (filtered.length > 0 && onSelect) {
-        onSelect(filtered[cursor])
-        if (clearOnSelect) updateText('', 0)
+      if (filtered.length > 0 && onSubmit) {
+        onSubmit(filtered[cursor])
+        if (clearOnSubmit) updateText('', 0)
         event.stopPropagation()
       }
       return

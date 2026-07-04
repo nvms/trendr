@@ -410,7 +410,7 @@ suite('Select renders object items via label')
 
   function App() {
     const [sel, setSel] = createSignal(items[0])
-    return jsx(Select, { items, selected: sel(), onSelect: (v) => { picked = v; setSel(v) }, focused: true })
+    return jsx(Select, { items, selected: sel(), onChange: (v) => { picked = v; setSel(v) }, focused: true })
   }
 
   const { unmount, getBuffer } = mount(App, { stream: out, stdin: inp, altScreen: false })
@@ -430,12 +430,12 @@ suite('Select renders object items via label')
   await tick()
   inp.key('enter')
   await tick()
-  assertEq(picked, items[1], 'onSelect receives the original object item')
+  assertEq(picked, items[1], 'onChange receives the original object item')
 
   unmount()
 }
 
-suite('Select return on empty items does not call onSelect(undefined)')
+suite('Select return on empty items does not call onChange(undefined)')
 {
   const out = new FakeStream(30, 10)
   const inp = new FakeInput()
@@ -443,7 +443,7 @@ suite('Select return on empty items does not call onSelect(undefined)')
   const picks = []
 
   function App() {
-    return jsx(Select, { items: [], onSelect: (v) => picks.push(v), focused: true })
+    return jsx(Select, { items: [], onChange: (v) => picks.push(v), focused: true })
   }
 
   const { unmount, getBuffer } = mount(App, { stream: out, stdin: inp, altScreen: false })
@@ -456,7 +456,7 @@ suite('Select return on empty items does not call onSelect(undefined)')
 
   inp.key('enter')
   await tick()
-  assertEq(picks.length, 0, 'onSelect never called with undefined')
+  assertEq(picks.length, 0, 'onChange never called with undefined')
 
   unmount()
 }
@@ -508,7 +508,7 @@ suite('Tabs stops propagation of handled keys')
     return jsx(Tabs, {
       items: ['one', 'two', 'three'],
       selected: tab(),
-      onSelect: (t) => { current = t; setTab(t) },
+      onChange: (t) => { current = t; setTab(t) },
       focused: true,
     })
   }
@@ -596,7 +596,7 @@ suite('Radio clamps cursor when options shrink')
   function App() {
     const [opts, setOpts] = createSignal(['a', 'b', 'c', 'd'])
     shrink = () => setOpts(['a', 'b'])
-    return jsx(Radio, { options: opts(), selected: 'a', onSelect: (o) => picks.push(o), focused: true })
+    return jsx(Radio, { options: opts(), selected: 'a', onChange: (o) => picks.push(o), focused: true })
   }
 
   const { unmount } = mount(App, { stream: out, stdin: inp, altScreen: false })
@@ -611,8 +611,8 @@ suite('Radio clamps cursor when options shrink')
 
   inp.key('enter')
   await tick()
-  assertEq(picks.length, 1, 'return fired onSelect')
-  assertEq(picks[0], 'b', 'onSelect got the clamped option, not undefined')
+  assertEq(picks.length, 1, 'return fired onChange')
+  assertEq(picks[0], 'b', 'onChange got the clamped option, not undefined')
 
   unmount()
 }
@@ -628,7 +628,7 @@ suite('Radio cursor follows external selected changes')
   function App() {
     const [sel, setSel] = createSignal('a')
     setExternal = setSel
-    return jsx(Radio, { options: ['a', 'b', 'c'], selected: sel(), onSelect: (o) => { picks.push(o); setSel(o) }, focused: true })
+    return jsx(Radio, { options: ['a', 'b', 'c'], selected: sel(), onChange: (o) => { picks.push(o); setSel(o) }, focused: true })
   }
 
   const { unmount } = mount(App, { stream: out, stdin: inp, altScreen: false })

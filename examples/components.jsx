@@ -113,7 +113,7 @@ export function Components() {
           <Select
             items={['pid', 'name', 'cpu', 'mem']}
             selected={sortBy()}
-            onSelect={setSortBy}
+            onChange={setSortBy}
             focused={fm.is('sortBy')}
             overlay
           />
@@ -141,7 +141,7 @@ export function Components() {
           <Radio
             options={['500ms', '1s', '5s', '10s']}
             selected={refreshRate()}
-            onSelect={setRefreshRate}
+            onChange={setRefreshRate}
             focused={fm.is('refreshRate')}
           />
           <box style={{ height: 1 }} />

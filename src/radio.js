@@ -3,7 +3,7 @@ import { createSignal } from './signal.js'
 import { useInput, useMouse, useLayout, useTheme } from './hooks.js'
 import { registerHook } from './renderer.js'
 
-export function Radio({ options = [], selected, onSelect, focused = false }) {
+export function Radio({ options = [], selected, onChange, focused = false }) {
   const { accent = 'cyan', accentText = 'black' } = useTheme()
   const [cursor, setCursor] = createSignal(Math.max(0, options.indexOf(selected)))
   const prevSelected = registerHook(() => ({ value: selected }))
@@ -35,7 +35,7 @@ export function Radio({ options = [], selected, onSelect, focused = false }) {
         event.stopPropagation()
       }
     } else if (key === 'return' || key === 'space') {
-      onSelect?.(options[Math.min(cursor(), len - 1)])
+      onChange?.(options[Math.min(cursor(), len - 1)])
       event.stopPropagation()
     }
   })
@@ -49,7 +49,7 @@ export function Radio({ options = [], selected, onSelect, focused = false }) {
     const idx = y - layout.y
     if (idx >= 0 && idx < options.length) {
       setCursor(idx)
-      onSelect?.(options[idx])
+      onChange?.(options[idx])
       event.stopPropagation()
     }
   })

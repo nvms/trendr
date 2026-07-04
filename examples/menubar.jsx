@@ -60,7 +60,7 @@ export function MenuBarDemo() {
       <MenuBar
         items={menus}
         focused={fm.is('menu')}
-        onSelect={({ menu, item }) => setLastAction(`${menu} > ${item}`)}
+        onSubmit={({ menu, item }) => setLastAction(`${menu} > ${item}`)}
       />
       <box style={{ flexGrow: 1, justifyContent: 'center', alignItems: 'center' }}>
         <text style={{ color: 'gray' }}>last action: {lastAction()}</text>

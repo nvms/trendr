@@ -67,7 +67,7 @@ export function PickListDemo() {
             items={LANGUAGES}
             focused={fm.is('left')}
             placeholder="filter languages..."
-            onSelect={(item) => setSelected(item)}
+            onSubmit={(item) => setSelected(item)}
             scrollbar
             gap={1}
           />
@@ -78,7 +78,7 @@ export function PickListDemo() {
             items={PACKAGES}
             focused={fm.is('right')}
             placeholder="filter packages..."
-            onSelect={(item) => setSelected(item)}
+            onSubmit={(item) => setSelected(item)}
             scrollbar
             gap={1}
             itemHeight={3}

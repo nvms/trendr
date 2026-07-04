@@ -1,7 +1,7 @@
 import { jsx, jsxs } from '../jsx-runtime.js'
 import { useInput, useTheme } from './hooks.js'
 
-export function Tabs({ items = [], selected, onSelect, focused = true }) {
+export function Tabs({ items = [], selected, onChange, focused = true }) {
   const { accent = 'cyan', accentText = 'black', muted = 'gray' } = useTheme()
 
   useInput((event) => {
@@ -12,10 +12,10 @@ export function Tabs({ items = [], selected, onSelect, focused = true }) {
     if (idx === -1) return
 
     if (key === 'left' || key === 'shift-tab') {
-      onSelect?.(items[(idx - 1 + items.length) % items.length])
+      onChange?.(items[(idx - 1 + items.length) % items.length])
       event.stopPropagation()
     } else if (key === 'right' || key === 'tab') {
-      onSelect?.(items[(idx + 1) % items.length])
+      onChange?.(items[(idx + 1) % items.length])
       event.stopPropagation()
     }
   })

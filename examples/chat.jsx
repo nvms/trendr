@@ -77,7 +77,7 @@ export function Chat() {
     <box style={{ flexDirection: 'column', height: '100%' }}>
       <box style={{ flexDirection: 'row', paddingX: 1, gap: 1 }}>
         <text style={{ bold: true }}>chat</text>
-        <Tabs items={ROOMS} selected={room()} onSelect={setRoom} focused={false} />
+        <Tabs items={ROOMS} selected={room()} onChange={setRoom} focused={false} />
         <box style={{ flexGrow: 1 }} />
         <text style={{ color: 'gray', dim: true }}>
           {fm.is('list') ? 'left/right: rooms  tab: input  j/k: scroll' : 'tab: browse  cmd/alt+enter: send'}
