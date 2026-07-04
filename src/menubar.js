@@ -34,7 +34,7 @@ function renderHotkeyLabel(label, hotkey, { hotkeyColor, textColor, bold, hotkey
 }
 
 export function MenuBar({ items, focused = false, maxVisible = 10, onSelect, hotkeyColor: hotkeyColorProp, style: userStyle }) {
-  const { accent = 'cyan' } = useTheme()
+  const { accent = 'cyan', accentText = 'black' } = useTheme()
   const hotkeyColor = hotkeyColorProp ?? accent
 
   const [openIndex, setOpenIndex] = createSignal(-1)
@@ -179,8 +179,8 @@ export function MenuBar({ items, focused = false, maxVisible = 10, onSelect, hot
     const renderRow = (item, { isCursor }) => jsx('box', {
       style: { bg: isCursor ? accent : null, paddingX: 1, flexGrow: 1 },
       children: renderHotkeyLabel(item.label ?? item, item.hotkey, {
-        hotkeyColor: isCursor ? 'black' : hotkeyColor,
-        textColor: isCursor ? 'black' : null,
+        hotkeyColor: isCursor ? accentText : hotkeyColor,
+        textColor: isCursor ? accentText : null,
         bold: isCursor,
         hotkeyBold: true,
         hotkeyUnderline: true,
@@ -218,11 +218,11 @@ export function MenuBar({ items, focused = false, maxVisible = 10, onSelect, hot
 
     if (isItemOpen && focused) {
       bg = accent
-      color = 'black'
+      color = accentText
       bold = true
     } else if (isActive && focused) {
       bg = accent
-      color = 'black'
+      color = accentText
       bold = true
     }
 

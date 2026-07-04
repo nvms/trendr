@@ -5,7 +5,7 @@ import { List } from './list.js'
 const DEFAULT_SEP = { left: '', fill: '\u2500', right: '' }
 
 export function Table({ columns = [], data, selected, onSelect, focused = true, separator = false, separatorChars, renderItem, scrollbar, stickyHeader = false, gap = 0, itemHeight = 1, scrolloff = 2, columnGap = 1 }) {
-  const { accent = 'cyan' } = useTheme()
+  const { accent = 'cyan', accentText = 'black', muted = 'gray' } = useTheme()
 
   const headerRow = jsxs('box', {
     style: { flexDirection: 'row', gap: columnGap },
@@ -44,7 +44,7 @@ export function Table({ columns = [], data, selected, onSelect, focused = true, 
 
   const defaultRenderItem = (row, { selected: isSel }) =>
     jsxs('box', {
-      style: { flexDirection: 'row', gap: columnGap, bg: isSel ? (focused ? accent : 'gray') : null },
+      style: { flexDirection: 'row', gap: columnGap, bg: isSel ? (focused ? accent : muted) : null },
       children: columns.map((col, i) =>
         jsx('text', {
           key: i,
@@ -53,7 +53,7 @@ export function Table({ columns = [], data, selected, onSelect, focused = true, 
             flexGrow: col.flexGrow,
             overflow: 'truncate',
             paddingX: col.paddingX ?? 1,
-            color: isSel && focused ? 'black' : (col.color ?? null),
+            color: isSel && focused ? accentText : (col.color ?? null),
           },
           children: col.render ? col.render(row, isSel) : String(row[col.key] ?? ''),
         })

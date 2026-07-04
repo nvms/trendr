@@ -2,7 +2,7 @@ import { jsx } from '../jsx-runtime.js'
 import { useInput, useMouse, useLayout, useTheme } from './hooks.js'
 
 export function Button({ label, onPress, focused = false, variant }) {
-  const { accent = 'cyan' } = useTheme()
+  const { accent = 'cyan', accentText = 'black', muted = 'gray' } = useTheme()
   const layout = useLayout()
 
   useInput((event) => {
@@ -26,7 +26,7 @@ export function Button({ label, onPress, focused = false, variant }) {
   return jsx('text', {
     style: {
       bg: focused ? accent : null,
-      color: focused ? 'black' : (dim ? 'gray' : null),
+      color: focused ? accentText : (dim ? muted : null),
       bold: focused,
       dim: !focused && dim,
     },

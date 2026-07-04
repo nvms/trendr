@@ -36,7 +36,7 @@ function renderBar(variant, value, width) {
 }
 
 export function ProgressBar({ value = 0, variant = 'thin', width, color, label, count, percentage = true }) {
-  const { accent = 'cyan' } = useTheme()
+  const { accent = 'cyan', muted = 'gray' } = useTheme()
   const c = color ?? accent
   const clamped = Math.max(0, Math.min(1, value))
   const layout = useLayout()
@@ -62,7 +62,7 @@ export function ProgressBar({ value = 0, variant = 'thin', width, color, label, 
   if (bar.close) children.push(jsx('text', { children: bar.close }))
 
   if (rightText) {
-    children.push(jsx('text', { style: { color: 'gray' }, children: rightText }))
+    children.push(jsx('text', { style: { color: muted }, children: rightText }))
   }
 
   return jsxs('box', { style: { flexDirection: 'row' }, children })

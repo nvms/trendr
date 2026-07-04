@@ -1,6 +1,6 @@
 import { jsx, jsxs } from '../jsx-runtime.js'
 import { createSignal } from './signal.js'
-import { useInput, useLayout, useCursor } from './hooks.js'
+import { useInput, useLayout, useCursor, useTheme } from './hooks.js'
 import { registerHook } from './renderer.js'
 import { charWidth, measureText } from './wrap.js'
 
@@ -132,6 +132,7 @@ export function TextArea({ onSubmit, onCancel, onChange, onKeyDown, placeholder,
     setCursor(c => Math.min(c, valueProp.length))
   }
   const ref = registerHook(() => ({ scroll: 0, goalCol: null }))
+  const { muted = 'gray' } = useTheme()
   const layout = useLayout()
   const { cursorStyle, reset: resetBlink } = useCursor(cursorProp, focused)
 
@@ -310,7 +311,7 @@ export function TextArea({ onSubmit, onCancel, onChange, onKeyDown, placeholder,
   const cs = cursorStyle()
 
   if (!v && placeholder && !focused) {
-    return jsx('text', { style: { color: 'gray', flexGrow: 1 }, children: placeholder })
+    return jsx('text', { style: { color: muted, flexGrow: 1 }, children: placeholder })
   }
 
   const effectiveWidth = w || 80
@@ -330,8 +331,8 @@ export function TextArea({ onSubmit, onCancel, onChange, onKeyDown, placeholder,
       children: jsxs('box', {
         style: { flexDirection: 'row', height: 1 },
         children: [
-          jsx('text', { style: cs ? { ...cs, color: cs.color ?? 'gray' } : { inverse: true, color: 'gray' }, children: first }),
-          placeholder.length > first.length && jsx('text', { style: { color: 'gray' }, children: placeholder.slice(first.length) }),
+          jsx('text', { style: cs ? { ...cs, color: cs.color ?? muted } : { inverse: true, color: muted }, children: first }),
+          placeholder.length > first.length && jsx('text', { style: { color: muted }, children: placeholder.slice(first.length) }),
         ],
       }),
     })

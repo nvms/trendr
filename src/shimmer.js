@@ -28,8 +28,8 @@ function lerpColor(a, b, t) {
 }
 
 export function Shimmer({ children, color, highlight, size = 3, gradient = 3, duration = 1000, delay = 500, reverse = false }) {
-  const { accent = 'cyan' } = useTheme()
-  const baseColor = color ?? 'gray'
+  const { accent = 'cyan', muted = 'gray' } = useTheme()
+  const baseColor = color ?? muted
   const hlColor = highlight ?? accent
 
   const text = typeof children === 'string' ? children : String(children ?? '')

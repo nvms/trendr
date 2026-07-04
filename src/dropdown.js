@@ -1,5 +1,5 @@
 import { jsx } from '../jsx-runtime.js'
-import { useMouse, useLayout } from './hooks.js'
+import { useMouse, useLayout, useTheme } from './hooks.js'
 import { registerOverlay, registerHook } from './renderer.js'
 
 export function followCursor(cursor, scroll, visibleCount, len) {
@@ -37,6 +37,7 @@ export function overlayDropdown({ x, y, termW, termH, dropdown }) {
 }
 
 export function Dropdown({ items, cursor, scroll, visibleCount, width, onSubmit, onClose, onCursorChange, renderRow, style: s }) {
+  const { muted = 'gray' } = useTheme()
   const layout = useLayout()
   const drag = registerHook(() => ({ active: false, startY: 0, startCursor: 0 }))
   const scrollable = items.length > visibleCount
@@ -125,7 +126,7 @@ export function Dropdown({ items, cursor, scroll, visibleCount, width, onSubmit,
       children: [
         content,
         jsx('text', {
-          style: { color: barIsThumb ? s.accent : 'gray', dim: !barIsThumb },
+          style: { color: barIsThumb ? s.accent : muted, dim: !barIsThumb },
           children: ' ' + (barIsThumb ? '█' : '│'),
         }),
       ],

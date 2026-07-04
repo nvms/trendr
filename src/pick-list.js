@@ -5,11 +5,11 @@ import { registerHook } from './renderer.js'
 import { List } from './list.js'
 
 export function PickList({ items, onSelect, onCancel, onChange, onCursorChange, focused = true, placeholder = 'search...', filter: filterFn, renderItem, maxVisible = 10, scrollbar = false, scrolloff = 0, itemHeight = 1, itemGap = 0, gap = 0, clearOnSelect = false, style: userStyle, cursor: cursorProp }) {
-  const { accent = 'cyan' } = useTheme()
+  const { accent = 'cyan', accentText = 'black', muted = 'gray' } = useTheme()
   const defaults = {
     borderColor: accent,
     cursorBg: accent,
-    cursorTextColor: 'black',
+    cursorTextColor: accentText,
     color: null,
   }
   const s = { ...defaults, ...userStyle }
@@ -136,13 +136,13 @@ export function PickList({ items, onSelect, onCancel, onChange, onCursorChange, 
 
   let inputEl
   if (!v && placeholder && !focused) {
-    inputEl = jsx('text', { style: { color: 'gray' }, children: placeholder })
+    inputEl = jsx('text', { style: { color: muted }, children: placeholder })
   } else if (!v && placeholder && focused) {
     inputEl = jsxs('box', {
       style: { flexDirection: 'row', height: 1, minHeight: 1 },
       children: [
-        jsx('text', { style: cs ? { ...cs, color: cs.color ?? 'gray' } : { inverse: true, color: 'gray' }, children: placeholder[0] }),
-        placeholder.length > 1 && jsx('text', { style: { color: 'gray' }, children: placeholder.slice(1) }),
+        jsx('text', { style: cs ? { ...cs, color: cs.color ?? muted } : { inverse: true, color: muted }, children: placeholder[0] }),
+        placeholder.length > 1 && jsx('text', { style: { color: muted }, children: placeholder.slice(1) }),
       ],
     })
   } else {
@@ -182,7 +182,7 @@ export function PickList({ items, onSelect, onCancel, onChange, onCursorChange, 
   const defaultRenderItem = (item, { selected: isCursor, focused: isFocused }) => {
     const label = typeof item === 'string' ? item : (item.label ?? item.name ?? String(item))
     return jsx('box', {
-      style: { bg: isCursor ? (isFocused ? s.cursorBg : 'gray') : null },
+      style: { bg: isCursor ? (isFocused ? s.cursorBg : muted) : null },
       children: jsx('text', {
         style: { color: isCursor ? s.cursorTextColor : s.color },
         children: ` ${label}`,

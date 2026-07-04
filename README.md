@@ -89,6 +89,8 @@ Pass a theme object to `mount` to configure global defaults:
 mount(App, {
   theme: {
     accent: 'green',        // focus/highlight color, default 'cyan'
+    accentText: 'black',    // text drawn on accent backgrounds (cursor rows, focused buttons, active tabs), default 'black'
+    muted: 'gray',          // de-emphasized text (placeholders, hints, inactive items, scrollbar rails), default 'gray'
     cursor: {
       blink: true,          // default false
       rate: 530,            // blink interval ms, default 530
@@ -105,7 +107,7 @@ Components read the theme with `useTheme()`:
 ```jsx
 import { useTheme } from '@trendr/core'
 
-const { accent } = useTheme()
+const { accent, accentText, muted } = useTheme()
 ```
 
 Individual components still accept explicit color props (e.g. `<Spinner color="magenta" />`) which override the theme.

@@ -20,7 +20,7 @@ export function getContext() {
 }
 
 const DEFAULT_CURSOR = { blink: false, rate: 530, style: 'block' }
-const DEFAULT_THEME = { accent: 'cyan' }
+const DEFAULT_THEME = { accent: 'cyan', accentText: 'black', muted: 'gray' }
 
 const enableBracketedPaste = '\x1b[?2004h'
 const disableBracketedPaste = '\x1b[?2004l'

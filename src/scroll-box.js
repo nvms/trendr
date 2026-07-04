@@ -3,7 +3,7 @@ import { createSignal } from './signal.js'
 import { useInput, useMouse, useLayout, useTheme, useScrollDrag } from './hooks.js'
 
 export function ScrollBox({ children, focused = true, scrollOffset: offsetProp, onScroll, scrollbar = false, gap = 0, thumbChar = '\u2588', trackChar = '\u2502', style: userStyle }) {
-  const { accent = 'cyan' } = useTheme()
+  const { accent = 'cyan', muted = 'gray' } = useTheme()
   const [offsetInternal, setOffsetInternal] = createSignal(0)
   const layout = useLayout()
 
@@ -88,7 +88,7 @@ export function ScrollBox({ children, focused = true, scrollOffset: offsetProp, 
       barChildren.push(
         jsx('text', {
           key: i,
-          style: { color: isThumb ? (focused ? accent : 'gray') : 'gray', dim: !isThumb },
+          style: { color: isThumb ? (focused ? accent : muted) : muted, dim: !isThumb },
           children: isThumb ? thumbChar : trackChar,
         })
       )

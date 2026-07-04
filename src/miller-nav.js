@@ -26,10 +26,10 @@ function columnWidth(items, maxChars) {
   return Math.min(longest + 5, 25)
 }
 
-function defaultRenderItem(accent, item, { selected, focused, column }) {
+function defaultRenderItem({ accent, accentText }, item, { selected, focused, column }) {
   const name = typeof item === 'string' ? item : (item.name ?? item.label ?? String(item))
   const bg = selected ? (focused ? accent : '#333333') : null
-  const fg = selected && focused ? 'black' : null
+  const fg = selected && focused ? accentText : null
   return jsx('box', {
     style: { bg, flexDirection: 'row' },
     children: jsxs('text', {
@@ -54,7 +54,7 @@ export function MillerNav({
   dividerChar = '\u258f',
   dividerColor = '#333333',
 }) {
-  const { accent = 'cyan' } = useTheme()
+  const { accent = 'cyan', accentText = 'black' } = useTheme()
   const layout = useLayout()
   const stdout = useStdout()
 
@@ -222,7 +222,7 @@ export function MillerNav({
     syncView()
   }
 
-  const render = renderItem || defaultRenderItem.bind(null, accent)
+  const render = renderItem || defaultRenderItem.bind(null, { accent, accentText })
 
   function NoteColumn({ items, selected, onSelect, isFocused, maxC, style: extraStyle }) {
     if (!items.length) return null

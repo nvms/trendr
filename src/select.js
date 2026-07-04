@@ -7,16 +7,16 @@ import { Dropdown, followCursor, placeDropdown, overlayDropdown } from './dropdo
 const itemLabel = (item) => String(item?.label ?? item)
 
 export function Select({ items = [], selected, onSelect, onFocus, focused = false, overlay = false, maxVisible = 10, placeholder = 'select...', renderItem, style: userStyle, openIcon = '▲', closedIcon = '▼' }) {
-  const { accent = 'cyan' } = useTheme()
+  const { accent = 'cyan', accentText = 'black', muted = 'gray' } = useTheme()
   const defaults = {
     border: 'single',
     borderColor: accent,
     bg: null,
     cursorBg: accent,
-    cursorTextColor: 'black',
+    cursorTextColor: accentText,
     color: null,
     focusedBg: accent,
-    focusedColor: 'black',
+    focusedColor: accentText,
   }
   const s = { ...defaults, ...userStyle }
 
@@ -88,7 +88,7 @@ export function Select({ items = [], selected, onSelect, onFocus, focused = fals
   const collapsed = jsx('text', {
     style: {
       bg: focused ? s.focusedBg : null,
-      color: focused ? s.focusedColor : (selected != null ? s.color : 'gray'),
+      color: focused ? s.focusedColor : (selected != null ? s.color : muted),
       bold: focused,
     },
     children: `${open() ? openIcon : closedIcon} ${display}`,

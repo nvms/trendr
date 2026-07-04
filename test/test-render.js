@@ -6,6 +6,8 @@ import { List } from '../src/list.js'
 import { ScrollableText } from '../src/scrollable-text.js'
 import { Diff } from '../src/diff-view.js'
 import { Modal } from '../src/modal.js'
+import { Button } from '../src/button.js'
+import { Select } from '../src/select.js'
 import { jsx, jsxs, Fragment } from '../jsx-runtime.js'
 
 let passed = 0
@@ -691,6 +693,31 @@ suite('theme accent flows to components')
 
   const grid = parseScreen(out.output, 40, 5)
   assert(findInGrid(grid, 'accent:magenta') != null, 'component reads magenta accent from theme')
+
+  unmount()
+}
+
+suite('theme accentText and muted flow to components')
+{
+  const out = new FakeStream(40, 5)
+  const inp = new FakeInput()
+
+  function App() {
+    return jsxs('box', {
+      style: { flexDirection: 'column' },
+      children: [
+        jsx(Button, { label: 'ok', focused: true }),
+        jsx(Select, { items: ['a'], focused: false }),
+      ],
+    })
+  }
+
+  const { unmount } = mount(App, { stream: out, stdin: inp, theme: { accent: 'yellow', accentText: 'red', muted: 'blue' } })
+  await tick()
+
+  // yellow=3, red=1, blue=4 in the 256-color table
+  assert(out.output.includes('38;5;1;48;5;3m'), 'focused button paints accentText (red) fg on accent (yellow) bg')
+  assert(out.output.includes('38;5;4m'), 'select placeholder uses muted (blue) fg')
 
   unmount()
 }

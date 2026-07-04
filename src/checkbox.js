@@ -2,7 +2,7 @@ import { jsx, jsxs } from '../jsx-runtime.js'
 import { useInput, useMouse, useLayout, useTheme } from './hooks.js'
 
 export function Checkbox({ checked = false, label, onChange, focused = false, checkedIcon = '[x]', uncheckedIcon = '[ ]' }) {
-  const { accent = 'cyan' } = useTheme()
+  const { accent = 'cyan', accentText = 'black' } = useTheme()
   const layout = useLayout()
 
   useInput((event) => {
@@ -23,7 +23,7 @@ export function Checkbox({ checked = false, label, onChange, focused = false, ch
 
   const icon = checked ? checkedIcon : uncheckedIcon
   const bg = focused ? accent : null
-  const color = focused ? 'black' : null
+  const color = focused ? accentText : null
 
   const children = [
     jsx('text', { style: { color, bold: focused }, children: icon }),

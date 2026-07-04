@@ -4,7 +4,7 @@ import { useInput, useMouse, useLayout, useTheme, useScrollDrag } from './hooks.
 import { registerHook } from './renderer.js'
 
 export function List({ items = [], selected: selectedProp, onSelect, onCursorChange, renderItem, header, headerHeight = 1, focused = true, interactive = focused, itemHeight = 1, scrollbar = false, stickyHeader = false, gap = 0, scrolloff = 2 }) {
-  const { accent = 'cyan' } = useTheme()
+  const { accent = 'cyan', muted = 'gray' } = useTheme()
   const [selectedInternal, setSelectedInternal] = createSignal(0)
   const [scrollState, setScrollState] = createSignal(0)
   const layout = useLayout()
@@ -190,7 +190,7 @@ export function List({ items = [], selected: selectedProp, onSelect, onCursorCha
     barChildren.push(
       jsx('text', {
         key: i,
-        style: { color: isThumb ? (focused ? accent : 'gray') : 'gray', dim: !isThumb },
+        style: { color: isThumb ? (focused ? accent : muted) : muted, dim: !isThumb },
         children: isThumb ? '\u2588' : '\u2502',
       })
     )

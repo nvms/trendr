@@ -4,7 +4,7 @@ import { useInput, useMouse, useLayout, useTheme, useScrollDrag } from './hooks.
 import { wordWrap } from './wrap.js'
 
 export function ScrollableText({ content = '', focused = true, scrollOffset: offsetProp, onScroll, width: widthProp, scrollbar = false, wrap = true, thumbChar = '\u2588', trackChar = '\u2502' }) {
-  const { accent = 'cyan' } = useTheme()
+  const { accent = 'cyan', muted = 'gray' } = useTheme()
   const [offsetInternal, setOffsetInternal] = createSignal(0)
   const layout = useLayout()
 
@@ -82,7 +82,7 @@ export function ScrollableText({ content = '', focused = true, scrollOffset: off
   const children = visible.map((line, i) => {
     const isThumb = i >= thumbStart && i < thumbStart + thumbH
     const barChar = isThumb ? thumbChar : trackChar
-    const barColor = isThumb ? (focused ? accent : 'gray') : 'gray'
+    const barColor = isThumb ? (focused ? accent : muted) : muted
 
     return jsx('box', {
       key: i,

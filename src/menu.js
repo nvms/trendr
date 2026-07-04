@@ -21,7 +21,7 @@ export function Menu({
   renderItem,
   arrow = '›',
 }) {
-  const { accent = 'cyan' } = useTheme()
+  const { accent = 'cyan', muted = 'gray' } = useTheme()
   const [internal, setInternal] = createSignal(0)
 
   const len = items.length
@@ -66,7 +66,7 @@ export function Menu({
       style: { flexDirection: 'row' },
       children: [
         jsx('text', { style: { color: active ? accent : null }, children: active ? `${arrow} ` : '  ' }),
-        jsx('text', { style: { color: active ? accent : 'gray' }, children: label }),
+        jsx('text', { style: { color: active ? accent : muted }, children: label }),
       ],
     })
   }

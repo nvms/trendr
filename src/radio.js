@@ -4,7 +4,7 @@ import { useInput, useMouse, useLayout, useTheme } from './hooks.js'
 import { registerHook } from './renderer.js'
 
 export function Radio({ options = [], selected, onSelect, focused = false }) {
-  const { accent = 'cyan' } = useTheme()
+  const { accent = 'cyan', accentText = 'black' } = useTheme()
   const [cursor, setCursor] = createSignal(Math.max(0, options.indexOf(selected)))
   const prevSelected = registerHook(() => ({ value: selected }))
 
@@ -61,7 +61,7 @@ export function Radio({ options = [], selected, onSelect, focused = false }) {
     const isCursor = focused && i === c
     const icon = isSelected ? '\u25cf' : '\u25cb'
     const bg = isCursor ? accent : null
-    const color = isCursor ? 'black' : null
+    const color = isCursor ? accentText : null
 
     return jsxs('box', {
       key: option,

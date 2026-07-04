@@ -2,7 +2,7 @@ import { jsx, jsxs } from '../jsx-runtime.js'
 import { useInput, useTheme } from './hooks.js'
 
 export function Tabs({ items = [], selected, onSelect, focused = true }) {
-  const { accent = 'cyan' } = useTheme()
+  const { accent = 'cyan', accentText = 'black', muted = 'gray' } = useTheme()
 
   useInput((event) => {
     if (!focused) return
@@ -24,11 +24,11 @@ export function Tabs({ items = [], selected, onSelect, focused = true }) {
     const isSelected = item === selected
     let style
     if (isSelected && focused) {
-      style = { bg: accent, color: 'black', bold: true }
+      style = { bg: accent, color: accentText, bold: true }
     } else if (isSelected) {
       style = { inverse: true, bold: true }
     } else {
-      style = { color: 'gray' }
+      style = { color: muted }
     }
     return jsx('text', { style, children: ` ${item} ` })
   })

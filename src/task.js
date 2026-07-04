@@ -10,7 +10,7 @@ const DEFAULT_ICONS = {
 }
 
 export function Task({ run, label, successLabel, errorLabel, icon, color, immediate = true }) {
-  const { accent = 'cyan' } = useTheme()
+  const { accent = 'cyan', muted = 'gray' } = useTheme()
   const { status, data, error } = useAsync(run, { immediate })
 
   const s = status()
@@ -37,7 +37,7 @@ export function Task({ run, label, successLabel, errorLabel, icon, color, immedi
   }
 
   return jsxs('box', { style: { flexDirection: 'row' }, children: [
-    jsx('text', { style: { color: 'gray' }, children: icons.idle }),
-    jsx('text', { style: { color: 'gray' }, children: ` ${label}` }),
+    jsx('text', { style: { color: muted }, children: icons.idle }),
+    jsx('text', { style: { color: muted }, children: ` ${label}` }),
   ]})
 }
