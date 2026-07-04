@@ -5,8 +5,8 @@ import { computeLayout, resolveBorderEdges, intrinsicHeight } from './layout.js'
 import { Fragment } from './element.js'
 import { createScheduler } from './scheduler.js'
 import { createInputHandler } from './input.js'
-import { setSchedulerHook, setHookRegistrar, createScope, disposeScope, onCleanup, startRenderTracking, stopRenderTracking } from './signal.js'
-import { wordWrap, measureText, sliceVisible } from './wrap.js'
+import { setSchedulerHook, setHookRegistrar, createScope, disposeScope, runInScope, onCleanup, startRenderTracking, stopRenderTracking } from './signal.js'
+import { wordWrap, measureText, sliceVisible, sliceVisibleRange } from './wrap.js'
 import * as ansi from './ansi.js'
 
 let activeContext = null
@@ -21,6 +21,9 @@ export function getContext() {
 
 const DEFAULT_CURSOR = { blink: false, rate: 530, style: 'block' }
 const DEFAULT_THEME = { accent: 'cyan' }
+
+const enableBracketedPaste = '\x1b[?2004h'
+const disableBracketedPaste = '\x1b[?2004l'
 
 export function getTheme() {
   return activeContext?.theme ?? DEFAULT_THEME
@@ -43,9 +46,26 @@ export function getInstanceLayout() {
   return currentHookOwner.layout
 }
 
-export function registerOverlay(element, { backdrop, fullscreen } = {}) {
+export function registerOverlay(element, { backdrop, fullscreen, capture } = {}) {
   if (!currentHookOwner) return
-  overlays.push({ element, owner: currentHookOwner, backdrop, fullscreen })
+  overlays.push({ element, owner: currentHookOwner, backdrop, fullscreen, capture })
+}
+
+export function getCurrentHookOwner() {
+  return currentHookOwner
+}
+
+// instances created while an overlay tree resolves are tagged with the overlay's
+// owning instance, so input dispatch can tell whether a handler lives inside a
+// capturing overlay's subtree (following the chain for overlays inside overlays)
+const overlayContexts = new WeakMap()
+let resolvingOverlayOwner = null
+
+function captureOwnerFrom(list) {
+  for (let i = list.length - 1; i >= 0; i--) {
+    if (list[i].capture) return list[i].owner
+  }
+  return null
 }
 
 const BORDER_CHARS = {
@@ -325,12 +345,15 @@ function paintTree(node, buf, clip, offset, prevBuf) {
     const clip = style.overflow === 'clip'
     const wrap = style.overflow !== 'nowrap' && !truncate && !clip
 
+    const leftClip = clipped.x - layout.x
+
     if (wrap) {
       const lines = wordWrap(text, layout.width)
       for (let i = 0; i < lines.length && i < layout.height; i++) {
         const rowY = layout.y + i
         if (rowY < clipped.y || rowY >= clipped.y + clipped.height) continue
-        writeText(buf, clipped.x, rowY, lines[i].slice(clipped.x - layout.x), style.color, style.bg, attrs, clipped.width)
+        const line = leftClip > 0 ? sliceVisibleRange(lines[i], leftClip, Infinity) : lines[i]
+        writeText(buf, clipped.x, rowY, line, style.color, style.bg, attrs, clipped.width)
       }
     } else {
       let line = text.replace(/\n/g, ' ')
@@ -338,7 +361,8 @@ function paintTree(node, buf, clip, offset, prevBuf) {
         line = sliceVisible(line, layout.width - 1) + '\u2026'
       }
       if (layout.y >= clipped.y && layout.y < clipped.y + clipped.height) {
-        writeText(buf, clipped.x, layout.y, line.slice(clipped.x - layout.x), style.color, style.bg, attrs, clipped.width)
+        if (leftClip > 0) line = sliceVisibleRange(line, leftClip, Infinity)
+        writeText(buf, clipped.x, layout.y, line, style.color, style.bg, attrs, clipped.width)
       }
     }
     return
@@ -468,9 +492,22 @@ export function startHookTracking(owner) {
 }
 
 export function endHookTracking() {
+  const owner = currentHookOwner
+  const count = hookIndex
   currentHookOwner = null
   hookIndex = 0
   setHookRegistrar(null)
+  if (owner) {
+    if (owner._hookCount == null) {
+      owner._hookCount = count
+    } else if (owner._hookCount !== count) {
+      const name = owner.fn?.name || 'anonymous component'
+      throw new Error(
+        `hook count changed between renders in ${name} (${owner._hookCount} then ${count}). ` +
+        'hooks must be called unconditionally, in the same order, on every render'
+      )
+    }
+  }
 }
 
 export function registerHook(setupFn) {
@@ -492,25 +529,49 @@ export function registerHook(setupFn) {
 }
 
 // resolve tree with component instance caching.
-// instances are keyed by component function + occurrence index,
+// instances are keyed by component function identity + occurrence index,
 // so multiple instances of the same component each get their own state.
 
-function shallowPropsEqual(a, b) {
+let nextFnId = 1
+const fnIds = new WeakMap()
+
+function getFnId(fn) {
+  let id = fnIds.get(fn)
+  if (id === undefined) {
+    id = nextFnId++
+    fnIds.set(fn, id)
+  }
+  return id
+}
+
+// structural equality over props, including children element trees. anything
+// that can't be proven equal (fresh closures, exotic values) counts as changed,
+// so unprovable cases fall back to a repaint instead of a stale blit
+function propValueEqual(a, b) {
   if (a === b) return true
-  if (!a || !b) return false
+  if (typeof a !== 'object' || typeof b !== 'object' || a === null || b === null) return false
+  const aArr = Array.isArray(a)
+  if (aArr !== Array.isArray(b)) return false
+  if (aArr) {
+    if (a.length !== b.length) return false
+    for (let i = 0; i < a.length; i++) {
+      if (!propValueEqual(a[i], b[i])) return false
+    }
+    return true
+  }
   const keysA = Object.keys(a)
   const keysB = Object.keys(b)
   if (keysA.length !== keysB.length) return false
   for (const k of keysA) {
-    if (k === 'children') continue
-    if (a[k] !== b[k]) return false
+    if (!(k in b)) return false
+    if (!propValueEqual(a[k], b[k])) return false
   }
   return true
 }
 
 function isInstanceClean(instance, newProps) {
   if (!instance._trackedSignals) return false
-  if (!shallowPropsEqual(instance._lastProps, newProps)) return false
+  if (!propValueEqual(instance._lastProps ?? null, newProps ?? null)) return false
   const sigs = instance._trackedSignals
   const vals = instance._signalValues
   for (let i = 0; i < sigs.length; i++) {
@@ -551,18 +612,26 @@ function resolveForFrame(element, parent, instances, counters, visited, scope) {
 
   if (typeof element.type === 'function') {
     const fn = element.type
-    const counterKey = `${scope}/${fn.name}`
+    const fnKey = `${fn.name || 'anon'}#${getFnId(fn)}`
+    const counterKey = `${scope}/${fnKey}`
     const count = counters.get(counterKey) ?? 0
     counters.set(counterKey, count + 1)
 
-    const instanceKey = element.key != null ? `${scope}/${fn.name}:key:${element.key}` : `${scope}/${fn.name}:${count}`
+    const instanceKey = element.key != null ? `${scope}/${fnKey}:key:${element.key}` : `${scope}/${fnKey}:${count}`
     if (visited) visited.add(instanceKey)
     let instance = instances.get(instanceKey)
+
+    if (instance && instance.fn !== fn) {
+      disposeScope(instance.scope)
+      instances.delete(instanceKey)
+      instance = undefined
+    }
 
     if (!instance) {
       let result
       instance = { scope: null, fn, hooks: [], node: null, layout: null, _dirty: true }
       instances.set(instanceKey, instance)
+      if (resolvingOverlayOwner) overlayContexts.set(instance, resolvingOverlayOwner)
       instance.scope = createScope(() => {
         startHookTracking(instance)
         startRenderTracking()
@@ -577,12 +646,17 @@ function resolveForFrame(element, parent, instances, counters, visited, scope) {
       const clean = isInstanceClean(instance, element.props)
       instance._dirty = !clean
 
-      startHookTracking(instance)
-      startRenderTracking()
-      const result = fn(element.props ?? {})
-      const signals = stopRenderTracking()
-      endHookTracking()
-      snapshotSignals(instance, signals)
+      // re-render inside the instance scope so any effect or cleanup created
+      // during a re-render is still disposed with the instance
+      const result = runInScope(instance.scope, () => {
+        startHookTracking(instance)
+        startRenderTracking()
+        const r = fn(element.props ?? {})
+        const signals = stopRenderTracking()
+        endHookTracking()
+        snapshotSignals(instance, signals)
+        return r
+      })
       instance._lastProps = element.props
 
       node._resolved = resolveForFrame(result, node, instances, counters, visited, instanceKey)
@@ -650,8 +724,20 @@ export function mount(rootComponent, { stream, stdin, title, theme, onExit: onEx
   let prev = createBuffer(width, height)
   let curr = createBuffer(width, height)
 
-  const input = createInputHandler(inp)
-  const ctx = { stream: out, input, stdin: inp, theme: { ...DEFAULT_THEME, ...theme } }
+  const ctx = { stream: out, input: null, stdin: inp, theme: { ...DEFAULT_THEME, ...theme }, captureOwner: null }
+  const input = createInputHandler(inp, {
+    isEligible: (owner) => {
+      const cap = ctx.captureOwner
+      if (!cap || owner == null) return true
+      let i = owner
+      while (i) {
+        if (i === cap) return true
+        i = overlayContexts.get(i) ?? null
+      }
+      return false
+    },
+  })
+  ctx.input = input
   activeContext = ctx
 
   // component instance cache persists across frames
@@ -738,8 +824,14 @@ export function mount(rootComponent, { stream, stdin, title, theme, onExit: onEx
       const visible = bg.slice(Math.max(0, bg.length - height))
       for (let i = 0; i < visible.length; i++) writeText(overlayCurr, 0, i, visible[i], null, null, 0)
 
-      for (const { element: ovEl, backdrop } of overlays) {
-        const ovTree = resolveForFrame(ovEl, null, instances, counters, visited, '')
+      for (const { element: ovEl, owner, backdrop } of overlays) {
+        resolvingOverlayOwner = owner
+        let ovTree
+        try {
+          ovTree = resolveForFrame(ovEl, null, instances, counters, visited, '')
+        } finally {
+          resolvingOverlayOwner = null
+        }
         if (!ovTree) continue
         computeLayout(ovTree, { x: 0, y: 0, width, height })
         updateOverlayLayouts(ovTree)
@@ -747,6 +839,7 @@ export function mount(rootComponent, { stream, stdin, title, theme, onExit: onEx
         clearOverlayRect(ovTree, overlayCurr)
         paintTree(ovTree, overlayCurr, null, null, null)
       }
+      ctx.captureOwner = captureOwnerFrom(overlays)
 
       for (const [key, inst] of instances) {
         if (!visited.has(key)) {
@@ -760,6 +853,8 @@ export function mount(rootComponent, { stream, stdin, title, theme, onExit: onEx
       overlayPrev = overlayCurr
       return
     }
+
+    ctx.captureOwner = null
 
     if (overlayActive) {
       // modal closed: the terminal restores the saved main screen exactly
@@ -895,23 +990,37 @@ export function mount(rootComponent, { stream, stdin, title, theme, onExit: onEx
     } else {
       propagateDirty(tree)
       paintTree(tree, curr, null, null, (forceFullPaint || prevHadOverlays) ? null : prev)
-      forceFullPaint = false
     }
+    forceFullPaint = false
 
     const hasOverlays = overlays.length > 0
 
     for (const { element: overlayEl, owner, backdrop, fullscreen } of overlays) {
       if (backdrop) dimBuffer(curr)
 
-      const overlayRect = (backdrop || fullscreen)
-        ? { x: 0, y: 0, width, height }
-        : (() => {
-            const anchor = owner.node?._layout ?? owner.layout ?? { x: 0, y: 0, width: 0, height: 0 }
-            return { x: anchor.x, y: anchor.y + 1, width: width - anchor.x, height: height - anchor.y - 1 }
-          })()
-
-      const overlayTree = resolveForFrame(overlayEl, null, instances, counters, visited, '')
+      resolvingOverlayOwner = owner
+      let overlayTree
+      try {
+        overlayTree = resolveForFrame(overlayEl, null, instances, counters, visited, '')
+      } finally {
+        resolvingOverlayOwner = null
+      }
       if (overlayTree) {
+        let overlayRect
+        if (backdrop || fullscreen) {
+          overlayRect = { x: 0, y: 0, width, height }
+        } else {
+          const anchor = owner.node?._layout ?? owner.layout ?? { x: 0, y: 0, width: 0, height: 0 }
+          const below = height - anchor.y - 1
+          if (below > 0) {
+            overlayRect = { x: anchor.x, y: anchor.y + 1, width: width - anchor.x, height: below }
+          } else {
+            // no room below the anchor - flip the overlay to sit right above it
+            const ovWidth = width - anchor.x
+            const h = Math.min(anchor.y, Math.max(1, intrinsicHeight(overlayTree, ovWidth, anchor.y)))
+            overlayRect = { x: anchor.x, y: anchor.y - h, width: ovWidth, height: h }
+          }
+        }
         computeLayout(overlayTree, overlayRect)
         updateOverlayLayouts(overlayTree)
         clearOverlayRect(overlayTree, curr)
@@ -920,6 +1029,7 @@ export function mount(rootComponent, { stream, stdin, title, theme, onExit: onEx
     }
 
     prevHadOverlays = hasOverlays
+    ctx.captureOwner = captureOwnerFrom(overlays)
 
     for (const [key, inst] of instances) {
       if (!visited.has(key)) {
@@ -933,7 +1043,9 @@ export function mount(rootComponent, { stream, stdin, title, theme, onExit: onEx
     const { output, changed } = diff(prev, curr)
     if (changed > 0) {
       out.write(ansi.hideCursor)
-      out.write(output)
+      // diff() returns a view into a shared double buffer that gets reused two
+      // frames later; write a copy so backpressured streams never see it mutate
+      out.write(Buffer.from(output))
     }
 
     const now = performance.now()
@@ -961,11 +1073,25 @@ export function mount(rootComponent, { stream, stdin, title, theme, onExit: onEx
   // no alt screen, no clear, no mouse capture (so the terminal handles scroll
   // and text selection itself)
   if (inline) {
-    out.write(ansi.hideCursor + (title ? ansi.setTitle(title) : ''))
+    out.write(ansi.hideCursor + enableBracketedPaste + (title ? ansi.setTitle(title) : ''))
   } else {
-    out.write((altScreen ? ansi.altScreen : '') + ansi.hideCursor + ansi.clearScreen + ansi.enableMouse + (title ? ansi.setTitle(title) : ''))
+    out.write((altScreen ? ansi.altScreen : '') + ansi.hideCursor + ansi.clearScreen + ansi.enableMouse + enableBracketedPaste + (title ? ansi.setTitle(title) : ''))
   }
   if (inp.isTTY && inp.setRawMode) inp.setRawMode(true)
+  // decode stdin as utf8 at the stream level so multibyte sequences split
+  // across chunks arrive as complete strings, never U+FFFD halves
+  if (typeof inp.setEncoding === 'function') inp.setEncoding('utf8')
+
+  // registered before the first frame resolves components, so component
+  // useInput handlers (registered later) dispatch first and can intercept
+  // ctrl+c via stopPropagation
+  input.onKey((event) => {
+    if (event.key === 'c' && event.ctrl) {
+      unmount()
+      if (onExitCb) onExitCb()
+      else process.exit(0)
+    }
+  })
 
   if (inline) inlineFrame()
   else frame()
@@ -1003,14 +1129,6 @@ export function mount(rootComponent, { stream, stdin, title, theme, onExit: onEx
   }
   out.on('resize', onResize)
 
-  input.onKey((event) => {
-    if (event.key === 'c' && event.ctrl) {
-      unmount()
-      if (onExitCb) onExitCb()
-      else process.exit(0)
-    }
-  })
-
   let unmounted = false
 
   function unmount() {
@@ -1021,6 +1139,8 @@ export function mount(rootComponent, { stream, stdin, title, theme, onExit: onEx
     input.detach()
     out.off('resize', onResize)
     process.off('exit', onExit)
+    process.off('SIGTERM', onSigterm)
+    process.off('SIGHUP', onSighup)
 
     for (const inst of instances.values()) {
       disposeScope(inst.scope)
@@ -1028,9 +1148,9 @@ export function mount(rootComponent, { stream, stdin, title, theme, onExit: onEx
     instances.clear()
 
     if (inline) {
-      out.write((overlayActive ? ansi.exitAltScreen : '') + ansi.sgrReset + ansi.showCursor + '\r\n')
+      out.write((overlayActive ? ansi.exitAltScreen : '') + ansi.sgrReset + disableBracketedPaste + ansi.showCursor + '\r\n')
     } else {
-      out.write(ansi.sgrReset + ansi.disableMouse + ansi.showCursor + (altScreen ? ansi.exitAltScreen : ansi.moveTo(height, 1) + '\n'))
+      out.write(ansi.sgrReset + ansi.disableMouse + disableBracketedPaste + ansi.showCursor + (altScreen ? ansi.exitAltScreen : ansi.moveTo(height, 1) + '\n'))
     }
     if (inp.isTTY && inp.setRawMode) inp.setRawMode(false)
     activeContext = null
@@ -1041,7 +1161,25 @@ export function mount(rootComponent, { stream, stdin, title, theme, onExit: onEx
     unmount()
   }
 
+  // SIGTERM/SIGHUP terminate without emitting 'exit', which would leave the
+  // terminal in raw mode on the alt screen. restore, then re-raise the signal
+  // so the default exit-code semantics are preserved - unless the app has its
+  // own handler, in which case it owns the decision to exit
+  function makeSignalHandler(sig) {
+    const handler = () => {
+      unmount()
+      process.off(sig, handler)
+      if (process.listenerCount(sig) === 0) process.kill(process.pid, sig)
+    }
+    return handler
+  }
+
+  const onSigterm = makeSignalHandler('SIGTERM')
+  const onSighup = makeSignalHandler('SIGHUP')
+
   process.on('exit', onExit)
+  process.on('SIGTERM', onSigterm)
+  process.on('SIGHUP', onSighup)
 
   function repaint() {
     if (inline) {

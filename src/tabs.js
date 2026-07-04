@@ -1,19 +1,22 @@
 import { jsx, jsxs } from '../jsx-runtime.js'
 import { useInput, useTheme } from './hooks.js'
 
-export function Tabs({ items, selected, onSelect, focused = true }) {
+export function Tabs({ items = [], selected, onSelect, focused = true }) {
   const { accent = 'cyan' } = useTheme()
 
-  useInput(({ key }) => {
+  useInput((event) => {
     if (!focused) return
 
+    const { key } = event
     const idx = items.indexOf(selected)
     if (idx === -1) return
 
     if (key === 'left' || key === 'shift-tab') {
-      onSelect(items[(idx - 1 + items.length) % items.length])
+      onSelect?.(items[(idx - 1 + items.length) % items.length])
+      event.stopPropagation()
     } else if (key === 'right' || key === 'tab') {
-      onSelect(items[(idx + 1) % items.length])
+      onSelect?.(items[(idx + 1) % items.length])
+      event.stopPropagation()
     }
   })
 

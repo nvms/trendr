@@ -3,6 +3,8 @@ import { createSignal } from './signal.js'
 import { useInput, useMouse, useLayout, useTheme } from './hooks.js'
 import { registerOverlay, getInstanceLayout, getContext, registerHook } from './renderer.js'
 
+const itemLabel = (item) => String(item?.label ?? item)
+
 function SelectDropdown({ items, cursor, scroll, visibleCount, onSelect, onClose, onCursorChange, renderItem, style: s, accent, dropWidth }) {
   const layout = useLayout()
   const drag = registerHook(() => ({ active: false, startY: 0, startCursor: 0 }))
@@ -81,7 +83,7 @@ function SelectDropdown({ items, cursor, scroll, visibleCount, onSelect, onClose
   const thumbH = scrollable ? Math.max(1, Math.round((visibleCount / items.length) * visibleCount)) : 0
   const maxSc = items.length - visibleCount
   const thumbStart = scrollable && maxSc > 0 ? Math.round((scroll / maxSc) * (visibleCount - thumbH)) : 0
-  const maxLen = items.reduce((m, v) => Math.max(m, v.length), 0)
+  const maxLen = items.reduce((m, v) => Math.max(m, itemLabel(v).length), 0)
 
   const dropdownChildren = visible.map((item, vi) => {
     const i = vi + scroll
@@ -97,7 +99,7 @@ function SelectDropdown({ items, cursor, scroll, visibleCount, onSelect, onClose
           content,
           jsx('text', {
             style: { color: barIsThumb ? accent : 'gray', dim: !barIsThumb },
-            children: ' ' + (barIsThumb ? '\u2588' : '\u2502'),
+            children: ' ' + (barIsThumb ? '█' : '│'),
           }),
         ],
       })
@@ -117,7 +119,7 @@ function SelectDropdown({ items, cursor, scroll, visibleCount, onSelect, onClose
       style: { bg: isCursor ? s.cursorBg : s.bg, paddingX: 1, flexGrow: 1 },
       children: jsx('text', {
         style: { color: isCursor ? s.cursorTextColor : s.color },
-        children: item,
+        children: itemLabel(item),
       }),
     })
     return row(content)
@@ -138,7 +140,7 @@ function SelectDropdown({ items, cursor, scroll, visibleCount, onSelect, onClose
   })
 }
 
-export function Select({ items, selected, onSelect, focused = false, overlay = false, maxVisible = 10, placeholder = 'select...', renderItem, style: userStyle, openIcon = '\u25b2', closedIcon = '\u25bc' }) {
+export function Select({ items = [], selected, onSelect, onFocus, focused = false, overlay = false, maxVisible = 10, placeholder = 'select...', renderItem, style: userStyle, openIcon = '▲', closedIcon = '▼' }) {
   const { accent = 'cyan' } = useTheme()
   const defaults = {
     border: 'single',
@@ -173,7 +175,11 @@ export function Select({ items, selected, onSelect, focused = false, overlay = f
     const len = items.length
     if (key === 'up' || key === 'k') { setCursor(c => Math.max(0, c - 1)); event.stopPropagation() }
     else if (key === 'down' || key === 'j') { setCursor(c => Math.min(len - 1, c + 1)); event.stopPropagation() }
-    else if (key === 'return' || key === 'space') { onSelect?.(items[cursor()]); setOpen(false); event.stopPropagation() }
+    else if (key === 'return' || key === 'space') {
+      if (len > 0) onSelect?.(items[Math.min(cursor(), len - 1)])
+      setOpen(false)
+      event.stopPropagation()
+    }
     else if (key === 'escape') { setOpen(false); event.stopPropagation() }
   })
 
@@ -195,6 +201,12 @@ export function Select({ items, selected, onSelect, focused = false, overlay = f
     const onCollapsed = x >= layout.x && x < layout.x + layout.width && y === layout.y
 
     if (onCollapsed) {
+      // an unfocused select would open a keyboard-dead dropdown - only allow
+      // click-to-open when focused, or when the app can move focus here
+      if (!focused) {
+        if (!onFocus) return
+        onFocus()
+      }
       if (open()) {
         setOpen(false)
       } else {
@@ -206,32 +218,47 @@ export function Select({ items, selected, onSelect, focused = false, overlay = f
     }
   })
 
-  const display = selected ?? placeholder
+  const display = selected != null ? itemLabel(selected) : placeholder
   const collapsed = jsx('text', {
     style: {
       bg: focused ? s.focusedBg : null,
-      color: focused ? s.focusedColor : (selected ? s.color : 'gray'),
+      color: focused ? s.focusedColor : (selected != null ? s.color : 'gray'),
       bold: focused,
     },
     children: `${open() ? openIcon : closedIcon} ${display}`,
   })
 
-  if (!open()) return collapsed
+  if (!open() || items.length === 0) return collapsed
 
   let maxRows = Math.min(items.length, maxVisible)
+  let direction = 'down'
+  let instLayout = null
+  let termW = 80
+  let termH = 24
 
   if (overlay) {
-    const instLayout = getInstanceLayout()
+    instLayout = getInstanceLayout()
     const ctx = getContext()
-    const termH = ctx?.stream?.rows ?? 24
+    termH = ctx?.stream?.rows ?? 24
+    termW = ctx?.stream?.columns ?? 80
     const anchorY = instLayout.y + 1
-    const available = termH - anchorY - 2
-    if (available > 0) maxRows = Math.min(maxRows, available)
+    const spaceBelow = termH - anchorY - 2
+    const spaceAbove = instLayout.y - 2
+
+    if (spaceBelow >= maxRows) {
+      maxRows = Math.min(maxRows, spaceBelow)
+    } else if (spaceAbove > spaceBelow) {
+      direction = 'up'
+      maxRows = Math.min(maxRows, spaceAbove)
+    } else {
+      maxRows = Math.min(maxRows, spaceBelow)
+    }
+    maxRows = Math.max(1, maxRows)
   }
 
   const visibleCount = maxRows
 
-  const cur = cursor()
+  const cur = Math.min(cursor(), items.length - 1)
   const sc = scroll()
   let newScroll = sc
   if (cur < sc) newScroll = cur
@@ -246,7 +273,7 @@ export function Select({ items, selected, onSelect, focused = false, overlay = f
 
   const handleClose = () => setOpen(false)
 
-  const maxLen = items.reduce((m, v) => Math.max(m, v.length), 0)
+  const maxLen = items.reduce((m, v) => Math.max(m, itemLabel(v).length), 0)
   const scrollable = items.length > visibleCount
   const dropWidth = maxLen + 4 + (scrollable ? 2 : 0)
 
@@ -265,7 +292,15 @@ export function Select({ items, selected, onSelect, focused = false, overlay = f
   })
 
   if (overlay) {
-    registerOverlay(dropdown)
+    const dropdownH = visibleCount + 2
+    const absY = direction === 'up' ? instLayout.y - dropdownH : instLayout.y + 1
+    registerOverlay(jsx('box', {
+      style: { width: termW, height: termH },
+      children: jsx('box', {
+        style: { position: 'absolute', top: Math.max(0, absY), left: instLayout.x },
+        children: dropdown,
+      }),
+    }), { fullscreen: true })
     return collapsed
   }
 

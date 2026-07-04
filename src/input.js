@@ -5,8 +5,10 @@ const SPECIAL_KEYS = {
   '\x1b[D': 'left',
   '\x1b[H': 'home',
   '\x1b[F': 'end',
+  '\x1b[1~': 'home',
   '\x1b[2~': 'insert',
   '\x1b[3~': 'delete',
+  '\x1b[4~': 'end',
   '\x1b[5~': 'pageup',
   '\x1b[6~': 'pagedown',
   '\x1bOP': 'f1',
@@ -40,7 +42,8 @@ export function parseMouse(raw) {
   const y = parseInt(m[3], 10) - 1
   const release = m[4] === 'm'
   const button = cb & 3
-  const scroll = (cb & 64) !== 0
+  const extended = (cb & 128) !== 0
+  const scroll = !extended && (cb & 64) !== 0
   const motion = (cb & 32) !== 0
 
   if (scroll) {
@@ -50,13 +53,23 @@ export function parseMouse(raw) {
     return { type: 'mouse', action: 'scroll', direction, x, y }
   }
 
-  const buttonName = button === 0 ? 'left' : button === 1 ? 'middle' : 'right'
+  const buttonName = extended
+    ? (button === 0 ? 'back' : button === 1 ? 'forward' : button === 2 ? 'button10' : 'button11')
+    : (button === 0 ? 'left' : button === 1 ? 'middle' : 'right')
   const action = release ? 'release' : motion ? 'drag' : 'press'
   return { type: 'mouse', action, button: buttonName, x, y }
 }
 
 const MODIFY_OTHER_RE = /^\x1b\[27;(\d+);(\d+)~$/
 const CSI_U_RE = /^\x1b\[(\d+)(?:;(\d+))?u$/
+const CSI_MOD_LETTER_RE = /^\x1b\[1;(\d+)([ABCDHF])$/
+const CSI_MOD_TILDE_RE = /^\x1b\[(\d+);(\d+)~$/
+
+const CSI_LETTER_KEYS = { A: 'up', B: 'down', C: 'right', D: 'left', H: 'home', F: 'end' }
+const CSI_TILDE_KEYS = {
+  1: 'home', 2: 'insert', 3: 'delete', 4: 'end', 5: 'pageup', 6: 'pagedown',
+  15: 'f5', 17: 'f6', 18: 'f7', 19: 'f8', 20: 'f9', 21: 'f10', 23: 'f11', 24: 'f12',
+}
 
 function codeToKey(code) {
   if (code === 13 || code === 10) return 'return'
@@ -69,15 +82,20 @@ function codeToKey(code) {
 
 // modifier param is 1-based with a bitmask in the low bits: shift=1, alt=2,
 // ctrl=4 (so plain=1, shift=2, ctrl=5, etc)
-function modifiedKey(code, mod, raw) {
+function withMods(key, mod, raw) {
   const bits = Math.max(0, mod - 1)
   return {
-    key: codeToKey(code),
+    key,
     ctrl: (bits & 4) !== 0,
     meta: (bits & 2) !== 0,
     shift: (bits & 1) !== 0,
     raw,
   }
+}
+
+function isSingleCodePoint(s) {
+  if (s.length === 1) return true
+  return s.length === 2 && s.codePointAt(0) > 0xffff
 }
 
 export function parseKey(data) {
@@ -87,11 +105,26 @@ export function parseKey(data) {
     return { key: SPECIAL_KEYS[raw], ctrl: false, meta: false, shift: false, raw }
   }
 
+  if (raw === '\x1b\x1b') {
+    return { key: 'escape', ctrl: false, meta: false, shift: false, raw }
+  }
+
+  if (raw.length > 2 && raw.startsWith('\x1b\x1b')) {
+    const inner = parseKey(raw.slice(1))
+    return { key: inner.key, ctrl: inner.ctrl, meta: true, shift: inner.shift, raw }
+  }
+
   let m = MODIFY_OTHER_RE.exec(raw)
-  if (m) return modifiedKey(parseInt(m[2], 10), parseInt(m[1], 10), raw)
+  if (m) return withMods(codeToKey(parseInt(m[2], 10)), parseInt(m[1], 10), raw)
 
   m = CSI_U_RE.exec(raw)
-  if (m) return modifiedKey(parseInt(m[1], 10), m[2] ? parseInt(m[2], 10) : 1, raw)
+  if (m) return withMods(codeToKey(parseInt(m[1], 10)), m[2] ? parseInt(m[2], 10) : 1, raw)
+
+  m = CSI_MOD_LETTER_RE.exec(raw)
+  if (m) return withMods(CSI_LETTER_KEYS[m[2]], parseInt(m[1], 10), raw)
+
+  m = CSI_MOD_TILDE_RE.exec(raw)
+  if (m && CSI_TILDE_KEYS[m[1]]) return withMods(CSI_TILDE_KEYS[m[1]], parseInt(m[2], 10), raw)
 
   if (raw.length === 1) {
     const code = raw.charCodeAt(0)
@@ -109,94 +142,193 @@ export function parseKey(data) {
     return { key: raw, ctrl: false, meta: false, shift: false, raw }
   }
 
-  if (raw.startsWith('\x1b') && raw.length === 2) {
-    return { key: raw[1], ctrl: false, meta: true, shift: false, raw }
+  if (isSingleCodePoint(raw)) {
+    return { key: raw, ctrl: false, meta: false, shift: false, raw }
+  }
+
+  if (raw[0] === '\x1b' && isSingleCodePoint(raw.slice(1))) {
+    const inner = parseKey(raw.slice(1))
+    return { key: inner.key, ctrl: inner.ctrl, meta: true, shift: inner.shift, raw }
   }
 
   return { key: raw, ctrl: false, meta: false, shift: false, raw }
 }
 
+// reads one token off the head of s. returns null when the head is an
+// incomplete escape sequence (or a split surrogate pair) that needs more bytes
+function nextToken(s) {
+  if (s[0] !== '\x1b') {
+    const c0 = s.charCodeAt(0)
+    if (c0 >= 0xd800 && c0 <= 0xdbff && s.length === 1) return null
+    const cp = s.codePointAt(0)
+    return s.slice(0, cp > 0xffff ? 2 : 1)
+  }
+
+  if (s.length === 1) return null
+
+  let i = 1
+  if (s[1] === '\x1b') {
+    // could be double-esc (two escape events) or an alt-prefixed sequence
+    // like \x1b\x1b[A - wait for a third byte to disambiguate
+    if (s.length === 2) return null
+    if (s[2] === '[' || s[2] === 'O') i = 2
+    else return '\x1b'
+  }
+
+  const c = s[i]
+
+  if (c === '[') {
+    let j = i + 1
+    if (j < s.length && (s[j] === '<' || s[j] === '?')) j++
+    while (j < s.length && ((s[j] >= '0' && s[j] <= '9') || s[j] === ';' || s[j] === ':')) j++
+    if (j >= s.length) return null
+    return s.slice(0, j + 1)
+  }
+
+  if (c === 'O') {
+    if (i + 1 >= s.length) return null
+    return s.slice(0, i + 2)
+  }
+
+  const cc = s.charCodeAt(i)
+  if (cc >= 0xd800 && cc <= 0xdbff && i + 1 >= s.length) return null
+  const cp = s.codePointAt(i)
+  return s.slice(0, i + (cp > 0xffff ? 2 : 1))
+}
+
 export function splitKeys(data) {
   const raw = typeof data === 'string' ? data : data.toString()
   const keys = []
-  let i = 0
+  let s = raw
 
-  while (i < raw.length) {
-    if (raw[i] === '\x1b') {
-      if (i + 1 < raw.length && raw[i + 1] === '[') {
-        // generic csi: optional private marker, any number of ;-separated
-        // numeric params, then a final byte. covers arrows, mouse (\x1b[<..M),
-        // csi-u (\x1b[13;2u) and modifyOtherKeys (\x1b[27;2;13~)
-        let j = i + 2
-        if (j < raw.length && (raw[j] === '<' || raw[j] === '?')) j++
-        while (j < raw.length && ((raw[j] >= '0' && raw[j] <= '9') || raw[j] === ';' || raw[j] === ':')) j++
-        if (j < raw.length) j++
-        keys.push(raw.slice(i, j))
-        i = j
-      } else if (i + 1 < raw.length && raw[i + 1] === 'O') {
-        const end = Math.min(i + 3, raw.length)
-        keys.push(raw.slice(i, end))
-        i = end
-      } else if (i + 1 < raw.length) {
-        keys.push(raw.slice(i, i + 2))
-        i += 2
-      } else {
-        keys.push(raw[i])
-        i++
-      }
-    } else {
-      keys.push(raw[i])
-      i++
+  while (s.length > 0) {
+    const token = nextToken(s)
+    if (token !== null) {
+      keys.push(token)
+      s = s.slice(token.length)
+      continue
     }
+    // incomplete tail - split leading escapes apart, keep the rest whole
+    if (s === '\x1b') {
+      keys.push(s)
+      break
+    }
+    if (s.startsWith('\x1b\x1b')) {
+      keys.push('\x1b')
+      s = s.slice(1)
+      continue
+    }
+    keys.push(s)
+    break
   }
 
   return keys
 }
 
-export function createInputHandler(stream) {
-  const keyListeners = new Set()
-  const mouseListeners = new Set()
+const PASTE_START = '\x1b[200~'
+const PASTE_END = '\x1b[201~'
 
-  function dispatch(keyStr) {
-    const mouse = parseMouse(keyStr)
-    if (mouse) {
-      mouse.stopPropagation = () => { mouse._stopped = true }
-      const snapshot = [...mouseListeners].reverse()
-      for (const fn of snapshot) {
-        fn(mouse)
-        if (mouse._stopped) break
-      }
-      return
-    }
+// longest suffix of s that is a proper prefix of marker
+function partialSuffixLen(s, marker) {
+  const max = Math.min(marker.length - 1, s.length)
+  for (let len = max; len > 0; len--) {
+    if (s.endsWith(marker.slice(0, len))) return len
+  }
+  return 0
+}
 
-    const event = parseKey(keyStr)
+export function createInputHandler(stream, options = {}) {
+  const {
+    escDelay = 25,
+    setTimer = (fn, ms) => setTimeout(fn, ms),
+    clearTimer = (id) => clearTimeout(id),
+    isEligible = () => true,
+  } = options
+
+  const keyListeners = new Map()
+  const mouseListeners = new Map()
+
+  let pending = ''
+  let inPaste = false
+  let pasteData = ''
+  let escTimer = null
+
+  function fire(event, listeners) {
     event.stopPropagation = () => { event._stopped = true }
-    const snapshot = [...keyListeners].reverse()
-    for (const fn of snapshot) {
+    const snapshot = [...listeners].reverse()
+    for (const [fn, owner] of snapshot) {
+      if (!isEligible(owner)) continue
       fn(event)
       if (event._stopped) break
     }
   }
 
-  function isPaste(data) {
-    const s = typeof data === 'string' ? data : data.toString()
-    return s.length > 1 && !s.startsWith('\x1b') && (s.includes('\n') || s.includes('\r'))
+  function dispatch(keyStr) {
+    const mouse = parseMouse(keyStr)
+    if (mouse) {
+      fire(mouse, mouseListeners)
+      return
+    }
+    fire(parseKey(keyStr), keyListeners)
+  }
+
+  function dispatchPaste(text) {
+    const normalized = text.replace(/\r\n?/g, '\n')
+    fire({ key: 'paste', text: normalized, ctrl: false, meta: false, shift: false, raw: normalized }, keyListeners)
+  }
+
+  function processPending() {
+    while (pending.length > 0) {
+      if (inPaste) {
+        const idx = pending.indexOf(PASTE_END)
+        if (idx === -1) {
+          const keep = partialSuffixLen(pending, PASTE_END)
+          pasteData += pending.slice(0, pending.length - keep)
+          pending = pending.slice(pending.length - keep)
+          return
+        }
+        pasteData += pending.slice(0, idx)
+        pending = pending.slice(idx + PASTE_END.length)
+        inPaste = false
+        const text = pasteData
+        pasteData = ''
+        dispatchPaste(text)
+        continue
+      }
+
+      const token = nextToken(pending)
+      if (token === null) return
+      pending = pending.slice(token.length)
+      if (token === PASTE_START) {
+        inPaste = true
+        continue
+      }
+      if (token === PASTE_END) continue
+      dispatch(token)
+    }
+  }
+
+  function clearEscTimer() {
+    if (escTimer !== null) {
+      clearTimer(escTimer)
+      escTimer = null
+    }
+  }
+
+  function flushPending() {
+    escTimer = null
+    if (pending.length === 0 || inPaste) return
+    const flush = pending
+    pending = ''
+    for (const key of splitKeys(flush)) dispatch(key)
   }
 
   function onData(data) {
-    if (isPaste(data)) {
-      const text = (typeof data === 'string' ? data : data.toString()).replace(/\r\n?/g, '\n')
-      const event = { key: 'paste', text, ctrl: false, meta: false, shift: false, raw: text }
-      event.stopPropagation = () => { event._stopped = true }
-      const snapshot = [...keyListeners].reverse()
-      for (const fn of snapshot) {
-        fn(event)
-        if (event._stopped) break
-      }
-      return
-    }
-    for (const key of splitKeys(data)) {
-      dispatch(key)
+    clearEscTimer()
+    pending += typeof data === 'string' ? data : data.toString('utf8')
+    processPending()
+    if (pending.length > 0 && !inPaste) {
+      escTimer = setTimer(flushPending, escDelay)
     }
   }
 
@@ -212,10 +344,14 @@ export function createInputHandler(stream) {
     if (!attached) return
     attached = false
     stream.off('data', onData)
+    clearEscTimer()
+    pending = ''
+    inPaste = false
+    pasteData = ''
   }
 
-  function onKey(fn) {
-    keyListeners.add(fn)
+  function onKey(fn, owner = null) {
+    keyListeners.set(fn, owner)
     if (keyListeners.size + mouseListeners.size === 1) attach()
     return () => {
       keyListeners.delete(fn)
@@ -223,8 +359,8 @@ export function createInputHandler(stream) {
     }
   }
 
-  function onMouse(fn) {
-    mouseListeners.add(fn)
+  function onMouse(fn, owner = null) {
+    mouseListeners.set(fn, owner)
     if (keyListeners.size + mouseListeners.size === 1) attach()
     return () => {
       mouseListeners.delete(fn)

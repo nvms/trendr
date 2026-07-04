@@ -1,5 +1,5 @@
 import { onCleanup, createSignalRaw } from './signal.js'
-import { getContext, getTheme, getCursor, registerHook, getInstanceLayout, getFrameStats } from './renderer.js'
+import { getContext, getTheme, getCursor, registerHook, getInstanceLayout, getFrameStats, getCurrentHookOwner } from './renderer.js'
 import { setTitle } from './ansi.js'
 
 export function useInput(handler) {
@@ -7,7 +7,7 @@ export function useInput(handler) {
     const ctx = getContext()
     if (!ctx) throw new Error('useInput must be called within a mounted component')
     const state = { current: handler }
-    const unsub = ctx.input.onKey((event) => state.current(event))
+    const unsub = ctx.input.onKey((event) => state.current(event), getCurrentHookOwner())
     onCleanup(unsub)
     return state
   })
@@ -19,7 +19,7 @@ export function useMouse(handler) {
     const ctx = getContext()
     if (!ctx) throw new Error('useMouse must be called within a mounted component')
     const state = { current: handler }
-    const unsub = ctx.input.onMouse((event) => state.current(event))
+    const unsub = ctx.input.onMouse((event) => state.current(event), getCurrentHookOwner())
     onCleanup(unsub)
     return state
   })
@@ -41,13 +41,19 @@ export function useResize(handler) {
 }
 
 export function useInterval(fn, ms) {
-  const ref = registerHook(() => {
-    const state = { current: fn }
-    const id = setInterval(() => state.current(), ms)
-    onCleanup(() => clearInterval(id))
-    return state
+  const state = registerHook(() => {
+    const s = { current: fn, ms: undefined, id: null }
+    onCleanup(() => {
+      if (s.id !== null) clearInterval(s.id)
+    })
+    return s
   })
-  ref.current = fn
+  state.current = fn
+  if (state.ms !== ms) {
+    if (state.id !== null) clearInterval(state.id)
+    state.ms = ms
+    state.id = ms == null ? null : setInterval(() => state.current(), ms)
+  }
 }
 
 export function useLayout() {
@@ -77,17 +83,30 @@ export function useFrameStats() {
 export function useTitle(title) {
   const ctx = getContext()
   if (!ctx) throw new Error('useTitle must be called within a mounted component')
-  ctx.stream.write(setTitle(title))
+  const state = registerHook(() => ({ last: undefined }))
+  if (state.last !== title) {
+    state.last = title
+    ctx.stream.write(setTitle(title))
+  }
 }
 
 export function useTimeout(fn, ms) {
-  const ref = registerHook(() => {
-    const state = { current: fn }
-    const id = setTimeout(() => state.current(), ms)
-    onCleanup(() => clearTimeout(id))
-    return state
+  const state = registerHook(() => {
+    const s = { current: fn, ms: undefined, id: null }
+    onCleanup(() => {
+      if (s.id !== null) clearTimeout(s.id)
+    })
+    return s
   })
-  ref.current = fn
+  state.current = fn
+  if (state.ms !== ms) {
+    if (state.id !== null) clearTimeout(state.id)
+    state.ms = ms
+    state.id = ms == null ? null : setTimeout(() => {
+      state.id = null
+      state.current()
+    }, ms)
+  }
 }
 
 export function useScrollDrag({ barX, barY, thumbHeight, trackHeight, maxOffset, scrollOffset, onScroll }) {
@@ -179,21 +198,24 @@ export function useAsync(fn, { immediate = false } = {}) {
     const [error, setError] = createSignalRaw(null)
     let generation = 0
 
-    function run(...args) {
+    const s = { status, data, error, fn }
+
+    s.run = (...args) => {
       const gen = ++generation
       setStatus('loading')
       setData(null)
       setError(null)
-      fn(...args).then(
+      s.fn(...args).then(
         result => { if (gen === generation) { setData(result); setStatus('success') } },
         err => { if (gen === generation) { setError(err); setStatus('error') } },
       )
     }
 
-    if (immediate) run()
+    if (immediate) s.run()
 
-    return { status, data, error, run }
+    return s
   })
 
+  state.fn = fn
   return state
 }

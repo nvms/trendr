@@ -8,7 +8,7 @@ import { List } from './list.js'
 // own, so it pairs with an external composer: render it after that input and,
 // while focused, it intercepts up/down/enter before the input sees them
 export function Menu({
-  items,
+  items = [],
   selected: selectedProp,
   onSelect,
   onSubmit,
@@ -27,7 +27,10 @@ export function Menu({
   const len = items.length
   const raw = selectedProp ?? internal()
   const selected = Math.min(Math.max(0, raw), Math.max(0, len - 1))
-  const setSelected = onSelect ?? setInternal
+  const setSelected = (i) => {
+    if (selectedProp === undefined) setInternal(i)
+    if (onSelect) onSelect(i)
+  }
 
   if (selected !== raw && len > 0) setSelected(selected)
 

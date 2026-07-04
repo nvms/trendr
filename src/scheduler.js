@@ -3,9 +3,26 @@ export function createScheduler({ fps = 60, onFrame } = {}) {
   let lastFrame = 0
   let queued = false
   let running = false
+  let pending = false
+  let destroyed = false
   let timer = null
 
+  function runFrame(now) {
+    running = true
+    lastFrame = now
+    try {
+      onFrame()
+    } finally {
+      running = false
+    }
+    if (pending) {
+      pending = false
+      requestFrame()
+    }
+  }
+
   function tick() {
+    if (destroyed) return
     queued = false
     timer = null
 
@@ -18,37 +35,38 @@ export function createScheduler({ fps = 60, onFrame } = {}) {
       return
     }
 
-    running = true
-    lastFrame = now
-    onFrame()
-    running = false
+    runFrame(now)
   }
 
   function requestFrame() {
-    if (queued || running) return
+    if (destroyed) return
+    if (running) {
+      pending = true
+      return
+    }
+    if (queued) return
     queued = true
     setImmediate(tick)
   }
 
   function forceFrame() {
-    if (running) return
+    if (destroyed || running) return
     if (timer) {
       clearTimeout(timer)
       timer = null
     }
     queued = false
-    running = true
-    lastFrame = Date.now()
-    onFrame()
-    running = false
+    runFrame(Date.now())
   }
 
   function destroy() {
+    destroyed = true
     if (timer) {
       clearTimeout(timer)
       timer = null
     }
     queued = false
+    pending = false
   }
 
   return { requestFrame, forceFrame, destroy }

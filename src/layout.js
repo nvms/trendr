@@ -166,7 +166,9 @@ function layoutFlex(children, ctx) {
       totalFlex += grow
       childInfo.push({ child, cs, grow, minMain, marginMain, marginCross, margin, measured: null })
     } else {
-      const measured = measureChild(child, cs, isRow, width, height)
+      const measureW = isRow ? width : Math.max(0, width - marginCross)
+      const measureH = isRow ? Math.max(0, height - marginCross) : height
+      const measured = measureChild(child, cs, isRow, measureW, measureH)
       const childMain = isRow ? measured.width : measured.height
       usedMain += childMain + marginMain
       childInfo.push({ child, cs, grow: 0, minMain: childMain, marginMain, marginCross, margin, measured })
@@ -197,19 +199,27 @@ function layoutFlex(children, ctx) {
   }
 
   let pos = mainOffset
+  let cumFlex = 0
+  let flexAllocated = 0
 
   for (const info of childInfo) {
     const { child, cs, grow, minMain, marginMain, marginCross, margin, measured } = info
 
     let childMain
     if (grow > 0) {
-      const extra = totalFlex > 0 ? Math.floor(remaining * (grow / totalFlex)) : 0
-      childMain = minMain + extra
+      cumFlex += grow
+      const target = Math.floor(remaining * (cumFlex / totalFlex))
+      childMain = minMain + (target - flexAllocated)
+      flexAllocated = target
     } else {
       childMain = minMain
     }
 
-    const mainRemaining = mainSize - pos - marginMain
+    // pos accumulates fractional space-between/around spacing, so rects
+    // always get integer coordinates
+    const mainPos = Math.round(pos)
+
+    const mainRemaining = mainSize - mainPos - marginMain
     if (childMain > mainRemaining) childMain = Math.max(0, mainRemaining)
 
     const explicitCross = isRow
@@ -237,8 +247,8 @@ function layoutFlex(children, ctx) {
     }
 
     const childRect = isRow
-      ? { x: x + pos + marginBefore, y: y + crossOffset, width: childMain, height: childCross }
-      : { x: x + crossOffset, y: y + pos + marginBefore, width: childCross, height: childMain }
+      ? { x: x + mainPos + marginBefore, y: y + crossOffset, width: childMain, height: childCross }
+      : { x: x + crossOffset, y: y + mainPos + marginBefore, width: childCross, height: childMain }
 
     computeLayout(child, childRect)
 
@@ -277,7 +287,7 @@ function measureChild(child, cs, isRow, availW, availH) {
     w = explicitW
     h = explicitH
   } else {
-    const intrinsic = measureIntrinsic(leaf, availW, availH)
+    const intrinsic = measureIntrinsic(leaf, explicitW ?? availW, explicitH ?? availH)
     w = explicitW ?? intrinsic.width
     h = explicitH ?? intrinsic.height
   }
@@ -330,19 +340,24 @@ function measureIntrinsic(node, availW, availH) {
         totalFlex += grow
         infos.push({ child, cs, grow, marginMain, marginCross, measured: null })
       } else {
-        const measured = measureChild(child, cs, true, innerW, innerH)
+        const measured = measureChild(child, cs, true, innerW, Math.max(0, innerH - marginCross))
         usedByFixed += measured.width + marginMain
         infos.push({ child, cs, grow: 0, marginMain, marginCross, measured })
       }
     }
 
     const flexSpace = Math.max(0, innerW - usedByFixed)
+    let cumFlex = 0
+    let flexAllocated = 0
 
     for (const info of infos) {
       let measured = info.measured
       if (info.grow > 0) {
-        const childW = Math.floor(flexSpace * (info.grow / totalFlex))
-        measured = measureChild(info.child, info.cs, true, childW, innerH)
+        cumFlex += info.grow
+        const target = Math.floor(flexSpace * (cumFlex / totalFlex))
+        const childW = target - flexAllocated
+        flexAllocated = target
+        measured = measureChild(info.child, info.cs, true, childW, Math.max(0, innerH - info.marginCross))
       }
       mainTotal += (measured.width + info.marginMain)
       const childCross = measured.height + info.marginCross
@@ -353,10 +368,10 @@ function measureIntrinsic(node, availW, availH) {
   } else {
     for (const child of children) {
       const cs = childStyle(child)
-      const measured = measureChild(child, cs, false, innerW, innerH)
       const margin = resolveMargin(cs)
       const marginMain = margin.top + margin.bottom
       const marginCross = margin.left + margin.right
+      const measured = measureChild(child, cs, false, Math.max(0, innerW - marginCross), innerH)
 
       mainTotal += measured.height + marginMain
       const childCross = measured.width + marginCross
@@ -392,8 +407,8 @@ function resolveSize(value, available) {
 }
 
 function clampSize(value, min, max) {
-  if (min != null && value < min) value = min
   if (max != null && value > max) value = max
+  if (min != null && value < min) value = min
   return Math.max(0, Math.floor(value))
 }
 

@@ -55,12 +55,12 @@ export function PickList({ items, onSelect, onCancel, onChange, onCursorChange, 
     const { key, raw, ctrl } = event
     const len = filtered.length
 
-    if (key === 'up' || (ctrl && raw === '\x10')) {
+    if (key === 'up' || (ctrl && key === 'p')) {
       if (len > 0) setListCursor(c => Math.max(0, c - 1))
       event.stopPropagation()
       return
     }
-    if (key === 'down' || (ctrl && raw === '\x0e')) {
+    if (key === 'down' || (ctrl && key === 'n')) {
       if (len > 0) setListCursor(c => Math.min(len - 1, c + 1))
       event.stopPropagation()
       return
@@ -108,13 +108,12 @@ export function PickList({ items, onSelect, onCancel, onChange, onCursorChange, 
     if (key === 'left') { setTextCursor(Math.max(0, c - 1)); event.stopPropagation(); return }
     if (key === 'right') { setTextCursor(Math.min(v.length, c + 1)); event.stopPropagation(); return }
 
-    if (key === 'home' || (ctrl && raw === '\x01')) { setTextCursor(0); event.stopPropagation(); return }
-    if (key === 'end' || (ctrl && raw === '\x05')) { setTextCursor(v.length); event.stopPropagation(); return }
+    if (key === 'home' || (ctrl && key === 'a')) { setTextCursor(0); event.stopPropagation(); return }
+    if (key === 'end' || (ctrl && key === 'e')) { setTextCursor(v.length); event.stopPropagation(); return }
 
-    if (ctrl && raw === '\x15') { updateText(v.slice(c), 0); event.stopPropagation(); return }
-    if (ctrl && raw === '\x0b') { updateText(v.slice(0, c), c); event.stopPropagation(); return }
+    if (ctrl && key === 'k') { updateText(v.slice(0, c), c); event.stopPropagation(); return }
 
-    if (ctrl && raw === '\x17') {
+    if (ctrl && key === 'w') {
       const before = v.slice(0, c)
       const after = v.slice(c)
       const trimmed = before.replace(/\S+\s*$/, '')

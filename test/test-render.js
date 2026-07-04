@@ -1350,6 +1350,151 @@ suite('ScrollBox ignores horizontal wheel scroll')
   unmount()
 }
 
+// layout regressions
+
+import { computeLayout } from '../src/layout.js'
+import { resolveTree } from '../src/element.js'
+import { wordWrap } from '../src/wrap.js'
+
+suite('layout - space-between emits integer coordinates')
+{
+  const tree = resolveTree(
+    jsxs('box', {
+      style: { flexDirection: 'row', justifyContent: 'space-between' },
+      children: [
+        jsx('text', { style: { width: 2 }, children: 'aa' }),
+        jsx('text', { style: { width: 2 }, children: 'bb' }),
+        jsx('text', { style: { width: 2 }, children: 'cc' }),
+      ],
+    }),
+    null
+  )
+  computeLayout(tree, { x: 0, y: 0, width: 21, height: 3 })
+  const xs = tree._resolvedChildren.map(c => c._layout.x)
+  for (const v of xs) assert(Number.isInteger(v), `space-between x is integer (got ${v})`)
+  assertEq(xs[0], 0, 'first child flush left')
+  assertEq(xs[2], 19, 'last child flush right')
+}
+
+suite('layout - space-around emits integer coordinates')
+{
+  const tree = resolveTree(
+    jsxs('box', {
+      style: { flexDirection: 'row', justifyContent: 'space-around' },
+      children: [
+        jsx('text', { style: { width: 2 }, children: 'aa' }),
+        jsx('text', { style: { width: 2 }, children: 'bb' }),
+        jsx('text', { style: { width: 2 }, children: 'cc' }),
+      ],
+    }),
+    null
+  )
+  computeLayout(tree, { x: 0, y: 0, width: 20, height: 3 })
+  for (const c of tree._resolvedChildren) {
+    assert(Number.isInteger(c._layout.x), `space-around x is integer (got ${c._layout.x})`)
+  }
+}
+
+suite('space-between renders without fractional cell crash')
+{
+  const out = new FakeStream(21, 3)
+  const inp = new FakeInput()
+
+  function App() {
+    return jsxs('box', {
+      style: { flexDirection: 'row', justifyContent: 'space-between' },
+      children: [
+        jsx('text', { children: 'aa' }),
+        jsx('text', { children: 'bb' }),
+        jsx('text', { children: 'cc' }),
+      ],
+    })
+  }
+
+  const { unmount } = mount(App, { stream: out, stdin: inp, altScreen: false })
+  await tick()
+
+  const grid = parseScreen(out.output, 21, 3)
+  assert(findInGrid(grid, 'aa') != null, 'first item rendered')
+  assert(findInGrid(grid, 'bb') != null, 'middle item rendered')
+  assert(findInGrid(grid, 'cc') != null, 'last item rendered')
+
+  unmount()
+}
+
+suite('layout - width-constrained box measures wrapped text height')
+{
+  const text = 'aaaa bbbb cccc dddd eeee ffff gggg hhhh'
+  const expected = wordWrap(text, 10).length
+  const tree = resolveTree(
+    jsxs('box', {
+      style: { flexDirection: 'column' },
+      children: [
+        jsx('box', {
+          style: { width: 10 },
+          children: jsx('text', { children: text }),
+        }),
+        jsx('text', { children: 'after' }),
+      ],
+    }),
+    null
+  )
+  computeLayout(tree, { x: 0, y: 0, width: 40, height: 20 })
+  assertEq(tree._resolvedChildren[0]._layout.height, expected, 'box height matches text wrapped at its explicit width')
+  assertEq(tree._resolvedChildren[1]._layout.y, expected, 'sibling starts below the box, no overlap')
+}
+
+suite('layout - text with horizontal margins measures at laid-out width')
+{
+  const text = 'aaaa bbbb cccc'
+  const expected = wordWrap(text, 10).length
+  const tree = resolveTree(
+    jsxs('box', {
+      style: { flexDirection: 'column' },
+      children: [
+        jsx('text', { style: { marginX: 2 }, children: text }),
+        jsx('text', { children: 'after' }),
+      ],
+    }),
+    null
+  )
+  computeLayout(tree, { x: 0, y: 0, width: 14, height: 20 })
+  assertEq(tree._resolvedChildren[0]._layout.height, expected, 'margined text height accounts for reduced wrap width')
+  assertEq(tree._resolvedChildren[1]._layout.y, expected, 'sibling starts below the wrapped text')
+}
+
+suite('layout - flex-grow shares sum to the full container')
+{
+  const tree = resolveTree(
+    jsxs('box', {
+      style: { flexDirection: 'row' },
+      children: [
+        jsx('box', { style: { flexGrow: 1 } }),
+        jsx('box', { style: { flexGrow: 1 } }),
+        jsx('box', { style: { flexGrow: 1 } }),
+      ],
+    }),
+    null
+  )
+  computeLayout(tree, { x: 0, y: 0, width: 20, height: 5 })
+  const widths = tree._resolvedChildren.map(c => c._layout.width)
+  assertEq(widths.reduce((a, b) => a + b, 0), 20, 'flex widths fill the container exactly')
+  const last = tree._resolvedChildren[2]._layout
+  assertEq(last.x + last.width, 20, 'last flex child reaches the right edge')
+}
+
+suite('layout - minWidth wins over maxWidth on conflict')
+{
+  const tree = resolveTree(
+    jsxs('box', { children: [
+      jsx('box', { style: { width: 20, minWidth: 12, maxWidth: 8, height: 2 } }),
+    ]}),
+    null
+  )
+  computeLayout(tree, { x: 0, y: 0, width: 40, height: 20 })
+  assertEq(tree._resolvedChildren[0]._layout.width, 12, 'min beats max when min > max')
+}
+
 // ----
 
 console.log(`\n${passed} passed, ${failed} failed`)

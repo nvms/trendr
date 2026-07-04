@@ -188,7 +188,7 @@ export function Diff({
     })
   }
 
-  const visible = rows.slice(clamped, h > 0 ? clamped + h : undefined)
+  const visible = h > 0 ? rows.slice(clamped, clamped + h) : []
   const bodyRows = visible.map((row, i) => renderRow(row, clamped + i))
 
   let body

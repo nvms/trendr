@@ -113,7 +113,7 @@ function diffWords(oldLine, newLine, { minSimilarity = 0.25 } = {}) {
   const ops = diffSequences(aTok.map(t => t.text), bTok.map(t => t.text))
 
   let common = 0
-  for (const op of ops) if (op.type === 'equal') common += aTok[op.a].text.length
+  for (const op of ops) if (op.type === 'equal') common += aTok[op.a].end - aTok[op.a].start
   const total = Array.from(oldLine).length + Array.from(newLine).length
   if (total > 0 && (2 * common) / total < minSimilarity) return { old: null, new: null }
 
@@ -181,32 +181,33 @@ function rowsFromPatch(patch, wordDiff) {
   const rows = []
   let oldNo = 0
   let newNo = 0
-  let inHunk = false
+  let oldRemain = 0
+  let newRemain = 0
 
   for (const raw of String(patch).split('\n')) {
-    const hunk = HUNK_RE.exec(raw)
-    if (hunk) {
-      oldNo = parseInt(hunk[1], 10)
-      newNo = parseInt(hunk[3], 10)
-      inHunk = true
-      rows.push({ type: 'hunk', oldNo: null, newNo: null, text: raw, intra: null })
+    if (raw.startsWith('\\')) {
+      const prev = rows[rows.length - 1]
+      if (prev && (prev.type === 'add' || prev.type === 'del' || prev.type === 'context')) prev.noNewline = true
       continue
     }
 
-    if (!inHunk) {
-      if (raw === '' || raw.startsWith('diff ') || raw.startsWith('index ') ||
+    if (oldRemain <= 0 && newRemain <= 0) {
+      const hunk = HUNK_RE.exec(raw)
+      if (hunk) {
+        oldNo = parseInt(hunk[1], 10)
+        newNo = parseInt(hunk[3], 10)
+        oldRemain = hunk[2] != null ? parseInt(hunk[2], 10) : 1
+        newRemain = hunk[4] != null ? parseInt(hunk[4], 10) : 1
+        rows.push({ type: 'hunk', oldNo: null, newNo: null, text: raw, intra: null })
+        continue
+      }
+      if (raw !== '' && (raw.startsWith('diff ') || raw.startsWith('index ') ||
           raw.startsWith('--- ') || raw.startsWith('+++ ') || raw.startsWith('old mode') ||
           raw.startsWith('new mode') || raw.startsWith('similarity ') ||
           raw.startsWith('rename ') || raw.startsWith('new file') ||
-          raw.startsWith('deleted file') || raw.startsWith('Binary ')) {
-        if (raw !== '') rows.push({ type: 'meta', oldNo: null, newNo: null, text: raw, intra: null })
+          raw.startsWith('deleted file') || raw.startsWith('Binary '))) {
+        rows.push({ type: 'meta', oldNo: null, newNo: null, text: raw, intra: null })
       }
-      continue
-    }
-
-    if (raw.startsWith('\\')) {
-      const prev = rows[rows.length - 1]
-      if (prev) prev.noNewline = true
       continue
     }
 
@@ -214,10 +215,14 @@ function rowsFromPatch(patch, wordDiff) {
     const text = raw.slice(1)
     if (marker === '+') {
       rows.push({ type: 'add', oldNo: null, newNo: newNo++, text, intra: null })
+      newRemain--
     } else if (marker === '-') {
       rows.push({ type: 'del', oldNo: oldNo++, newNo: null, text, intra: null })
-    } else if (marker === ' ' || raw === '') {
+      oldRemain--
+    } else {
       rows.push({ type: 'context', oldNo: oldNo++, newNo: newNo++, text, intra: null })
+      oldRemain--
+      newRemain--
     }
   }
 

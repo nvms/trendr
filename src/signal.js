@@ -38,10 +38,16 @@ export function createSignalRaw(value) {
     if (v === value) return
     value = v
     if (batchDepth > 0) {
-      for (const s of subs) pendingEffects.add(s)
+      for (const s of subs) {
+        if (s.disposed) subs.delete(s)
+        else pendingEffects.add(s)
+      }
     } else {
       const snapshot = [...subs]
-      for (const s of snapshot) s.run()
+      for (const s of snapshot) {
+        if (s.disposed) subs.delete(s)
+        else s.run()
+      }
     }
     if (schedulerHook && batchDepth === 0) schedulerHook()
   }
@@ -56,11 +62,13 @@ export function createSignal(value) {
   return createSignalRaw(value)
 }
 
-export function createEffect(fn) {
+export function createEffectRaw(fn) {
   const effect = {
     fn,
     cleanup: null,
+    disposed: false,
     run() {
+      if (effect.disposed) return
       if (effect.cleanup) effect.cleanup()
       const prev = currentEffect
       currentEffect = effect
@@ -78,6 +86,13 @@ export function createEffect(fn) {
   if (currentScope) currentScope.effects.push(effect)
 
   return effect
+}
+
+export function createEffect(fn) {
+  if (hookRegistrar) {
+    return hookRegistrar(() => createEffectRaw(fn))
+  }
+  return createEffectRaw(fn)
 }
 
 export function createMemo(fn) {
@@ -144,7 +159,9 @@ export function createScope(fn) {
 export function disposeScope(scope) {
   for (const child of scope.children) disposeScope(child)
   for (const effect of scope.effects) {
+    effect.disposed = true
     if (effect.cleanup) effect.cleanup()
+    effect.cleanup = null
   }
   for (const fn of scope.cleanups) fn()
   scope.effects.length = 0

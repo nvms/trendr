@@ -3,15 +3,20 @@ import { createSignal } from './signal.js'
 import { useInput, useMouse, useLayout, useTheme, useScrollDrag } from './hooks.js'
 import { registerHook } from './renderer.js'
 
-export function List({ items, selected: selectedProp, onSelect, onCursorChange, renderItem, header, headerHeight = 1, focused = true, interactive = focused, itemHeight = 1, scrollbar = false, stickyHeader = false, gap = 0, scrolloff = 2 }) {
+export function List({ items = [], selected: selectedProp, onSelect, onCursorChange, renderItem, header, headerHeight = 1, focused = true, interactive = focused, itemHeight = 1, scrollbar = false, stickyHeader = false, gap = 0, scrolloff = 2 }) {
   const { accent = 'cyan' } = useTheme()
   const [selectedInternal, setSelectedInternal] = createSignal(0)
   const [scrollState, setScrollState] = createSignal(0)
   const layout = useLayout()
   const prevCursor = registerHook(() => ({ index: -1 }))
 
-  const selected = selectedProp ?? selectedInternal()
-  const setSelected = onSelect ?? setSelectedInternal
+  const rawSelected = selectedProp ?? selectedInternal()
+  const selected = Math.min(Math.max(0, rawSelected), Math.max(0, items.length - 1))
+  const setSelected = (idx) => {
+    if (selectedProp === undefined) setSelectedInternal(idx)
+    if (onSelect) onSelect(idx)
+  }
+  if (selected !== rawSelected && items.length > 0) setSelected(selected)
 
   if (onCursorChange && selected !== prevCursor.index && items.length > 0) {
     prevCursor.index = selected
@@ -65,23 +70,30 @@ export function List({ items, selected: selectedProp, onSelect, onCursorChange, 
     return items.length - 1
   }
 
-  useInput(({ key, ctrl }) => {
+  useInput((event) => {
     if (!interactive) return
 
+    const { key, ctrl } = event
     const len = items.length
     if (len === 0) return
 
     const pageItems = viewH > 0 ? Math.max(1, Math.floor(viewH / avgH)) : 10
     const half = Math.max(1, Math.floor(pageItems / 2))
 
-    if (key === 'up' || key === 'k') setSelected(Math.max(0, selected - 1))
-    else if (key === 'down' || key === 'j') setSelected(Math.min(len - 1, selected + 1))
-    else if (key === 'pageup' || (ctrl && key === 'b')) setSelected(Math.max(0, selected - pageItems))
-    else if (key === 'pagedown' || (ctrl && key === 'f')) setSelected(Math.min(len - 1, selected + pageItems))
-    else if (ctrl && key === 'u') setSelected(Math.max(0, selected - half))
-    else if (ctrl && key === 'd') setSelected(Math.min(len - 1, selected + half))
-    else if (key === 'home' || key === 'g') setSelected(0)
-    else if (key === 'end' || key === 'G') setSelected(len - 1)
+    let next = null
+    if (key === 'up' || key === 'k') next = Math.max(0, selected - 1)
+    else if (key === 'down' || key === 'j') next = Math.min(len - 1, selected + 1)
+    else if (key === 'pageup' || (ctrl && key === 'b')) next = Math.max(0, selected - pageItems)
+    else if (key === 'pagedown' || (ctrl && key === 'f')) next = Math.min(len - 1, selected + pageItems)
+    else if (ctrl && key === 'u') next = Math.max(0, selected - half)
+    else if (ctrl && key === 'd') next = Math.min(len - 1, selected + half)
+    else if (key === 'home' || key === 'g') next = 0
+    else if (key === 'end' || key === 'G') next = len - 1
+
+    if (next !== null) {
+      setSelected(next)
+      event.stopPropagation()
+    }
   })
 
   useMouse((event) => {
@@ -100,8 +112,8 @@ export function List({ items, selected: selectedProp, onSelect, onCursorChange, 
     }
 
     if (event.action === 'press' && event.button === 'left') {
-      const headerOffset = sticky ? headerH : (header ? headerH : 0)
-      const relY = y - layout.y - headerOffset
+      // non-sticky headers are already accounted for by offsetToIndex via chOffset
+      const relY = y - layout.y - (sticky ? headerH : 0)
       const idx = offsetToIndex(relY + scrollOffset)
       if (idx >= 0 && idx < len) {
         setSelected(idx)

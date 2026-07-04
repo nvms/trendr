@@ -1,5 +1,5 @@
 import { parseSgr } from './ansi.js'
-import { charWidth } from './wrap.js'
+import { charWidth, ansiSeqEnd } from './wrap.js'
 
 const EMPTY = { ch: ' ', fg: null, bg: null, attrs: 0 }
 
@@ -27,69 +27,80 @@ export function setCell(buf, x, y, ch, fg, bg, attrs) {
   buf.cells[y * buf.width + x] = { ch, fg: fg ?? null, bg: bg ?? null, attrs: attrs ?? 0 }
 }
 
+function putCell(buf, idx, ch, fg, bg, attrs) {
+  const prev = buf.cells[idx]
+  const transparent = ch === ' ' && !bg && prev.ch !== ' '
+  buf.cells[idx] = {
+    ch: transparent ? prev.ch : ch,
+    fg: transparent ? prev.fg : (fg ?? prev.fg),
+    bg: bg ?? prev.bg,
+    attrs: transparent ? prev.attrs : (attrs ?? prev.attrs),
+  }
+}
+
+// non-SGR escapes (OSC, cursor CSI, ...) are dropped: cells hold one glyph
+// plus style, there is nothing for them to attach to. zero-width chars fold
+// into the previous cell's glyph. tabs expand to spaces at 8-column stops
+// measured from the start of the write, matching measureText
 export function writeText(buf, x, y, text, fg, bg, attrs, maxWidth) {
   if (y < 0 || y >= buf.height) return
   const max = maxWidth ?? (buf.width - x)
-
-  if (text.indexOf('\x1b') === -1) {
-    let col = 0
-    let i = 0
-    while (i < text.length && col < max) {
-      const code = text.codePointAt(i)
-      const len = code > 0xffff ? 2 : 1
-      const w = charWidth(code)
-      const cx = x + col
-      if (cx >= 0 && cx < buf.width) {
-        const ch = len === 1 ? text[i] : text.slice(i, i + len)
-        const prev = buf.cells[y * buf.width + cx]
-        const transparent = ch === ' ' && !bg && prev.ch !== ' '
-        buf.cells[y * buf.width + cx] = {
-          ch: transparent ? prev.ch : ch,
-          fg: transparent ? prev.fg : (fg ?? prev.fg),
-          bg: bg ?? prev.bg,
-          attrs: transparent ? prev.attrs : (attrs || prev.attrs),
-        }
-        if (w === 2 && cx + 1 < buf.width) {
-          buf.cells[y * buf.width + cx + 1] = { ch: '', fg: fg ?? null, bg: bg ?? null, attrs: attrs ?? 0 }
-        }
-      }
-      col += w
-      i += len
-    }
-    return
-  }
-
+  const base = y * buf.width
+  let ansi = null
   let col = 0
-  const ansi = { fg: null, bg: null, attrs: 0 }
   let i = 0
 
-  while (i < text.length && col < max) {
-    if (text[i] === '\x1b' && text[i + 1] === '[') {
-      const end = text.indexOf('m', i + 2)
+  while (i < text.length) {
+    if (text.charCodeAt(i) === 27) {
+      const end = ansiSeqEnd(text, i)
       if (end !== -1) {
-        parseSgr(text.slice(i + 2, end), ansi)
-        i = end + 1
+        if (text[i + 1] === '[' && text[end - 1] === 'm') {
+          if (ansi === null) ansi = { fg: null, bg: null, attrs: 0 }
+          parseSgr(text.slice(i + 2, end - 1), ansi)
+        }
+        i = end
         continue
       }
     }
 
+    const efg = ansi === null ? fg : (ansi.fg ?? fg)
+    const ebg = ansi === null ? bg : (ansi.bg ?? bg)
+    const eattrs = ansi === null || ansi.attrs === 0 ? attrs : ansi.attrs
+
     const code = text.codePointAt(i)
     const len = code > 0xffff ? 2 : 1
+
+    if (code === 9) {
+      let stop = col + 8 - (col % 8)
+      if (stop > max) stop = max
+      while (col < stop) {
+        const cx = x + col
+        if (cx >= 0 && cx < buf.width) putCell(buf, base + cx, ' ', efg, ebg, eattrs)
+        col++
+      }
+      i++
+      continue
+    }
+
     const w = charWidth(code)
+
+    if (w === 0) {
+      const px = x + col - 1
+      if (col > 0 && px >= 0 && px < buf.width) {
+        let pi = base + px
+        if (buf.cells[pi].ch === '' && px > 0) pi--
+        const pc = buf.cells[pi]
+        if (pc.ch !== '') buf.cells[pi] = { ch: pc.ch + text.slice(i, i + len), fg: pc.fg, bg: pc.bg, attrs: pc.attrs }
+      }
+      i += len
+      continue
+    }
+
+    if (col + w > max) break
     const cx = x + col
-    if (cx >= 0 && cx < buf.width) {
-      const ch = len === 1 ? text[i] : text.slice(i, i + len)
-      const prev = buf.cells[y * buf.width + cx]
-      const transparent = ch === ' ' && !bg && prev.ch !== ' '
-      buf.cells[y * buf.width + cx] = {
-        ch: transparent ? prev.ch : ch,
-        fg: transparent ? prev.fg : (ansi.fg ?? fg ?? prev.fg),
-        bg: ansi.bg ?? bg ?? prev.bg,
-        attrs: transparent ? prev.attrs : (ansi.attrs || attrs || prev.attrs),
-      }
-      if (w === 2 && cx + 1 < buf.width) {
-        buf.cells[y * buf.width + cx + 1] = { ch: '', fg: ansi.fg ?? fg ?? null, bg: ansi.bg ?? bg ?? null, attrs: ansi.attrs || attrs || 0 }
-      }
+    if (cx >= 0 && cx + w <= buf.width) {
+      putCell(buf, base + cx, len === 1 ? text[i] : text.slice(i, i + len), efg, ebg, eattrs)
+      if (w === 2) buf.cells[base + cx + 1] = { ch: '', fg: efg ?? null, bg: ebg ?? null, attrs: eattrs ?? 0 }
     }
     col += w
     i += len

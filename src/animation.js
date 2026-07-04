@@ -27,7 +27,7 @@ function tickAll() {
 
   batch(() => {
     for (const anim of active) {
-      const result = anim.interpolator(anim.current, anim.target, anim.velocity, dt)
+      const result = anim.interpolator(anim.current, anim.target, anim.velocity, dt, anim)
       anim.current = result.value
       anim.velocity = result.velocity
       anim.setter(result.value)
@@ -52,6 +52,7 @@ export function animated(initial, interpolator) {
     current: initial,
     target: initial,
     velocity: 0,
+    generation: 0,
     interpolator,
     setter: set,
     onTick: null,
@@ -59,7 +60,12 @@ export function animated(initial, interpolator) {
 
   function setTarget(target) {
     if (target === anim.target && !active.has(anim)) return
-    anim.target = target
+    if (target !== anim.target) {
+      anim.target = target
+      // retargeting mid-flight starts a fresh timing curve in stateful
+      // interpolators like ease() instead of lurching along the old one
+      anim.generation++
+    }
     active.add(anim)
     startLoop()
   }
@@ -141,20 +147,27 @@ export function spring({ frequency = 2, damping = 0.3 } = {}) {
 }
 
 export function ease(durationMs, easingFn = easeOutCubic) {
-  let elapsed = 0
-  let startValue = null
+  // state is keyed per animation (and per retarget generation) so one ease()
+  // instance can safely drive several animated() values
+  const states = new WeakMap()
+  const fallbackKey = {}
 
-  return function stepEase(current, target, velocity, dt) {
-    if (startValue === null) startValue = current
+  return function stepEase(current, target, velocity, dt, anim) {
+    const key = anim ?? fallbackKey
+    const generation = anim?.generation ?? 0
+    let state = states.get(key)
+    if (!state || state.generation !== generation) {
+      state = { elapsed: 0, startValue: current, generation }
+      states.set(key, state)
+    }
 
-    elapsed += dt * 1000
-    const t = Math.min(1, elapsed / durationMs)
+    state.elapsed += dt * 1000
+    const t = Math.min(1, state.elapsed / durationMs)
     const eased = easingFn(t)
-    const value = startValue + (target - startValue) * eased
+    const value = state.startValue + (target - state.startValue) * eased
 
     if (t >= 1) {
-      startValue = null
-      elapsed = 0
+      states.delete(key)
       return { value: target, velocity: 0, done: true }
     }
 

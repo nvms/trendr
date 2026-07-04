@@ -3,7 +3,7 @@ import { diff } from '../src/diff.js'
 import { createSignal, createEffect, createMemo, batch, untrack, onCleanup, createScope, disposeScope, setSchedulerHook } from '../src/signal.js'
 import { resolveTree, Fragment, flattenChildren, walkTree } from '../src/element.js'
 import { computeLayout } from '../src/layout.js'
-import { wordWrap, measureText, stripAnsi, sliceVisible } from '../src/wrap.js'
+import { wordWrap, measureText, stripAnsi, sliceVisible, charWidth } from '../src/wrap.js'
 import { createScheduler } from '../src/scheduler.js'
 import { parseKey, splitKeys, parseMouse } from '../src/input.js'
 import { jsx, jsxs } from '../jsx-runtime.js'
@@ -213,6 +213,17 @@ suite('diff - color change only')
   writeText(curr, 0, 0, 'abc', 'red', null, 0)
   const { output } = diff(prev, curr)
   assert(output.length > 0, 'detects color-only change')
+}
+
+suite('diff - combining mark folded into cell survives emission')
+{
+  const prev = createBuffer(5, 1)
+  const curr = createBuffer(5, 1)
+  writeText(curr, 0, 0, 'éx', null, null, 0)
+  const { output } = diff(prev, curr)
+  const text = output.toString()
+  assert(text.includes('é'), 'emits base char with its combining mark')
+  assert(text.includes('x'), 'emits following cell')
 }
 
 // =========================================================================
@@ -1376,6 +1387,190 @@ suite('cursor helpers - roundtrip')
     const back = displayToCursor(pos.row, pos.col, lines)
     assertEq(back, cursor, `roundtrip cursor=${cursor}`)
   }
+}
+
+// =========================================================================
+// WRAP - WHITESPACE PRESERVATION
+// =========================================================================
+suite('wrap - preserves leading indentation')
+{
+  const lines = wordWrap('    const foo = barbaz + quux', 20)
+  assertEq(lines.length, 2, 'wraps to two lines')
+  assertEq(lines[0], '    const foo =', 'indentation preserved on first line')
+  assertEq(lines[1], 'barbaz + quux', 'remainder on second line')
+}
+
+suite('wrap - preserves internal space runs')
+{
+  const lines = wordWrap('a  b' + ' '.repeat(24) + 'c', 10)
+  assertEq(lines.length, 2, 'wraps at the long space run')
+  assertEq(lines[0], 'a  b', 'double space inside first line preserved')
+  assertEq(lines[1], 'c', 'space run at the break is consumed')
+}
+
+suite('wrap - indentation wider than word space')
+{
+  const lines = wordWrap('        abcdefghijklmnop', 10)
+  assertEq(lines[0], '        ab', 'indent kept, long word broken after it')
+  assertEq(lines[1], 'cdefghijkl', 'continuation fills width')
+  assertEq(lines[2], 'mnop', 'tail on last line')
+}
+
+// =========================================================================
+// WRAP / MEASURE - OSC AND NON-SGR CSI
+// =========================================================================
+suite('measureText - OSC and non-SGR CSI')
+{
+  const osc8 = '\x1b]8;;https://example.com\x1b\\hi\x1b]8;;\x1b\\'
+  assertEq(measureText(osc8), 2, 'OSC-8 hyperlink wrapper is invisible')
+  assertEq(measureText('\x1b]0;title\x07hi'), 2, 'BEL-terminated OSC is invisible')
+  assertEq(measureText('\x1b[2Jhi'), 2, 'non-m CSI is invisible')
+  assertEq(measureText('\x1b[?25lhi'), 2, 'private-mode CSI is invisible')
+  assertEq(stripAnsi(osc8), 'hi', 'stripAnsi removes OSC')
+  assertEq(sliceVisible('\x1b[2Jhello', 3), '\x1b[2Jhel', 'sliceVisible does not count non-SGR CSI')
+}
+
+suite('buffer - writeText drops non-SGR escapes')
+{
+  const buf = createBuffer(10, 1)
+  writeText(buf, 0, 0, '\x1b]8;;https://x\x1b\\hi\x1b]8;;\x1b\\', null, null, 0)
+  assertEq(buf.cells[0].ch, 'h', 'first visible char in first cell')
+  assertEq(buf.cells[1].ch, 'i', 'second visible char in second cell')
+  assertEq(buf.cells[2].ch, ' ', 'no raw OSC bytes leak into cells')
+
+  const buf2 = createBuffer(10, 1)
+  writeText(buf2, 0, 0, '\x1b[2J\x1b[31mok', null, null, 0)
+  assertEq(buf2.cells[0].ch, 'o', 'non-m CSI skipped')
+  assertEq(buf2.cells[0].fg, 'red', 'SGR after non-m CSI still applies')
+}
+
+// =========================================================================
+// ZERO-WIDTH CHARS
+// =========================================================================
+suite('charWidth - zero-width')
+{
+  assertEq(charWidth(0x0301), 0, 'combining acute')
+  assertEq(charWidth(0x200d), 0, 'ZWJ')
+  assertEq(charWidth(0x200b), 0, 'ZWSP')
+  assertEq(charWidth(0x200c), 0, 'ZWNJ')
+  assertEq(charWidth(0xfe0f), 0, 'variation selector')
+  assertEq(measureText('e\u0301'), 1, 'base + combining mark measures 1')
+  assertEq(measureText('a\u200bb'), 2, 'ZWSP does not add width')
+}
+
+suite('buffer - writeText folds zero-width chars')
+{
+  const buf = createBuffer(10, 1)
+  writeText(buf, 0, 0, 'e\u0301x', null, null, 0)
+  assertEq(buf.cells[0].ch, 'e\u0301', 'combining mark folded into base cell')
+  assertEq(buf.cells[1].ch, 'x', 'next char lands in the next column')
+
+  const buf2 = createBuffer(10, 1)
+  writeText(buf2, 0, 0, 'a\u2705\u0301b', null, null, 0)
+  assertEq(buf2.cells[1].ch, '\u2705\u0301', 'mark after wide char folds into its base cell')
+  assertEq(buf2.cells[3].ch, 'b', 'columns stay in sync after wide char + mark')
+}
+
+// =========================================================================
+// WRAP - TRAILING ANSI IN BROKEN WORDS
+// =========================================================================
+suite('wrap - long word keeps trailing ansi')
+{
+  const lines = wordWrap('\x1b[31mabcdefghijkl\x1b[0m', 8)
+  assertEq(lines.length, 2, 'breaks into two lines')
+  assertEq(stripAnsi(lines[1]), 'ijkl', 'second line content')
+  assert(lines[1].endsWith('\x1b[0m'), 'trailing reset survives the break')
+}
+
+suite('wrap - carry prefix stays minimal')
+{
+  const text = ('\x1b[0;31mred \x1b[0;32mgreen '.repeat(10)).trim()
+  const lines = wordWrap(text, 5)
+  for (const line of lines) {
+    assert(line.length < 40, 'carry does not accumulate: ' + JSON.stringify(line))
+  }
+
+  const reset = wordWrap('\x1b[31mred\x1b[0m plain again', 6)
+  assertEq(reset[1], 'plain', 'no color carried past a reset')
+}
+
+// =========================================================================
+// TABS
+// =========================================================================
+suite('measureText - tabs')
+{
+  assertEq(measureText('\t'), 8, 'tab advances to first stop')
+  assertEq(measureText('a\tb'), 9, 'tab from col 1 advances to col 8')
+  assertEq(measureText('abcdefgh\tx'), 17, 'tab at a stop advances a full stop')
+}
+
+suite('buffer - writeText expands tabs')
+{
+  const buf = createBuffer(12, 1)
+  writeText(buf, 0, 0, 'a\tb', null, null, 0)
+  assertEq(buf.cells[0].ch, 'a', 'char before tab')
+  let allSpaces = true
+  for (let i = 1; i < 8; i++) if (buf.cells[i].ch !== ' ') allSpaces = false
+  assert(allSpaces, 'tab cells are spaces')
+  assertEq(buf.cells[8].ch, 'b', 'char after tab lands at the stop')
+}
+
+suite('buffer - tab respects maxWidth')
+{
+  const buf = createBuffer(12, 1)
+  setCell(buf, 5, 0, 'Z', null, null, 0)
+  writeText(buf, 0, 0, '\tx', null, 'blue', 0, 4)
+  assertEq(buf.cells[3].bg, 'blue', 'tab paints up to the clip')
+  assertEq(buf.cells[4].bg, null, 'tab stops at maxWidth')
+  assertEq(buf.cells[5].ch, 'Z', 'beyond clip untouched')
+}
+
+suite('wrap - tab widths agree with measureText')
+{
+  const lines = wordWrap('\tabcd', 10)
+  assertEq(lines[0], '\tab', 'tab plus two chars fill width 10')
+  assertEq(lines[1], 'cd', 'rest wraps')
+}
+
+// =========================================================================
+// BUFFER - WIDE CHAR CLIPPING
+// =========================================================================
+suite('buffer - wide char clipping')
+{
+  const buf = createBuffer(10, 1)
+  setCell(buf, 3, 0, 'Z', null, null, 0)
+  writeText(buf, 0, 0, 'ab\u2705', null, null, 0, 3)
+  assertEq(buf.cells[2].ch, ' ', 'wide char straddling the clip is not written')
+  assertEq(buf.cells[3].ch, 'Z', 'neighbor cell beyond maxWidth untouched')
+
+  const edge = createBuffer(3, 1)
+  writeText(edge, 0, 0, 'ab\u2705', null, null, 0)
+  assertEq(edge.cells[2].ch, ' ', 'wide char at last buffer column is not written')
+
+  const fits = createBuffer(4, 1)
+  writeText(fits, 0, 0, 'ab\u2705', null, null, 0)
+  assertEq(fits.cells[2].ch, '\u2705', 'wide char fits exactly at the edge')
+  assertEq(fits.cells[3].ch, '', 'continuation cell stays within bounds')
+}
+
+// =========================================================================
+// BUFFER - ATTRS SEMANTICS
+// =========================================================================
+suite('buffer - attrs 0 clears, null inherits')
+{
+  const buf = createBuffer(5, 1)
+  writeText(buf, 0, 0, 'x', null, null, 1)
+  assertEq(buf.cells[0].attrs, 1, 'bold set')
+  writeText(buf, 0, 0, 'y', null, null, 0)
+  assertEq(buf.cells[0].attrs, 0, 'attrs 0 clears underlying attrs')
+
+  writeText(buf, 0, 0, 'x', null, null, 1)
+  writeText(buf, 0, 0, 'z', null, null, null)
+  assertEq(buf.cells[0].attrs, 1, 'attrs null inherits underlying attrs')
+
+  writeText(buf, 1, 0, 'b', null, null, 1)
+  writeText(buf, 1, 0, '\x1b[0mc', null, null, 0)
+  assertEq(buf.cells[1].attrs, 0, 'inline reset with attrs 0 clears too')
 }
 
 // =========================================================================

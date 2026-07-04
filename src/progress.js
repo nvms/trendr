@@ -43,7 +43,7 @@ export function ProgressBar({ value = 0, variant = 'thin', width, color, label, 
 
   const labelPart = label ? `${label}  ` : ''
   const pctPart = percentage ? ` ${Math.round(clamped * 100)}%` : ''
-  const countPart = count ? ` (${count})` : ''
+  const countPart = count != null ? ` (${count})` : ''
   const rightText = pctPart + countPart
   const reservedWidth = labelPart.length + rightText.length
   const barWidth = width ?? Math.max(5, (layout.width || 20) - reservedWidth)

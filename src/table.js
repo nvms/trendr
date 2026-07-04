@@ -4,7 +4,7 @@ import { List } from './list.js'
 
 const DEFAULT_SEP = { left: '', fill: '\u2500', right: '' }
 
-export function Table({ columns, data, selected, onSelect, focused = true, separator = false, separatorChars, renderItem, scrollbar, stickyHeader = false, gap = 0, itemHeight = 1, scrolloff = 2, columnGap = 1 }) {
+export function Table({ columns = [], data, selected, onSelect, focused = true, separator = false, separatorChars, renderItem, scrollbar, stickyHeader = false, gap = 0, itemHeight = 1, scrolloff = 2, columnGap = 1 }) {
   const { accent = 'cyan' } = useTheme()
 
   const headerRow = jsxs('box', {
@@ -60,37 +60,18 @@ export function Table({ columns, data, selected, onSelect, focused = true, separ
       ),
     })
 
-  const list = jsx(List, {
+  return jsx(List, {
     items: data,
     selected,
     onSelect,
     focused,
+    header,
+    headerHeight: separator ? 2 : 1,
+    stickyHeader,
     scrollbar,
     gap,
     itemHeight,
     scrolloff,
     renderItem: renderItem || defaultRenderItem,
-  })
-
-  if (!stickyHeader) {
-    return jsx(List, {
-      items: data,
-      selected,
-      onSelect,
-      focused,
-      header,
-      headerHeight: separator ? 2 : 1,
-      scrollbar,
-      stickyHeader: true,
-      gap,
-      itemHeight,
-      scrolloff,
-      renderItem: renderItem || defaultRenderItem,
-    })
-  }
-
-  return jsxs('box', {
-    style: { flexDirection: 'column', flexGrow: 1 },
-    children: [header, list],
   })
 }

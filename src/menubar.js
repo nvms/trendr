@@ -109,8 +109,8 @@ export function MenuBar({ items, focused = false, maxVisible = 10, onSelect, hot
     const { key } = event
     const isOpen = openIndex() >= 0
 
-    const navKeys = ['h', 'l', 'left', 'right', 'return', 'space', 'escape']
-    if (!isOpen && !navKeys.includes(key)) {
+    // explicit hotkeys win over nav keys, so a menu bound to h/l/space/etc is still reachable
+    if (!isOpen) {
       const match = items.findIndex(m => m.hotkey && m.hotkey.toLowerCase() === key.toLowerCase())
       if (match >= 0) {
         setActiveIndex(match)

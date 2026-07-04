@@ -102,9 +102,9 @@ function writeReset() {
 }
 
 function writeChar(ch) {
-  ensure(4)
+  ensure(ch.length * 4)
   const code = ch.charCodeAt(0)
-  if (code < 0x80) {
+  if (code < 0x80 && ch.length === 1) {
     buf[pos++] = code
   } else {
     pos += buf.write(ch, pos)

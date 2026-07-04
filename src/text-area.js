@@ -2,6 +2,19 @@ import { jsx, jsxs } from '../jsx-runtime.js'
 import { createSignal } from './signal.js'
 import { useInput, useLayout, useCursor } from './hooks.js'
 import { registerHook } from './renderer.js'
+import { charWidth, measureText } from './wrap.js'
+
+function prevBoundary(s, i) {
+  if (i <= 0) return 0
+  const c = s.charCodeAt(i - 1)
+  return c >= 0xdc00 && c <= 0xdfff && i >= 2 ? i - 2 : i - 1
+}
+
+function nextBoundary(s, i) {
+  if (i >= s.length) return s.length
+  const c = s.charCodeAt(i)
+  return c >= 0xd800 && c <= 0xdbff && i + 1 < s.length ? i + 2 : i + 1
+}
 
 export function wrapForEditor(text, width) {
   if (width <= 0) return [{ start: 0, end: 0, hard: true }]
@@ -25,21 +38,32 @@ export function wrapForEditor(text, width) {
     while (segStart < segment.length) {
       const remaining = segment.slice(segStart)
 
-      if (remaining.length <= width) {
+      if (measureText(remaining) <= width) {
         lines.push({ start: pos + segStart, end: pos + segStart + remaining.length, hard: true })
         segStart += remaining.length
         break
       }
 
-      const chunk = remaining.slice(0, width)
+      let fit = 0
+      let col = 0
+      while (fit < remaining.length) {
+        const cp = remaining.codePointAt(fit)
+        const cw = charWidth(cp)
+        if (col + cw > width) break
+        col += cw
+        fit += cp > 0xffff ? 2 : 1
+      }
+      if (fit === 0) fit = nextBoundary(remaining, 0)
+
+      const chunk = remaining.slice(0, fit)
       const lastSpace = chunk.lastIndexOf(' ')
 
       if (lastSpace > 0) {
         lines.push({ start: pos + segStart, end: pos + segStart + lastSpace, hard: false })
         segStart += lastSpace + 1
       } else {
-        lines.push({ start: pos + segStart, end: pos + segStart + width, hard: false })
-        segStart += width
+        lines.push({ start: pos + segStart, end: pos + segStart + fit, hard: false })
+        segStart += fit
       }
     }
 
@@ -57,26 +81,39 @@ export function wrapForEditor(text, width) {
   return lines
 }
 
-export function cursorToDisplay(cursor, lineMap) {
+export function cursorToDisplay(cursor, lineMap, text) {
   for (let row = 0; row < lineMap.length; row++) {
     const line = lineMap[row]
     if (cursor >= line.start && cursor <= line.end) {
       if (cursor === line.end && !line.hard && row + 1 < lineMap.length) {
         return { row: row + 1, col: 0 }
       }
-      return { row, col: cursor - line.start }
+      const col = text != null ? measureText(text.slice(line.start, cursor)) : cursor - line.start
+      return { row, col }
     }
   }
   const last = lineMap[lineMap.length - 1]
-  return { row: lineMap.length - 1, col: last.end - last.start }
+  const col = text != null ? measureText(text.slice(last.start, last.end)) : last.end - last.start
+  return { row: lineMap.length - 1, col }
 }
 
-export function displayToCursor(row, col, lineMap) {
+export function displayToCursor(row, col, lineMap, text) {
   const r = Math.max(0, Math.min(row, lineMap.length - 1))
   const line = lineMap[r]
-  const maxCol = line.end - line.start
-  const c = Math.max(0, Math.min(col, maxCol))
-  return line.start + c
+  if (text == null) {
+    const maxCol = line.end - line.start
+    return line.start + Math.max(0, Math.min(col, maxCol))
+  }
+  let i = line.start
+  let c = 0
+  while (i < line.end && c < col) {
+    const cp = text.codePointAt(i)
+    const w = charWidth(cp)
+    if (c + w > col) break
+    c += w
+    i += cp > 0xffff ? 2 : 1
+  }
+  return i
 }
 
 function ensureVisible(cursorRow, scroll, height, totalLines) {
@@ -132,9 +169,9 @@ export function TextArea({ onSubmit, onCancel, onChange, onKeyDown, placeholder,
 
     const isSubmitKey = submitOnEnter
       ? (key === 'return' && !meta && !shift)
-      : (meta && key === '\r')
+      : (meta && key === 'return')
     const isNewlineKey = submitOnEnter
-      ? ((shift && key === 'return') || (meta && key === '\r'))
+      ? ((shift && key === 'return') || (meta && key === 'return'))
       : (key === 'return')
 
     if (isSubmitKey) {
@@ -160,26 +197,29 @@ export function TextArea({ onSubmit, onCancel, onChange, onKeyDown, placeholder,
     }
 
     if (key === 'backspace') {
-      if (c > 0) update(v.slice(0, c - 1) + v.slice(c), c - 1)
+      if (c > 0) {
+        const p = prevBoundary(v, c)
+        update(v.slice(0, p) + v.slice(c), p)
+      }
       event.stopPropagation()
       return
     }
 
     if (key === 'delete') {
-      if (c < v.length) update(v.slice(0, c) + v.slice(c + 1), c)
+      if (c < v.length) update(v.slice(0, c) + v.slice(nextBoundary(v, c)), c)
       event.stopPropagation()
       return
     }
 
     if (key === 'left') {
-      setCursor(Math.max(0, c - 1))
+      setCursor(prevBoundary(v, c))
       ref.goalCol = null
       event.stopPropagation()
       return
     }
 
     if (key === 'right') {
-      setCursor(Math.min(v.length, c + 1))
+      setCursor(nextBoundary(v, c))
       ref.goalCol = null
       event.stopPropagation()
       return
@@ -188,39 +228,39 @@ export function TextArea({ onSubmit, onCancel, onChange, onKeyDown, placeholder,
     if (key === 'up' || key === 'down') {
       const w = layout.width || 80
       const lineMap = wrapForEditor(v, w)
-      const pos = cursorToDisplay(c, lineMap)
+      const pos = cursorToDisplay(c, lineMap, v)
       const goal = ref.goalCol !== null ? ref.goalCol : pos.col
       ref.goalCol = goal
 
       const newRow = key === 'up' ? pos.row - 1 : pos.row + 1
       if (newRow >= 0 && newRow < lineMap.length) {
-        setCursor(displayToCursor(newRow, goal, lineMap))
+        setCursor(displayToCursor(newRow, goal, lineMap, v))
       }
       event.stopPropagation()
       return
     }
 
-    if (key === 'home' || (ctrl && raw === '\x01')) {
+    if (key === 'home' || (ctrl && key === 'a')) {
       const w = layout.width || 80
       const lineMap = wrapForEditor(v, w)
-      const pos = cursorToDisplay(c, lineMap)
+      const pos = cursorToDisplay(c, lineMap, v)
       setCursor(lineMap[pos.row].start)
       ref.goalCol = null
       event.stopPropagation()
       return
     }
 
-    if (key === 'end' || (ctrl && raw === '\x05')) {
+    if (key === 'end' || (ctrl && key === 'e')) {
       const w = layout.width || 80
       const lineMap = wrapForEditor(v, w)
-      const pos = cursorToDisplay(c, lineMap)
+      const pos = cursorToDisplay(c, lineMap, v)
       setCursor(lineMap[pos.row].end)
       ref.goalCol = null
       event.stopPropagation()
       return
     }
 
-    if (ctrl && raw === '\x15') {
+    if (ctrl && key === 'u') {
       const lineStart = v.lastIndexOf('\n', c - 1) + 1
       const rest = v.slice(c)
       const lineEmptyAfter = rest.length === 0 || rest[0] === '\n'
@@ -240,7 +280,7 @@ export function TextArea({ onSubmit, onCancel, onChange, onKeyDown, placeholder,
       return
     }
 
-    if (ctrl && raw === '\x0b') {
+    if (ctrl && key === 'k') {
       const after = v.slice(c)
       const nlIdx = after.indexOf('\n')
       const deleteEnd = nlIdx === -1 ? v.length : c + nlIdx
@@ -249,7 +289,7 @@ export function TextArea({ onSubmit, onCancel, onChange, onKeyDown, placeholder,
       return
     }
 
-    if (ctrl && raw === '\x17') {
+    if (ctrl && key === 'w') {
       const before = v.slice(0, c)
       const after = v.slice(c)
       const trimmed = before.replace(/\S+\s*$/, '')
@@ -258,7 +298,7 @@ export function TextArea({ onSubmit, onCancel, onChange, onKeyDown, placeholder,
       return
     }
 
-    if (!ctrl && !meta && raw.length === 1 && raw >= ' ') {
+    if (!ctrl && !meta && raw.length >= 1 && raw >= ' ' && !raw.startsWith('\x1b')) {
       update(v.slice(0, c) + raw + v.slice(c), c + raw.length)
       event.stopPropagation()
     }
@@ -275,7 +315,7 @@ export function TextArea({ onSubmit, onCancel, onChange, onKeyDown, placeholder,
 
   const effectiveWidth = w || 80
   const lineMap = wrapForEditor(v, effectiveWidth)
-  const displayPos = cursorToDisplay(c, lineMap)
+  const displayPos = cursorToDisplay(c, lineMap, v)
 
   const displayHeight = Math.max(1, Math.min(lineMap.length, maxHeight))
   ref.scroll = ensureVisible(displayPos.row, ref.scroll, displayHeight, lineMap.length)
@@ -284,13 +324,14 @@ export function TextArea({ onSubmit, onCancel, onChange, onKeyDown, placeholder,
   const visibleLines = lineMap.slice(scroll, scroll + displayHeight)
 
   if (!v && placeholder && focused) {
+    const first = placeholder.slice(0, nextBoundary(placeholder, 0))
     return jsx('box', {
       style: { flexDirection: 'column', height: 1, minHeight: 1, flexGrow: 1 },
       children: jsxs('box', {
         style: { flexDirection: 'row', height: 1 },
         children: [
-          jsx('text', { style: cs ? { ...cs, color: cs.color ?? 'gray' } : { inverse: true, color: 'gray' }, children: placeholder[0] }),
-          placeholder.length > 1 && jsx('text', { style: { color: 'gray' }, children: placeholder.slice(1) }),
+          jsx('text', { style: cs ? { ...cs, color: cs.color ?? 'gray' } : { inverse: true, color: 'gray' }, children: first }),
+          placeholder.length > first.length && jsx('text', { style: { color: 'gray' }, children: placeholder.slice(first.length) }),
         ],
       }),
     })
@@ -305,10 +346,11 @@ export function TextArea({ onSubmit, onCancel, onChange, onKeyDown, placeholder,
       return jsx('text', { key: row, children: content || ' ' })
     }
 
-    const cursorCol = displayPos.col
-    const before = content.slice(0, cursorCol)
-    const cursorChar = content[cursorCol] || ' '
-    const after = content.slice(cursorCol + 1)
+    const cursorIdx = Math.max(line.start, Math.min(c, line.end))
+    const nb = cursorIdx < line.end ? nextBoundary(v, cursorIdx) : cursorIdx
+    const before = v.slice(line.start, cursorIdx)
+    const cursorChar = cursorIdx < line.end ? v.slice(cursorIdx, nb) : ' '
+    const after = v.slice(nb, line.end)
 
     return jsxs('box', {
       key: row,

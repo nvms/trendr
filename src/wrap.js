@@ -1,9 +1,38 @@
-// matches any ANSI escape sequence (CSI + OSC)
-const ANSI_RE = /\x1b\[[0-9;]*m/g
+import { parseSgr, sgr } from './ansi.js'
+
+// matches any CSI sequence (any final byte) or OSC sequence (BEL or ST terminated)
+const ANSI_RE = /\x1b(?:\[[0-9:;<=>?]*[ -\/]*[@-~]|\][^\x07\x1b]*(?:\x07|\x1b\\)?)/g
 
 export function stripAnsi(text) {
   return text.indexOf('\x1b') === -1 ? text : text.replace(ANSI_RE, '')
 }
+
+// returns the end index (exclusive) of the escape sequence starting at i,
+// or -1 when str[i] does not begin a recognized CSI/OSC sequence
+export function ansiSeqEnd(str, i) {
+  if (str[i] !== '\x1b') return -1
+  const kind = str[i + 1]
+  if (kind === '[') {
+    for (let j = i + 2; j < str.length; j++) {
+      const c = str.charCodeAt(j)
+      if (c >= 0x40 && c <= 0x7e) return j + 1
+    }
+    return str.length
+  }
+  if (kind === ']') {
+    for (let j = i + 2; j < str.length; j++) {
+      const c = str.charCodeAt(j)
+      if (c === 0x07) return j + 1
+      if (c === 0x1b) return str[j + 1] === '\\' ? j + 2 : j
+    }
+    return str.length
+  }
+  return -1
+}
+
+const TAB_STOP = 8
+
+const tabWidth = (col) => TAB_STOP - (col % TAB_STOP)
 
 export function measureText(text) {
   const clean = stripAnsi(text)
@@ -11,41 +40,51 @@ export function measureText(text) {
   for (let i = 0; i < clean.length; i++) {
     const code = clean.codePointAt(i)
     if (code > 0xffff) i++
-    width += (code >= 0x1100 && isWide(code)) ? 2 : 1
+    width += code === 9 ? tabWidth(width) : charWidth(code)
   }
   return width
 }
 
-// iterates visible characters of a string, bundling any preceding
-// ANSI sequences with the character they precede
+// iterates visible characters of a string, bundling any preceding ANSI
+// sequences with the character they precede. a leftover run of trailing
+// ANSI is flushed as a final zero-width chunk (code -1)
 function* visibleChars(str) {
   let i = 0
   let pending = ''
   while (i < str.length) {
-    if (str[i] === '\x1b' && str[i + 1] === '[') {
-      const end = str.indexOf('m', i + 2)
+    if (str[i] === '\x1b') {
+      const end = ansiSeqEnd(str, i)
       if (end !== -1) {
-        pending += str.slice(i, end + 1)
-        i = end + 1
+        pending += str.slice(i, end)
+        i = end
         continue
       }
     }
     const code = str.codePointAt(i)
     const len = code > 0xffff ? 2 : 1
-    yield { chunk: pending + str.slice(i, i + len), width: charWidth(code) }
+    yield { chunk: pending + str.slice(i, i + len), code, width: charWidth(code) }
     pending = ''
     i += len
   }
+  if (pending) yield { chunk: pending, code: -1, width: 0 }
 }
 
+const COMBINING_RE = /[\p{Mn}\p{Me}]/u
+
 export function charWidth(code) {
-  return (code >= 0x1100 && isWide(code)) ? 2 : 1
+  if (code < 0x300) return 1
+  if ((code >= 0x200b && code <= 0x200d) || code === 0xfeff) return 0
+  if (code >= 0xfe00 && code <= 0xfe0f) return 0
+  if (COMBINING_RE.test(String.fromCodePoint(code))) return 0
+  if (code >= 0x1100 && isWide(code)) return 2
+  return 1
 }
 
 export function sliceVisible(text, maxWidth) {
   let result = ''
   let width = 0
-  for (const { chunk, width: w } of visibleChars(text)) {
+  for (const { chunk, code, width: cw } of visibleChars(text)) {
+    const w = code === 9 ? tabWidth(width) : cw
     if (width + w > maxWidth) break
     result += chunk
     width += w
@@ -53,25 +92,45 @@ export function sliceVisible(text, maxWidth) {
   return result
 }
 
+const sgrIsDefault = (s) => s.fg == null && s.bg == null && s.attrs === 0
+
+// minimal prefix that reproduces an SGR state on a fresh line
+const sgrCarry = (s) => sgrIsDefault(s) ? '' : sgr(s.fg, s.bg, s.attrs)
+
+// folds every SGR sequence found in str into state; other escapes are ignored
+function updateSgrState(str, state) {
+  let i = str.indexOf('\x1b')
+  while (i !== -1) {
+    const end = ansiSeqEnd(str, i)
+    if (end === -1) {
+      i = str.indexOf('\x1b', i + 1)
+      continue
+    }
+    if (str[i + 1] === '[' && str[end - 1] === 'm') parseSgr(str.slice(i + 2, end - 1), state)
+    i = str.indexOf('\x1b', end)
+  }
+  return state
+}
+
 // extracts the visible codepoint range [start, end) from an ANSI string while
 // carrying the SGR state active at the cut, so syntax colors survive a slice.
 // start/end count codepoints, matching the diff engine's intra ranges
 export function sliceVisibleRange(text, start, end) {
   let idx = 0
-  let active = ''
   let out = ''
   let opened = false
   let i = 0
+  const state = { fg: null, bg: null, attrs: 0 }
 
   while (i < text.length && idx < end) {
-    if (text[i] === '\x1b' && text[i + 1] === '[') {
-      const e = text.indexOf('m', i + 2)
+    if (text[i] === '\x1b') {
+      const e = ansiSeqEnd(text, i)
       if (e !== -1) {
-        const seq = text.slice(i, e + 1)
-        if (seq === '\x1b[0m' || seq === '\x1b[m') active = ''
-        else active += seq
-        if (opened) out += seq
-        i = e + 1
+        if (text[i + 1] === '[' && text[e - 1] === 'm') {
+          parseSgr(text.slice(i + 2, e - 1), state)
+          if (opened) out += text.slice(i, e)
+        }
+        i = e
         continue
       }
     }
@@ -79,7 +138,7 @@ export function sliceVisibleRange(text, start, end) {
     const len = code > 0xffff ? 2 : 1
     if (idx >= start) {
       if (!opened) {
-        out += active
+        out += sgrCarry(state)
         opened = true
       }
       out += text.slice(i, i + len)
@@ -88,19 +147,86 @@ export function sliceVisibleRange(text, start, end) {
     i += len
   }
 
-  if (opened && active) out += '\x1b[0m'
+  if (opened && !sgrIsDefault(state)) out += '\x1b[0m'
   return out
 }
 
-function extractTrailingAnsi(str) {
-  let active = ''
-  const re = /\x1b\[[0-9;]*m/g
-  let m
-  while ((m = re.exec(str)) !== null) {
-    if (m[0] === '\x1b[0m') active = ''
-    else active += m[0]
+// wraps a single logical line wider than maxWidth. whitespace runs are
+// preserved verbatim when they fit; a run at a wrap point is consumed (its
+// SGR sequences still fold into state so colors survive the break)
+function wrapLine(text, maxWidth, lines, state) {
+  let line = sgrCarry(state)
+  let col = 0
+  let ws = ''
+  let wsW = 0
+  let word = ''
+  let wordWidth = 0
+
+  const newline = () => {
+    lines.push(line)
+    line = sgrCarry(state)
+    col = 0
   }
-  return active
+
+  const emit = (chunk) => {
+    updateSgrState(chunk, state)
+    line += chunk
+  }
+
+  const breakWord = () => {
+    for (const { chunk, width } of visibleChars(word)) {
+      if (width > 0 && col + width > maxWidth) newline()
+      emit(chunk)
+      col += width
+    }
+  }
+
+  const placeWord = () => {
+    if (!word) {
+      if (ws) {
+        emit(ws)
+        col += wsW
+        ws = ''
+        wsW = 0
+      }
+      return
+    }
+    if (col + wsW + wordWidth <= maxWidth) {
+      emit(ws)
+      emit(word)
+      col += wsW + wordWidth
+    } else if (col === 0) {
+      emit(ws)
+      col += wsW
+      breakWord()
+    } else {
+      updateSgrState(ws, state)
+      newline()
+      if (wordWidth <= maxWidth) {
+        emit(word)
+        col += wordWidth
+      } else {
+        breakWord()
+      }
+    }
+    ws = ''
+    wsW = 0
+    word = ''
+    wordWidth = 0
+  }
+
+  for (const { chunk, code, width } of visibleChars(text)) {
+    if (code === 32 || code === 9 || code === 13) {
+      if (word) placeWord()
+      ws += chunk
+      wsW += code === 9 ? tabWidth(col + wsW) : width
+    } else {
+      word += chunk
+      wordWidth += width
+    }
+  }
+  placeWord()
+  lines.push(line)
 }
 
 export function wordWrap(text, maxWidth) {
@@ -108,74 +234,21 @@ export function wordWrap(text, maxWidth) {
   if (!text) return ['']
 
   const lines = []
-  let carry = ''
+  const state = { fg: null, bg: null, attrs: 0 }
 
   for (const rawLine of text.split('\n')) {
     if (rawLine.length === 0) {
-      lines.push(carry || '')
+      lines.push(sgrCarry(state))
       continue
     }
 
-    const prefixed = carry ? carry + rawLine : rawLine
-
-    if (measureText(prefixed) <= maxWidth) {
-      lines.push(prefixed)
-      carry = extractTrailingAnsi(prefixed)
+    if (measureText(rawLine) <= maxWidth) {
+      lines.push(sgrCarry(state) + rawLine)
+      updateSgrState(rawLine, state)
       continue
     }
 
-    const words = prefixed.split(/\s+/)
-    let line = ''
-    let lineWidth = 0
-
-    for (const word of words) {
-      if (!word) continue
-      const ww = measureText(word)
-
-      if (lineWidth === 0 && ww <= maxWidth) {
-        line = word
-        lineWidth = ww
-      } else if (lineWidth === 0 && ww > maxWidth) {
-        for (const { chunk, width } of visibleChars(word)) {
-          if (lineWidth + width > maxWidth) {
-            carry = extractTrailingAnsi(line)
-            lines.push(line)
-            line = carry
-            lineWidth = 0
-          }
-          line += chunk
-          lineWidth += width
-        }
-      } else if (lineWidth + 1 + ww <= maxWidth) {
-        line += ' ' + word
-        lineWidth += 1 + ww
-      } else if (ww > maxWidth) {
-        if (line) {
-          carry = extractTrailingAnsi(line)
-          lines.push(line)
-          line = carry
-          lineWidth = 0
-        }
-        for (const { chunk, width } of visibleChars(word)) {
-          if (lineWidth + width > maxWidth) {
-            carry = extractTrailingAnsi(line)
-            lines.push(line)
-            line = carry
-            lineWidth = 0
-          }
-          line += chunk
-          lineWidth += width
-        }
-      } else {
-        carry = extractTrailingAnsi(line)
-        lines.push(line)
-        line = carry + word
-        lineWidth = ww
-      }
-    }
-
-    lines.push(line)
-    carry = extractTrailingAnsi(line)
+    wrapLine(rawLine, maxWidth, lines, state)
   }
 
   return lines

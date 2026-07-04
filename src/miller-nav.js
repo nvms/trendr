@@ -1,7 +1,20 @@
 import { jsx, jsxs } from '../jsx-runtime.js'
 import { createSignal, batch } from './signal.js'
-import { useInput, useMouse, useTheme, useLayout } from './hooks.js'
+import { useInput, useMouse, useTheme, useLayout, useStdout } from './hooks.js'
+import { registerHook } from './renderer.js'
 import { List } from './list.js'
+
+function sameColumn(a, b) {
+  if (a === b) return true
+  if (!a || !b) return false
+  if (a.parentId !== b.parentId || a.selected !== b.selected) return false
+  if (a.items === b.items) return true
+  if (a.items.length !== b.items.length) return false
+  for (let i = 0; i < a.items.length; i++) {
+    if (a.items[i] !== b.items[i]) return false
+  }
+  return true
+}
 
 function columnWidth(items, maxChars) {
   if (!items.length) return 0
@@ -43,6 +56,7 @@ export function MillerNav({
 }) {
   const { accent = 'cyan' } = useTheme()
   const layout = useLayout()
+  const stdout = useStdout()
 
   const focusedMax = typeof maxChars === 'number' ? maxChars : maxChars.focused ?? 20
   const unfocusedMax = typeof maxChars === 'number' ? maxChars : maxChars.unfocused ?? 10
@@ -50,6 +64,7 @@ export function MillerNav({
   const [stack, setStack] = createSignal([{ parentId: null, items: rootItems, selected: 0 }])
   const [depth, setDepth] = createSignal(0)
   const [focusCol, setFocusCol] = createSignal(0)
+  const prevSel = registerHook(() => ({ item: undefined, column: -1, emitted: false }))
 
   function activeColumnIndex() {
     return depth() + focusCol()
@@ -76,18 +91,25 @@ export function MillerNav({
 
   function emitSelection() {
     if (!onSelectionChange) return
-    onSelectionChange({ item: activeItem(), breadcrumb: breadcrumb(), column: focusCol() })
+    const item = activeItem()
+    const column = focusCol()
+    if (prevSel.emitted && item === prevSel.item && column === prevSel.column) return
+    prevSel.item = item
+    prevSel.column = column
+    prevSel.emitted = true
+    onSelectionChange({ item, breadcrumb: breadcrumb(), column })
   }
 
   function syncView() {
-    const s = stack().slice()
+    const cur = stack()
     const d = depth()
-    const left = s[d]
+    const left = cur[d]
 
+    const s = cur.slice()
     if (left && left.items.length) {
       const sel = left.items[left.selected]
       const children = getChildren(sel)
-      const prevRight = s[d + 1]
+      const prevRight = cur[d + 1]
       const keepSelected = (prevRight && prevRight.parentId === sel)
         ? Math.min(prevRight.selected, Math.max(0, children.length - 1))
         : 0
@@ -97,7 +119,10 @@ export function MillerNav({
       s.length = d + 1
     }
 
-    setStack(s)
+    // signals compare by reference, so an unconditional write of a fresh array
+    // would schedule a frame every frame - only write when the view really changed
+    const changed = s.length !== cur.length || s.some((col, i) => !sameColumn(col, cur[i]))
+    if (changed) setStack(s)
 
     const right = s[d + 1]
     if (!right || !right.items.length) {
@@ -283,7 +308,7 @@ export function MillerNav({
   }
 
   if (divider) {
-    const rows = layout.height || process.stdout.rows
+    const rows = layout.height || stdout.rows || 24
     const bar = Array.from({ length: rows }, () => dividerChar).join('\n')
     children.push(jsx('box', {
       key: 'divider',

@@ -1,10 +1,21 @@
 import { jsx, jsxs } from '../jsx-runtime.js'
 import { createSignal } from './signal.js'
 import { useInput, useMouse, useLayout, useTheme } from './hooks.js'
+import { registerHook } from './renderer.js'
 
-export function Radio({ options, selected, onSelect, focused = false }) {
+export function Radio({ options = [], selected, onSelect, focused = false }) {
   const { accent = 'cyan' } = useTheme()
   const [cursor, setCursor] = createSignal(Math.max(0, options.indexOf(selected)))
+  const prevSelected = registerHook(() => ({ value: selected }))
+
+  if (selected !== prevSelected.value) {
+    prevSelected.value = selected
+    const idx = options.indexOf(selected)
+    if (idx >= 0) setCursor(idx)
+  }
+
+  const maxIdx = Math.max(0, options.length - 1)
+  if (cursor() > maxIdx) setCursor(maxIdx)
 
   useInput((event) => {
     if (!focused) return
@@ -24,7 +35,7 @@ export function Radio({ options, selected, onSelect, focused = false }) {
         event.stopPropagation()
       }
     } else if (key === 'return' || key === 'space') {
-      onSelect?.(options[cursor()])
+      onSelect?.(options[Math.min(cursor(), len - 1)])
       event.stopPropagation()
     }
   })
