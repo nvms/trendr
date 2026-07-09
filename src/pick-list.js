@@ -4,7 +4,7 @@ import { useInput, useLayout, useTheme, useCursor } from './hooks.js'
 import { registerHook } from './renderer.js'
 import { List } from './list.js'
 
-export function PickList({ items, onSubmit, onCancel, onChange, onCursorChange, focused = true, placeholder = 'search...', filter: filterFn, renderItem, maxVisible = 10, scrollbar = false, scrolloff = 0, itemHeight = 1, itemGap = 0, gap = 0, clearOnSubmit = false, style: userStyle, cursor: cursorProp }) {
+export function PickList({ items, onSubmit, onCancel, onChange, onCursorChange, focused = true, placeholder = 'search...', filter: filterFn, renderItem, maxVisible = 10, scrollbar = false, scrolloff = 0, itemHeight = 1, itemGap = 0, gap = 0, clearOnSubmit = false, counter = false, style: userStyle, cursor: cursorProp }) {
   const { accent = 'cyan', accentText = 'black', muted = 'gray' } = useTheme()
   const defaults = {
     borderColor: accent,
@@ -205,8 +205,17 @@ export function PickList({ items, onSubmit, onCancel, onChange, onCursorChange, 
     renderItem: listRenderItem,
   })
 
+  // counter renders only when the filtered list overflows its viewport, so
+  // callers can enable it unconditionally without adding noise to short lists
+  const counterEl = counter && filtered.length > maxVisible
+    ? jsx('text', {
+        style: { color: muted, dim: true },
+        children: `${(filtered.length === 0 ? 0 : cursor + 1).toLocaleString()}/${filtered.length.toLocaleString()}`,
+      })
+    : null
+
   return jsxs('box', {
     style: { flexDirection: 'column', flexGrow: 1, gap },
-    children: [inputEl, list],
+    children: counterEl ? [inputEl, list, counterEl] : [inputEl, list],
   })
 }

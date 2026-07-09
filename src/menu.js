@@ -1,4 +1,4 @@
-import { jsx } from '../jsx-runtime.js'
+import { jsx, jsxs } from '../jsx-runtime.js'
 import { createSignal } from './signal.js'
 import { useInput, useTheme } from './hooks.js'
 import { List } from './list.js'
@@ -21,6 +21,7 @@ export function Menu({
   renderItem,
   arrow = '›',
   vimKeys = false,
+  counter = false,
 }) {
   const { accent = 'cyan', muted = 'gray' } = useTheme()
   const [internal, setInternal] = createSignal(0)
@@ -77,7 +78,7 @@ export function Menu({
 
   const render = renderItem ?? defaultRender
 
-  return jsx('box', {
+  const list = jsx('box', {
     style: { height, minHeight: height },
     children: jsx(List, {
       items,
@@ -90,5 +91,20 @@ export function Menu({
       scrolloff,
       renderItem: (item, ctx) => render(item, { active: ctx.selected, index: ctx.index }),
     }),
+  })
+
+  // counter renders only when the list overflows its viewport, so callers
+  // can enable it unconditionally without adding noise to short lists
+  if (!counter || len <= maxVisible) return list
+
+  return jsxs('box', {
+    style: { flexDirection: 'column' },
+    children: [
+      list,
+      jsx('text', {
+        style: { color: muted, dim: true },
+        children: `${(selected + 1).toLocaleString()}/${len.toLocaleString()}`,
+      }),
+    ],
   })
 }
