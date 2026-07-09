@@ -17,6 +17,7 @@ export const exitAltScreen = `${ESC}?1049l`
 export const sgrReset = `${ESC}0m`
 
 export const setTitle = (title) => `\x1b]2;${title}\x07`
+export const osc52Copy = (text) => `\x1b]52;c;${Buffer.from(text, 'utf8').toString('base64')}\x07`
 
 export const enableMouse = `${ESC}?1002h${ESC}?1006h`
 export const disableMouse = `${ESC}?1002l${ESC}?1006l`
@@ -146,6 +147,11 @@ export function parseSgr(params, state) {
   }
 
   return state
+}
+
+export function fgSgr(color) {
+  const code = parseColor(color, 38)
+  return code ? `${ESC}${code}m` : ''
 }
 
 export function sgr(fg, bg, attrs) {

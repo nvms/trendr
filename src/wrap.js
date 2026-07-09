@@ -230,28 +230,37 @@ function wrapLine(text, maxWidth, lines, state) {
 }
 
 export function wordWrap(text, maxWidth) {
-  if (maxWidth <= 0) return []
-  if (!text) return ['']
+  return wordWrapMarked(text, maxWidth).lines
+}
+
+// like wordWrap, but also reports which output lines exist only because the
+// text was too wide: soft[i] is true when line i continues line i-1 rather
+// than starting after a hard newline. selection copy uses this to rejoin
+// wrapped prose while keeping real line breaks
+export function wordWrapMarked(text, maxWidth) {
+  if (maxWidth <= 0) return { lines: [], soft: [] }
+  if (!text) return { lines: [''], soft: [false] }
 
   const lines = []
+  const soft = []
   const state = { fg: null, bg: null, attrs: 0 }
 
   for (const rawLine of text.split('\n')) {
+    const startIdx = lines.length
+
     if (rawLine.length === 0) {
       lines.push(sgrCarry(state))
-      continue
-    }
-
-    if (measureText(rawLine) <= maxWidth) {
+    } else if (measureText(rawLine) <= maxWidth) {
       lines.push(sgrCarry(state) + rawLine)
       updateSgrState(rawLine, state)
-      continue
+    } else {
+      wrapLine(rawLine, maxWidth, lines, state)
     }
 
-    wrapLine(rawLine, maxWidth, lines, state)
+    for (let i = startIdx; i < lines.length; i++) soft.push(i > startIdx)
   }
 
-  return lines
+  return { lines, soft }
 }
 
 // generated from Unicode 15.1 EastAsianWidth=W/F + Emoji_Presentation=Yes

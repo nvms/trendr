@@ -7,12 +7,13 @@ export function createBuffer(width, height) {
   const size = width * height
   const cells = new Array(size)
   for (let i = 0; i < size; i++) cells[i] = EMPTY
-  return { width, height, cells }
+  return { width, height, cells, softWrap: new Uint8Array(height) }
 }
 
 export function clearBuffer(buf) {
   const len = buf.cells.length
   for (let i = 0; i < len; i++) buf.cells[i] = EMPTY
+  buf.softWrap.fill(0)
 }
 
 export function resizeBuffer(buf, width, height) {
@@ -20,6 +21,7 @@ export function resizeBuffer(buf, width, height) {
   buf.height = height
   buf.cells = new Array(width * height)
   for (let i = 0; i < buf.cells.length; i++) buf.cells[i] = EMPTY
+  buf.softWrap = new Uint8Array(height)
 }
 
 export function setCell(buf, x, y, ch, fg, bg, attrs) {

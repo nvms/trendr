@@ -20,6 +20,7 @@ export function Menu({
   gap = 0,
   renderItem,
   arrow = '›',
+  vimKeys = false,
 }) {
   const { accent = 'cyan', muted = 'gray' } = useTheme()
   const [internal, setInternal] = createSignal(0)
@@ -38,11 +39,14 @@ export function Menu({
     if (!focused || len === 0) return
     const { key, ctrl, shift, meta } = event
 
-    if (key === 'up' || (ctrl && key === 'p')) {
+    if (key === 'up' || (ctrl && key === 'p') || (vimKeys && !ctrl && key === 'k')) {
       setSelected(Math.max(0, selected - 1))
       event.stopPropagation()
-    } else if (key === 'down' || (ctrl && key === 'n')) {
+    } else if (key === 'down' || (ctrl && key === 'n') || (vimKeys && !ctrl && key === 'j')) {
       setSelected(Math.min(len - 1, selected + 1))
+      event.stopPropagation()
+    } else if (vimKeys && !ctrl && (key === 'g' || key === 'G')) {
+      setSelected(key === 'G' ? len - 1 : 0)
       event.stopPropagation()
     } else if (key === 'return' && !shift && !meta) {
       if (onSubmit) onSubmit(items[selected], selected)

@@ -58,9 +58,15 @@ SolidJS-inspired reactivity: `createSignal`, `createEffect`, `createMemo`, `batc
 
 ### Component files
 
-Each in `src/`: `text-input.js`, `text-area.js`, `list.js`, `table.js`, `tabs.js`, `select.js`, `checkbox.js`, `radio.js`, `progress.js`, `spinner.js`, `modal.js`, `button.js`, `scrollable-text.js`, `toast.js`. All interactive components accept a `focused` prop.
+Each in `src/`: `text-input.js`, `text-area.js`, `list.js`, `table.js`, `tabs.js`, `select.js`, `checkbox.js`, `radio.js`, `progress.js`, `spinner.js`, `modal.js`, `button.js`, `scrollable-text.js`, `toast.js`, `markdown.js`. All interactive components accept a `focused` prop.
+
+`src/markdown.js` (`Markdown`) renders a markdown string as trend elements: headings, paragraphs, fenced code blocks (optional sync `highlight(code, lang)`), lists, blockquotes, rules, and inline bold/italic/code/links via inline ANSI. It tolerates partial input, so it can render streaming text.
 
 `src/diff-view.js` (`Diff`) renders a unified git diff. `src/diff-engine.js` is its pure core: it normalizes `before`/`after` strings, a unified `patch` string, or structured `hunks` into one row model with line numbers and word-level change ranges (`intra`). The component layers diff backgrounds under syntax-highlighted foreground - pass a synchronous `highlight(code, lang)` function (the render loop can't await, so async highlighters like shiki must be pre-warmed into a cache; see `examples/diff.jsx`). Word-level highlight backgrounds are sliced over the highlighted line via `sliceVisibleRange` in `src/wrap.js`.
+
+### Selection
+
+`useSelection` (`src/selection.js`) gives back the click-drag select-and-copy that enabling mouse reporting takes away from the terminal. Dragging highlights cells (inverse video applied post-paint), releasing extracts the region from the cell buffer, writes it to the system clipboard via OSC 52, and calls `onCopy(text)`. Rows painted as soft wraps are flagged on the buffer at paint time (`buf.softWrap`, set from `wordWrapMarked` in `src/wrap.js`), so extraction rejoins wrapped prose into single paragraphs while hard newlines (code) survive; hard rows share one dedent so screen padding stays out of the clipboard.
 
 ### Overlays
 

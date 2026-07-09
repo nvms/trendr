@@ -6,7 +6,7 @@ import { Fragment } from './element.js'
 import { createScheduler } from './scheduler.js'
 import { createInputHandler } from './input.js'
 import { setSchedulerHook, setHookRegistrar, createScope, disposeScope, runInScope, onCleanup, startRenderTracking, stopRenderTracking } from './signal.js'
-import { wordWrap, measureText, sliceVisible, sliceVisibleRange } from './wrap.js'
+import { wordWrap, wordWrapMarked, measureText, sliceVisible, sliceVisibleRange } from './wrap.js'
 import * as ansi from './ansi.js'
 
 let activeContext = null
@@ -300,6 +300,19 @@ function layoutEqual(a, b) {
   return a && b && a.x === b.x && a.y === b.y && a.width === b.width && a.height === b.height
 }
 
+function applySelectionHighlight(buf, sel) {
+  const lastY = Math.min(sel.ey, buf.height - 1)
+  for (let y = Math.max(0, sel.sy); y <= lastY; y++) {
+    const from = y === sel.sy ? Math.max(0, sel.sx) : 0
+    const to = y === sel.ey ? Math.min(sel.ex, buf.width - 1) : buf.width - 1
+    const base = y * buf.width
+    for (let x = from; x <= to; x++) {
+      const c = buf.cells[base + x]
+      buf.cells[base + x] = { ch: c.ch, fg: c.fg, bg: c.bg, attrs: c.attrs ^ ansi.INVERSE }
+    }
+  }
+}
+
 function paintTree(node, buf, clip, offset, prevBuf) {
   if (!node) return
 
@@ -348,10 +361,11 @@ function paintTree(node, buf, clip, offset, prevBuf) {
     const leftClip = clipped.x - layout.x
 
     if (wrap) {
-      const lines = wordWrap(text, layout.width)
+      const { lines, soft } = wordWrapMarked(text, layout.width)
       for (let i = 0; i < lines.length && i < layout.height; i++) {
         const rowY = layout.y + i
         if (rowY < clipped.y || rowY >= clipped.y + clipped.height) continue
+        if (soft[i] && rowY >= 0 && rowY < buf.height) buf.softWrap[rowY] = 1
         const line = leftClip > 0 ? sliceVisibleRange(lines[i], leftClip, Infinity) : lines[i]
         writeText(buf, clipped.x, rowY, line, style.color, style.bg, attrs, clipped.width)
       }
@@ -724,7 +738,7 @@ export function mount(rootComponent, { stream, stdin, title, theme, onExit: onEx
   let prev = createBuffer(width, height)
   let curr = createBuffer(width, height)
 
-  const ctx = { stream: out, input: null, stdin: inp, theme: { ...DEFAULT_THEME, ...theme }, captureOwner: null }
+  const ctx = { stream: out, input: null, stdin: inp, theme: { ...DEFAULT_THEME, ...theme }, captureOwner: null, selection: null }
   const input = createInputHandler(inp, {
     isEligible: (owner) => {
       const cap = ctx.captureOwner
@@ -745,6 +759,7 @@ export function mount(rootComponent, { stream, stdin, title, theme, onExit: onEx
   const instances = new Map()
   let forceFullPaint = false
   let prevHadOverlays = false
+  let prevHadSelection = false
 
   // inline mode state: how many scrollback items have been committed, the
   // visible width of each line the live region last emitted (so a later resize
@@ -989,7 +1004,7 @@ export function mount(rootComponent, { stream, stdin, title, theme, onExit: onEx
       paintTree(tree2, curr, null, null, null)
     } else {
       propagateDirty(tree)
-      paintTree(tree, curr, null, null, (forceFullPaint || prevHadOverlays) ? null : prev)
+      paintTree(tree, curr, null, null, (forceFullPaint || prevHadOverlays || prevHadSelection) ? null : prev)
     }
     forceFullPaint = false
 
@@ -1030,6 +1045,12 @@ export function mount(rootComponent, { stream, stdin, title, theme, onExit: onEx
 
     prevHadOverlays = hasOverlays
     ctx.captureOwner = captureOwnerFrom(overlays)
+
+    // selection paints last, over everything, by flipping inverse on the
+    // covered cells. new cell objects are required: blitting shares cell refs
+    // with prev, and diff must see prev unchanged
+    if (ctx.selection) applySelectionHighlight(curr, ctx.selection)
+    prevHadSelection = !!ctx.selection
 
     for (const [key, inst] of instances) {
       if (!visited.has(key)) {
@@ -1194,7 +1215,13 @@ export function mount(rootComponent, { stream, stdin, title, theme, onExit: onEx
     scheduler.forceFrame()
   }
 
-  ctx.repaint = repaint
+  function setTheme(patch) {
+    Object.assign(ctx.theme, patch)
+    scheduler.forceFrame()
+  }
 
-  return { unmount, repaint, getBuffer: () => (inline ? lastInlineBuf : prev) }
+  ctx.repaint = repaint
+  ctx.getPaintBuffer = () => (inline ? lastInlineBuf : prev)
+
+  return { unmount, repaint, setTheme, getBuffer: ctx.getPaintBuffer }
 }

@@ -790,6 +790,39 @@ suite('absolute does not affect flow layout')
   unmount()
 }
 
+suite('absolute anchors to padding box, not content box')
+{
+  const out = new FakeStream(30, 5)
+  const inp = new FakeInput()
+
+  function App() {
+    return jsxs('box', {
+      style: { flexDirection: 'column', paddingX: 2, paddingY: 1, height: 3 },
+      children: [
+        jsx('text', { children: 'INPUT' }),
+        jsx('box', {
+          style: { position: 'absolute', top: 0, right: 0 },
+          children: jsx('text', { children: 'TAG' }),
+        }),
+      ],
+    })
+  }
+
+  const { unmount } = mount(App, { stream: out, stdin: inp })
+  await tick()
+
+  const grid = parseScreen(out.output, 30, 5)
+  const flow = findInGrid(grid, 'INPUT')
+  const abs = findInGrid(grid, 'TAG')
+
+  assert(flow != null && abs != null, 'flow and absolute both rendered')
+  if (flow) assertEq(flow.row, 1, 'flow content below top padding')
+  if (abs) assertEq(abs.row, 0, 'absolute top:0 sits on the padding row')
+  if (abs) assertEq(abs.col, 27, 'absolute right:0 at box edge, ignoring padding')
+
+  unmount()
+}
+
 suite('scroll container clips and offsets')
 {
   const out = new FakeStream(20, 5)

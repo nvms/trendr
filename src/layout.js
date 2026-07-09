@@ -111,8 +111,14 @@ export function computeLayout(node, rect) {
     node._childHeights = heights
   }
 
+  // absolute children anchor to the padding box (inside borders, ignoring
+  // padding), matching CSS containing-block behavior
+  const padBoxX = box.x + be.left
+  const padBoxY = box.y + be.top
+  const padBoxW = Math.max(0, box.width - be.left - be.right)
+  const padBoxH = Math.max(0, box.height - be.top - be.bottom)
   for (const child of absChildren) {
-    layoutAbsolute(child, innerX, innerY, innerW, innerH)
+    layoutAbsolute(child, padBoxX, padBoxY, padBoxW, padBoxH)
   }
 }
 

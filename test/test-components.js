@@ -10,6 +10,8 @@ import { MenuBar } from '../src/menubar.js'
 import { MillerNav } from '../src/miller-nav.js'
 import { ProgressBar } from '../src/progress.js'
 import { ease, linear, animated } from '../src/animation.js'
+import { Markdown, parseBlocks } from '../src/markdown.js'
+import { useSelection } from '../src/selection.js'
 import { jsx, jsxs } from '../jsx-runtime.js'
 
 let passed = 0
@@ -754,6 +756,171 @@ suite('animated() with ease reaches its target')
   v.set(10)
   await tick(300)
   assertEq(v(), 10, 'animation completed at the target value')
+}
+
+suite('Markdown block parsing')
+{
+  const blocks = parseBlocks([
+    '# Title',
+    '',
+    'intro text',
+    'same paragraph',
+    '',
+    '- one',
+    '- two',
+    '',
+    '```js',
+    'const a = 1',
+    '```',
+    '',
+    '> quoted',
+    '',
+    '---',
+    '',
+    'tail',
+  ].join('\n'))
+
+  assertEq(blocks.length, 7, 'seven blocks parsed')
+  assertEq(blocks[0].type, 'heading', 'first block is a heading')
+  assertEq(blocks[0].level, 1, 'heading level 1')
+  assertEq(blocks[1].type, 'para', 'second block is a paragraph')
+  assertEq(blocks[1].text, 'intro text same paragraph', 'adjacent lines join into one paragraph')
+  assertEq(blocks[2].type, 'list', 'third block is a list')
+  assertEq(blocks[2].items.length, 2, 'list has two items')
+  assertEq(blocks[3].type, 'code', 'fourth block is code')
+  assertEq(blocks[3].lang, 'js', 'fence language captured')
+  assertEq(blocks[3].lines.join('\n'), 'const a = 1', 'code content captured')
+  assertEq(blocks[4].type, 'quote', 'fifth block is a quote')
+  assertEq(blocks[5].type, 'hr', 'sixth block is a rule')
+  assertEq(blocks[6].type, 'para', 'seventh block is the tail paragraph')
+}
+
+suite('Markdown tolerates an unclosed fence while streaming')
+{
+  const blocks = parseBlocks('before\n\n```js\nconst a = 1')
+  assertEq(blocks.length, 2, 'two blocks parsed')
+  assertEq(blocks[1].type, 'code', 'unclosed fence still becomes a code block')
+  assertEq(blocks[1].lines.join('\n'), 'const a = 1', 'partial code content kept')
+}
+
+suite('Markdown renders headings, lists, and inline styles')
+{
+  const out = new FakeStream(40, 12)
+  const inp = new FakeInput()
+
+  function App() {
+    return jsx(Markdown, { text: '# Head\n\nsome **bold** and `code`\n\n- item one' })
+  }
+
+  const { unmount, getBuffer } = mount(App, { stream: out, stdin: inp, altScreen: false })
+  await tick()
+
+  const screen = screenOf(getBuffer)
+  assert(screen.includes('Head'), 'heading text rendered')
+  assert(screen.includes('• item one'), 'list item rendered with a bullet')
+  assert(screen.includes('some bold and code'), 'inline markers stripped from the paragraph')
+
+  const b = getBuffer()
+  const paraRow = rowOf(getBuffer, 'some bold')
+  const rowText = screenOf(getBuffer).split('\n')[paraRow]
+  const boldCell = b.cells[paraRow * b.width + rowText.indexOf('bold')]
+  assertEq(boldCell.attrs & 1, 1, 'bold span carries the bold attribute')
+  const codeCell = b.cells[paraRow * b.width + rowText.indexOf('code')]
+  assertEq(codeCell.fg, 'cyan', 'inline code takes the accent color')
+
+  unmount()
+}
+
+suite('Markdown code block paints its own background')
+{
+  const out = new FakeStream(40, 8)
+  const inp = new FakeInput()
+
+  function App() {
+    return jsx(Markdown, { text: '```\nconst a = 1\n```' })
+  }
+
+  const { unmount, getBuffer } = mount(App, { stream: out, stdin: inp, altScreen: false })
+  await tick()
+
+  const b = getBuffer()
+  const row = rowOf(getBuffer, 'const a = 1')
+  assert(row >= 0, 'code line rendered')
+  const cell = b.cells[row * b.width + screenOf(getBuffer).split('\n')[row].indexOf('const')]
+  assertEq(cell.bg, '#1e1e22', 'code block background applied')
+
+  unmount()
+}
+
+suite('useSelection copies wrapped prose as one paragraph and code with newlines')
+{
+  const out = new FakeStream(24, 10)
+  out.written = ''
+  out.write = function (data) { this.written += data; return true }
+  const inp = new FakeInput()
+
+  let copied = null
+
+  function App() {
+    useSelection({ onCopy: (t) => { copied = t } })
+    return jsxs('box', {
+      style: { flexDirection: 'column', paddingX: 2 },
+      children: [
+        jsx('text', { children: 'alpha beta gamma delta epsilon' }),
+        jsx('text', { children: 'fn f() {\n  return 1\n}' }),
+      ],
+    })
+  }
+
+  const { unmount, getBuffer } = mount(App, { stream: out, stdin: inp })
+  await tick()
+
+  const drag = (x, y) => inp.send(`\x1b[<32;${x + 1};${y + 1}M`)
+  const press = (x, y) => inp.send(`\x1b[<0;${x + 1};${y + 1}M`)
+  const release = (x, y) => inp.send(`\x1b[<0;${x + 1};${y + 1}m`)
+
+  press(0, 0)
+  drag(23, 4)
+  await tick()
+
+  const b = getBuffer()
+  assertEq(b.cells[0].attrs & 16, 16, 'dragged region renders inverse')
+  assert(b.softWrap[1] === 1, 'wrapped continuation row flagged as soft')
+  assert(b.softWrap[2] === 0, 'hard code row not flagged')
+
+  release(23, 4)
+  await tick()
+
+  assertEq(copied, 'alpha beta gamma delta epsilon\nfn f() {\n  return 1\n}', 'prose rejoined, code newlines and indent kept, padding dedented')
+  assert(out.written.includes(']52;c;'), 'release writes an OSC 52 clipboard sequence')
+  const b2 = getBuffer()
+  assertEq(b2.cells[0].attrs & 16, 0, 'highlight cleared after release')
+
+  unmount()
+}
+
+suite('useSelection ignores plain clicks')
+{
+  const out = new FakeStream(20, 4)
+  const inp = new FakeInput()
+
+  let copied = null
+
+  function App() {
+    useSelection({ onCopy: (t) => { copied = t }, copy: false })
+    return jsx('text', { children: 'hello' })
+  }
+
+  const { unmount } = mount(App, { stream: out, stdin: inp })
+  await tick()
+
+  inp.send('\x1b[<0;2;1M')
+  inp.send('\x1b[<0;2;1m')
+  await tick()
+
+  assertEq(copied, null, 'click without drag copies nothing')
+
+  unmount()
 }
 
 // ----

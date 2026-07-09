@@ -129,7 +129,7 @@ export function TextArea({ onSubmit, onCancel, onChange, onKeyDown, placeholder,
   const [cursor, setCursor] = createSignal(0)
   if (valueProp !== undefined && valueProp !== value()) {
     setValue(valueProp)
-    setCursor(c => Math.min(c, valueProp.length))
+    setCursor(valueProp.length)
   }
   const ref = registerHook(() => ({ scroll: 0, goalCol: null }))
   const { muted = 'gray' } = useTheme()
@@ -149,6 +149,7 @@ export function TextArea({ onSubmit, onCancel, onChange, onKeyDown, placeholder,
 
     if (onKeyDown) {
       event.value = value()
+      event.cursor = cursor()
       if (onKeyDown(event)) {
         event.stopPropagation()
         return
