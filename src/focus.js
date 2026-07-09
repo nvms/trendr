@@ -40,6 +40,7 @@ export function useFocus({ initial, cycle = 'tab' } = {}) {
   function sweep() {
     const prevGen = state.gen
     state.gen = prevGen + 1
+    state.seq = 0
     if (prevGen === 0) return
 
     const stale = state.items.filter(i => i.gen < prevGen)
@@ -71,21 +72,32 @@ export function useFocus({ initial, cycle = 'tab' } = {}) {
     return name
   }
 
+  // cycle order follows this frame's registration order, not first-ever
+  // registration: a conditionally rendered field slots in where it is
+  // declared instead of appending to the end of the tab order
   function liveItems() {
-    return state.items.filter(i => i.gen === state.gen)
+    return state.items.filter(i => i.gen === state.gen).sort((a, b) => a.seq - b.seq)
   }
 
   function item(name) {
     const existing = state.items.find(i => i.name === name)
-    if (existing) existing.gen = state.gen
-    else state.items.push({ name, type: 'item', gen: state.gen })
+    if (existing) {
+      existing.gen = state.gen
+      existing.seq = state.seq++
+    } else {
+      state.items.push({ name, type: 'item', gen: state.gen, seq: state.seq++ })
+    }
     if (state.current() == null) state.setCurrent(name)
   }
 
   function group(name, { items: subItems = [], navigate = 'both', wrap = false } = {}) {
     const existing = state.items.find(i => i.name === name)
-    if (existing) existing.gen = state.gen
-    else state.items.push({ name, type: 'group', gen: state.gen })
+    if (existing) {
+      existing.gen = state.gen
+      existing.seq = state.seq++
+    } else {
+      state.items.push({ name, type: 'group', gen: state.gen, seq: state.seq++ })
+    }
 
     let g = state.groups.get(name)
     if (!g) {
