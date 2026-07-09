@@ -8,11 +8,16 @@ export function ScrollBox({ children, focused = true, scrollOffset: offsetProp, 
   const layout = useLayout()
 
   const offset = offsetProp ?? offsetInternal()
-  const setOffset = onScroll ?? setOffsetInternal
 
   const visibleH = layout.height
   const contentH = layout.contentHeight ?? 0
   const maxOffset = Math.max(0, contentH - visibleH)
+
+  const setOffset = (v) => {
+    const next = Math.max(0, Math.min(maxOffset, v))
+    if (onScroll) onScroll(next, { atBottom: next >= maxOffset, maxOffset })
+    else setOffsetInternal(next)
+  }
 
   const clamp = (v) => Math.max(0, Math.min(maxOffset, v))
   const clamped = clamp(offset)
