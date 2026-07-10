@@ -75,6 +75,7 @@ export function Diff({
   wordDiff = true,
   context = Infinity,
   lineNumbers = true,
+  folds = true,
   focused = true,
   scrollOffset: offsetProp,
   onScroll,
@@ -88,7 +89,11 @@ export function Diff({
   const offset = offsetProp ?? offsetInternal()
   const setOffset = onScroll ?? setOffsetInternal
 
-  const { rows, stats } = memoComputeDiff({ before, after, patch, hunks, wordDiff, context })
+  const computed = memoComputeDiff({ before, after, patch, hunks, wordDiff, context })
+  const stats = computed.stats
+  // the gutter numbers already show the jump across elided regions, so a
+  // caller can drop the fold banners entirely
+  const rows = folds ? computed.rows : computed.rows.filter((r) => r.type !== 'fold')
 
   const wholeMode = hunks == null && patch == null
   const hiLines = (text) => {
