@@ -948,6 +948,7 @@ export function mount(rootComponent, { stream, stdin, title, theme, onExit: onEx
   let lastInlineBuf = null
 
   function frame() {
+    const frameStart = performance.now()
     const prevCtx = activeContext
     activeContext = ctx
     overlays = []
@@ -1076,7 +1077,7 @@ export function mount(rootComponent, { stream, stdin, title, theme, onExit: onEx
     }
     lastFrameTimestamp = now
     const avgMs = frameTimeWindow.length > 0 ? frameTimeWindow.reduce((a, b) => a + b, 0) / frameTimeWindow.length : 16.67
-    lastFrameStats = { changed, total: width * height, bytes: output ? Buffer.byteLength(output) : 0, fps: Math.round(1000 / avgMs) }
+    lastFrameStats = { changed, total: width * height, bytes: output ? Buffer.byteLength(output) : 0, fps: Math.round(1000 / avgMs), renderMs: performance.now() - frameStart }
 
     const tmp = prev
     prev = curr
