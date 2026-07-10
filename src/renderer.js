@@ -1,4 +1,4 @@
-import { createBuffer, clearBuffer, fillRect, writeText, dimBuffer, blitRect } from './buffer.js'
+import { createBuffer, clearBuffer, fillRect, writeText, dimBuffer, dimRect, blitRect } from './buffer.js'
 import { diff } from './diff.js'
 import { bufferToLines } from './serialize.js'
 import { computeLayout, resolveBorderEdges, intrinsicHeight } from './layout.js'
@@ -409,6 +409,10 @@ function paintTree(node, buf, clip, offset, prevBuf) {
       paintTree(child, buf, childClip, childOffset, childPrevBuf)
     }
   }
+
+  // style.dim on a box dims its whole painted region after children render:
+  // the scoped sibling of the overlay backdrop's full-buffer dim
+  if (style.dim) dimRect(buf, clipped.x, clipped.y, clipped.width, clipped.height)
 }
 
 function extractText(node, parentCtx) {

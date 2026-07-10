@@ -129,6 +129,21 @@ export function dimBuffer(buf) {
   }
 }
 
+export function dimRect(buf, x, y, w, h) {
+  const x1 = Math.max(x, 0)
+  const y1 = Math.max(y, 0)
+  const x2 = Math.min(x + w, buf.width)
+  const y2 = Math.min(y + h, buf.height)
+  for (let row = y1; row < y2; row++) {
+    const base = row * buf.width
+    for (let col = x1; col < x2; col++) {
+      const cell = buf.cells[base + col]
+      if (cell.attrs & 2) continue
+      buf.cells[base + col] = { ch: cell.ch, fg: cell.fg, bg: cell.bg, attrs: cell.attrs | 2 }
+    }
+  }
+}
+
 export function copyBuffer(src, dst) {
   const len = Math.min(src.cells.length, dst.cells.length)
   for (let i = 0; i < len; i++) dst.cells[i] = src.cells[i]
