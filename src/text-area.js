@@ -124,7 +124,7 @@ function ensureVisible(cursorRow, scroll, height, totalLines) {
   return scroll
 }
 
-export function TextArea({ onSubmit, onCancel, onChange, onKeyDown, placeholder, focused = true, maxHeight = 10, clearOnSubmit = true, cursor: cursorProp, value: valueProp, submitOnEnter = false }) {
+export function TextArea({ onSubmit, onCancel, onChange, onKeyDown, placeholder, focused = true, maxHeight = 10, clearOnSubmit = true, cursor: cursorProp, value: valueProp, submitOnEnter = false, color }) {
   const [value, setValue] = createSignal('')
   const [cursor, setCursor] = createSignal(0)
   if (valueProp !== undefined && valueProp !== value()) {
@@ -345,7 +345,7 @@ export function TextArea({ onSubmit, onCancel, onChange, onKeyDown, placeholder,
     const hasCursor = focused && row === displayPos.row
 
     if (!hasCursor) {
-      return jsx('text', { key: row, children: content || ' ' })
+      return jsx('text', { key: row, style: color ? { color } : {}, children: content || ' ' })
     }
 
     const cursorIdx = Math.max(line.start, Math.min(c, line.end))
@@ -358,9 +358,9 @@ export function TextArea({ onSubmit, onCancel, onChange, onKeyDown, placeholder,
       key: row,
       style: { flexDirection: 'row', height: 1 },
       children: [
-        before && jsx('text', { children: before }),
+        before && jsx('text', { style: color ? { color } : {}, children: before }),
         jsx('text', { style: cs ?? {}, children: cursorChar }),
-        after && jsx('text', { children: after }),
+        after && jsx('text', { style: color ? { color } : {}, children: after }),
       ],
     })
   })
