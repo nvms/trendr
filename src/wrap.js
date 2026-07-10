@@ -34,7 +34,14 @@ const TAB_STOP = 8
 
 const tabWidth = (col) => TAB_STOP - (col % TAB_STOP)
 
+// text nodes are measured every layout pass but their strings are immutable;
+// transcripts re-measure thousands of identical strings per frame
+const measureCache = new Map()
+const MEASURE_CACHE_MAX = 20000
+
 export function measureText(text) {
+  const hit = measureCache.get(text)
+  if (hit !== undefined) return hit
   const clean = stripAnsi(text)
   let width = 0
   for (let i = 0; i < clean.length; i++) {
@@ -42,6 +49,8 @@ export function measureText(text) {
     if (code > 0xffff) i++
     width += code === 9 ? tabWidth(width) : charWidth(code)
   }
+  if (measureCache.size >= MEASURE_CACHE_MAX) measureCache.clear()
+  measureCache.set(text, width)
   return width
 }
 

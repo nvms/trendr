@@ -97,8 +97,21 @@ function rgbToHex(r, g, b) {
   return '#' + ((1 << 24) + (r << 16) + (g << 8) + b).toString(16).slice(1)
 }
 
-export function parseSgr(params, state) {
-  if (!state) state = { fg: null, bg: null, attrs: 0 }
+// a params string reduces to a state-independent delta: fg/bg values when
+// touched (undefined = untouched), plus and/or masks over attrs. styled text
+// repeats the same handful of sequences thousands of times per frame, so
+// each is parsed once and its delta replayed from cache
+const sgrDeltaCache = new Map()
+const SGR_CACHE_MAX = 4000
+
+const setBit = (delta, bit) => { delta.or |= bit }
+const clearBits = (delta, bits) => { delta.and &= ~bits; delta.or &= ~bits }
+
+function sgrDelta(params) {
+  const cached = sgrDeltaCache.get(params)
+  if (cached) return cached
+
+  const delta = { fg: undefined, bg: undefined, and: ~0, or: 0 }
   const codes = params.split(';').map(Number)
   let i = 0
 
@@ -106,46 +119,58 @@ export function parseSgr(params, state) {
     const c = codes[i]
 
     if (c === 0) {
-      state.fg = null
-      state.bg = null
-      state.attrs = 0
-    } else if (c === 1) state.attrs |= BOLD
-    else if (c === 2) state.attrs |= DIM
-    else if (c === 3) state.attrs |= ITALIC
-    else if (c === 4) state.attrs |= UNDERLINE
-    else if (c === 7) state.attrs |= INVERSE
-    else if (c === 9) state.attrs |= STRIKETHROUGH
-    else if (c === 22) state.attrs &= ~(BOLD | DIM)
-    else if (c === 23) state.attrs &= ~ITALIC
-    else if (c === 24) state.attrs &= ~UNDERLINE
-    else if (c === 27) state.attrs &= ~INVERSE
-    else if (c === 29) state.attrs &= ~STRIKETHROUGH
-    else if (c === 39) state.fg = null
-    else if (c === 49) state.bg = null
+      delta.fg = null
+      delta.bg = null
+      delta.and = 0
+      delta.or = 0
+    } else if (c === 1) setBit(delta, BOLD)
+    else if (c === 2) setBit(delta, DIM)
+    else if (c === 3) setBit(delta, ITALIC)
+    else if (c === 4) setBit(delta, UNDERLINE)
+    else if (c === 7) setBit(delta, INVERSE)
+    else if (c === 9) setBit(delta, STRIKETHROUGH)
+    else if (c === 22) clearBits(delta, BOLD | DIM)
+    else if (c === 23) clearBits(delta, ITALIC)
+    else if (c === 24) clearBits(delta, UNDERLINE)
+    else if (c === 27) clearBits(delta, INVERSE)
+    else if (c === 29) clearBits(delta, STRIKETHROUGH)
+    else if (c === 39) delta.fg = null
+    else if (c === 49) delta.bg = null
     else if (c === 38 && codes[i + 1] === 5) {
-      state.fg = indexToColor(codes[i + 2])
+      delta.fg = indexToColor(codes[i + 2])
       i += 2
     } else if (c === 48 && codes[i + 1] === 5) {
-      state.bg = indexToColor(codes[i + 2])
+      delta.bg = indexToColor(codes[i + 2])
       i += 2
     } else if (c === 38 && codes[i + 1] === 2) {
-      state.fg = rgbToHex(codes[i + 2], codes[i + 3], codes[i + 4])
+      delta.fg = rgbToHex(codes[i + 2], codes[i + 3], codes[i + 4])
       i += 4
     } else if (c === 48 && codes[i + 1] === 2) {
-      state.bg = rgbToHex(codes[i + 2], codes[i + 3], codes[i + 4])
+      delta.bg = rgbToHex(codes[i + 2], codes[i + 3], codes[i + 4])
       i += 4
     } else {
       const fgIdx = basicFgToIndex(c)
-      if (fgIdx != null) state.fg = indexToColor(fgIdx)
+      if (fgIdx != null) delta.fg = indexToColor(fgIdx)
       else {
         const bgIdx = basicBgToIndex(c)
-        if (bgIdx != null) state.bg = indexToColor(bgIdx)
+        if (bgIdx != null) delta.bg = indexToColor(bgIdx)
       }
     }
 
     i++
   }
 
+  if (sgrDeltaCache.size >= SGR_CACHE_MAX) sgrDeltaCache.clear()
+  sgrDeltaCache.set(params, delta)
+  return delta
+}
+
+export function parseSgr(params, state) {
+  if (!state) state = { fg: null, bg: null, attrs: 0 }
+  const delta = sgrDelta(params)
+  if (delta.fg !== undefined) state.fg = delta.fg
+  if (delta.bg !== undefined) state.bg = delta.bg
+  state.attrs = (state.attrs & delta.and) | delta.or
   return state
 }
 

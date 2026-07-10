@@ -38,6 +38,32 @@ function intraSegments(ansiLine, plainLen, ranges) {
   return segs
 }
 
+// components re-execute every frame but diff inputs are immutable strings;
+// recomputing a word diff per card per frame dominates long transcripts.
+// whole mode (before/after strings) is memoized; patch/hunks callers pass
+// fresh objects per render, so they fall through to a direct compute
+const diffMemo = new Map()
+const DIFF_MEMO_MAX = 300
+const hiLineCache = new Map()
+const HI_CACHE_MAX = 2000
+
+function memoComputeDiff({ before, after, patch, hunks, wordDiff, context }) {
+  if (patch != null || hunks != null || before == null || after == null) {
+    return computeDiff({ before, after, patch, hunks, wordDiff, context })
+  }
+  let byAfter = diffMemo.get(before)
+  if (!byAfter) {
+    if (diffMemo.size >= DIFF_MEMO_MAX) diffMemo.clear()
+    diffMemo.set(before, (byAfter = new Map()))
+  }
+  const key = `${wordDiff}|${context}|${after.length}\x00${after.slice(0, 64)}`
+  const inner = byAfter.get(key)
+  if (inner && inner.after === after) return inner.result
+  const result = computeDiff({ before, after, wordDiff, context })
+  byAfter.set(key, { after, result })
+  return result
+}
+
 export function Diff({
   before,
   after,
@@ -62,14 +88,16 @@ export function Diff({
   const offset = offsetProp ?? offsetInternal()
   const setOffset = onScroll ?? setOffsetInternal
 
-  const { rows, stats } = computeDiff({ before, after, patch, hunks, wordDiff, context })
+  const { rows, stats } = memoComputeDiff({ before, after, patch, hunks, wordDiff, context })
 
   const wholeMode = hunks == null && patch == null
-  const hiCache = new Map()
   const hiLines = (text) => {
-    if (hiCache.has(text)) return hiCache.get(text)
+    const key = `${language}\x00${text}`
+    const cached = hiLineCache.get(key)
+    if (cached) return cached
     const lines = (highlight ? highlight(text, language) : text).split('\n')
-    hiCache.set(text, lines)
+    if (hiLineCache.size >= HI_CACHE_MAX) hiLineCache.clear()
+    hiLineCache.set(key, lines)
     return lines
   }
   const beforeHi = wholeMode && highlight ? hiLines(before ?? '') : null
