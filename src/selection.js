@@ -65,7 +65,7 @@ export function useSelection({ onCopy, copy = true } = {}) {
       state.dragging = false
       if (ctx.selection) {
         ctx.selection = null
-        ctx.repaint()
+        ctx.requestFrame()
       }
       return
     }
@@ -73,7 +73,7 @@ export function useSelection({ onCopy, copy = true } = {}) {
     if (event.action === 'drag' && state.anchor) {
       state.dragging = true
       ctx.selection = normalize(state.anchor, { x: event.x, y: event.y })
-      ctx.repaint()
+      ctx.requestFrame()
       return
     }
 
@@ -81,7 +81,7 @@ export function useSelection({ onCopy, copy = true } = {}) {
       if (state.dragging && ctx.selection) {
         const text = extractSelectionText(ctx.getPaintBuffer(), ctx.selection)
         ctx.selection = null
-        ctx.repaint()
+        ctx.requestFrame()
         if (text) {
           if (copy) ctx.stream.write(osc52Copy(text))
           if (onCopy) onCopy(text)

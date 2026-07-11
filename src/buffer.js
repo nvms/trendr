@@ -159,5 +159,8 @@ export function blitRect(src, dst, x, y, w, h) {
     for (let col = x1; col < x2; col++) {
       dst.cells[base + col] = src.cells[base + col]
     }
+    // softWrap is per-row metadata set at text paint time; a blitted clean
+    // subtree must carry its wrap flags or selection re-joins lines wrongly
+    if (src.softWrap[row]) dst.softWrap[row] = 1
   }
 }

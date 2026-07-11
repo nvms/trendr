@@ -1069,10 +1069,13 @@ export function mount(rootComponent, { stream, stdin, title, theme, onExit: onEx
 
     const { output, changed } = diff(prev, curr)
     if (changed > 0) {
-      out.write(ansi.hideCursor)
+      // synchronized output (dec 2026): supporting terminals apply the whole
+      // frame atomically instead of tearing mid-write; others ignore it
+      out.write(ansi.beginSync + ansi.hideCursor)
       // diff() returns a view into a shared double buffer that gets reused two
       // frames later; write a copy so backpressured streams never see it mutate
       out.write(Buffer.from(output))
+      out.write(ansi.endSync)
     }
 
     const now = performance.now()
@@ -1227,6 +1230,10 @@ export function mount(rootComponent, { stream, stdin, title, theme, onExit: onEx
   }
 
   ctx.repaint = repaint
+  // gentle sibling of repaint: schedules a normal diffed frame with no
+  // clear-screen; right for overlay state like selection that frame()
+  // already applies each pass
+  ctx.requestFrame = () => scheduler.forceFrame()
   ctx.getPaintBuffer = () => (inline ? lastInlineBuf : prev)
 
   return { unmount, repaint, setTheme, getBuffer: ctx.getPaintBuffer }

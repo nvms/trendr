@@ -19,6 +19,9 @@ export const sgrReset = `${ESC}0m`
 export const setTitle = (title) => `\x1b]2;${title}\x07`
 export const osc52Copy = (text) => `\x1b]52;c;${Buffer.from(text, 'utf8').toString('base64')}\x07`
 
+export const beginSync = `${ESC}?2026h`
+export const endSync = `${ESC}?2026l`
+
 export const enableMouse = `${ESC}?1003h${ESC}?1006h`
 export const disableMouse = `${ESC}?1003l${ESC}?1006l`
 
