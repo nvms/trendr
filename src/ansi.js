@@ -28,6 +28,9 @@ export const ITALIC = 4
 export const UNDERLINE = 8
 export const INVERSE = 16
 export const STRIKETHROUGH = 32
+// never emitted as sgr: marks ui chrome cells (scrollbars, counters) that
+// text selection should skip when extracting copy text
+export const COPY_IGNORE = 64
 
 const ATTR_CODES = [
   [BOLD, '1'],

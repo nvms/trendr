@@ -190,7 +190,7 @@ export function List({ items = [], selected: selectedProp, onSelect, onCursorCha
     barChildren.push(
       jsx('text', {
         key: i,
-        style: { color: isThumb ? (focused ? accent : muted) : muted, dim: !isThumb },
+        style: { color: isThumb ? (focused ? accent : muted) : muted, dim: !isThumb, copyIgnore: true },
         children: isThumb ? '\u2588' : '\u2502',
       })
     )

@@ -98,6 +98,7 @@ function resolveAttrs(style) {
   if (style.underline) attrs |= ansi.UNDERLINE
   if (style.inverse) attrs |= ansi.INVERSE
   if (style.strikethrough) attrs |= ansi.STRIKETHROUGH
+  if (style.copyIgnore) attrs |= ansi.COPY_IGNORE
   return attrs
 }
 

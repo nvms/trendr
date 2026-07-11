@@ -236,7 +236,7 @@ export function Diff({
       const isThumb = i >= thumbStart && i < thumbStart + thumbH
       bar.push(jsx('text', {
         key: i,
-        style: { color: isThumb ? palette.lineNo : palette.lineNo, dim: !isThumb },
+        style: { color: palette.lineNo, dim: !isThumb, copyIgnore: true },
         children: isThumb ? '█' : '│',
       }))
     }

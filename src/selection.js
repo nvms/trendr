@@ -1,6 +1,6 @@
 import { useMouse } from './hooks.js'
 import { getContext, registerHook } from './renderer.js'
-import { osc52Copy } from './ansi.js'
+import { osc52Copy, COPY_IGNORE } from './ansi.js'
 
 function normalize(a, b) {
   const forward = a.y < b.y || (a.y === b.y && a.x <= b.x)
@@ -22,8 +22,10 @@ export function extractSelectionText(buf, sel) {
     const to = y === sel.ey ? Math.min(sel.ex, buf.width - 1) : buf.width - 1
     let text = ''
     for (let x = 0; x <= to; x++) {
-      const ch = buf.cells[y * buf.width + x].ch
-      if (ch === '') continue
+      const cell = buf.cells[y * buf.width + x]
+      if (cell.ch === '') continue
+      // chrome cells (scrollbars, counters) never belong in copied text
+      const ch = cell.attrs & COPY_IGNORE ? ' ' : cell.ch
       text += y === sel.sy && x < sel.sx ? ' ' : ch
     }
     rows.push({ text: text.replace(/\s+$/, ''), soft: !!buf.softWrap[y] })

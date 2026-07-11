@@ -93,7 +93,7 @@ export function ScrollBox({ children, focused = true, scrollOffset: offsetProp, 
       barChildren.push(
         jsx('text', {
           key: i,
-          style: { color: isThumb ? (focused ? accent : muted) : muted, dim: !isThumb },
+          style: { color: isThumb ? (focused ? accent : muted) : muted, dim: !isThumb, copyIgnore: true },
           children: isThumb ? thumbChar : trackChar,
         })
       )

@@ -126,7 +126,7 @@ export function Dropdown({ items, cursor, scroll, visibleCount, width, onSubmit,
       children: [
         content,
         jsx('text', {
-          style: { color: barIsThumb ? s.accent : muted, dim: !barIsThumb },
+          style: { color: barIsThumb ? s.accent : muted, dim: !barIsThumb, copyIgnore: true },
           children: ' ' + (barIsThumb ? '█' : '│'),
         }),
       ],

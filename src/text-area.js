@@ -372,7 +372,7 @@ export function TextArea({ onSubmit, onCancel, onChange, onKeyDown, placeholder,
   const counter = counterActive
     ? jsx('box', {
         style: { flexDirection: 'row', height: 1 },
-        children: jsx('text', { style: { color: muted, dim: true }, children: `${displayPos.row + 1}/${lineMap.length}` }),
+        children: jsx('text', { style: { color: muted, dim: true, copyIgnore: true }, children: `${displayPos.row + 1}/${lineMap.length}` }),
       })
     : null
 

@@ -89,7 +89,7 @@ export function ScrollableText({ content = '', focused = true, scrollOffset: off
       style: { flexDirection: 'row', height: 1 },
       children: [
         jsx('text', { style: { flexGrow: 1, ...textStyle }, children: line || ' ' }),
-        jsx('text', { style: { color: barColor, dim: !isThumb }, children: ' ' + barChar }),
+        jsx('text', { style: { color: barColor, dim: !isThumb, copyIgnore: true }, children: ' ' + barChar }),
       ],
     })
   })

@@ -927,3 +927,41 @@ suite('useSelection ignores plain clicks')
 
 console.log(`\n${passed} passed, ${failed} failed`)
 process.exit(failed > 0 ? 1 : 0)
+
+suite('useSelection skips chrome cells marked copyIgnore')
+{
+  const out = new FakeStream(24, 6)
+  const inp = new FakeInput()
+
+  let copied = null
+
+  function App() {
+    useSelection({ onCopy: (t) => { copied = t } })
+    return jsxs('box', {
+      style: { flexDirection: 'row' },
+      children: [
+        jsx('box', { style: { flexGrow: 1, flexDirection: 'column' }, children: [
+          jsx('text', { children: 'first line' }),
+          jsx('text', { children: 'second line' }),
+        ] }),
+        jsx('box', { style: { width: 1, flexDirection: 'column' }, children: [
+          jsx('text', { style: { copyIgnore: true }, children: '│' }),
+          jsx('text', { style: { copyIgnore: true }, children: '█' }),
+        ] }),
+      ],
+    })
+  }
+
+  const { unmount } = mount(App, { stream: out, stdin: inp })
+  await tick()
+
+  inp.send('\x1b[<0;1;1M')
+  inp.send('\x1b[<32;24;2M')
+  await tick()
+  inp.send('\x1b[<0;24;2m')
+  await tick()
+
+  assertEq(copied, 'first line\nsecond line', 'scrollbar chars and padding excluded from copy')
+
+  unmount()
+}
