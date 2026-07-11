@@ -124,7 +124,7 @@ function ensureVisible(cursorRow, scroll, height, totalLines) {
   return scroll
 }
 
-export function TextArea({ onSubmit, onCancel, onChange, onKeyDown, placeholder, focused = true, maxHeight = 10, clearOnSubmit = true, cursor: cursorProp, value: valueProp, submitOnEnter = false, color }) {
+export function TextArea({ onSubmit, onCancel, onChange, onKeyDown, placeholder, focused = true, maxHeight = 10, clearOnSubmit = true, cursor: cursorProp, value: valueProp, submitOnEnter = false, color, lineCounter = false }) {
   const [value, setValue] = createSignal('')
   const [cursor, setCursor] = createSignal(0)
   if (valueProp !== undefined && valueProp !== value()) {
@@ -365,8 +365,17 @@ export function TextArea({ onSubmit, onCancel, onChange, onKeyDown, placeholder,
     })
   })
 
+  // shown only when content overflows the visible box: how much text there
+  // is and where the cursor sits in it, without the geometry of a scrollbar
+  const counter = lineCounter && lineMap.length > displayHeight
+    ? jsx('text', {
+        style: { position: 'absolute', bottom: 0, right: 0, color: muted, dim: true },
+        children: `${displayPos.row + 1}/${lineMap.length}`,
+      })
+    : null
+
   return jsx('box', {
     style: { flexDirection: 'column', height: displayHeight, minHeight: 1, flexGrow: 1 },
-    children: rows,
+    children: counter ? [...rows, counter] : rows,
   })
 }
