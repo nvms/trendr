@@ -319,7 +319,11 @@ export function TextArea({ onSubmit, onCancel, onChange, onKeyDown, placeholder,
   const lineMap = wrapForEditor(v, effectiveWidth)
   const displayPos = cursorToDisplay(c, lineMap, v)
 
-  const displayHeight = Math.max(1, Math.min(lineMap.length, maxHeight))
+  // an active counter reserves the bottom row for itself so it can never
+  // overlap text or the cursor; overflow state costs one visible text row
+  const counterActive = lineCounter && lineMap.length > maxHeight
+  const boxMax = counterActive ? Math.max(1, maxHeight - 1) : maxHeight
+  const displayHeight = Math.max(1, Math.min(lineMap.length, boxMax))
   ref.scroll = ensureVisible(displayPos.row, ref.scroll, displayHeight, lineMap.length)
   const scroll = ref.scroll
 
@@ -365,17 +369,18 @@ export function TextArea({ onSubmit, onCancel, onChange, onKeyDown, placeholder,
     })
   })
 
-  // shown only when content overflows the visible box: how much text there
-  // is and where the cursor sits in it, without the geometry of a scrollbar
-  const counter = lineCounter && lineMap.length > displayHeight
-    ? jsx('text', {
-        style: { position: 'absolute', bottom: 0, right: 0, color: muted, dim: true },
-        children: `${displayPos.row + 1}/${lineMap.length}`,
+  const counter = counterActive
+    ? jsxs('box', {
+        style: { flexDirection: 'row', height: 1 },
+        children: [
+          jsx('box', { style: { flexGrow: 1 } }),
+          jsx('text', { style: { color: muted, dim: true }, children: `${displayPos.row + 1}/${lineMap.length}` }),
+        ],
       })
     : null
 
   return jsx('box', {
-    style: { flexDirection: 'column', height: displayHeight, minHeight: 1, flexGrow: 1 },
+    style: { flexDirection: 'column', height: displayHeight + (counterActive ? 1 : 0), minHeight: 1, flexGrow: 1 },
     children: counter ? [...rows, counter] : rows,
   })
 }
