@@ -127,6 +127,19 @@ suite('parseMouse - extended buttons do not alias onto left/middle')
   assertEq(m.direction, 'up', 'wheel up unaffected')
 }
 
+suite('parseMouse - buttonless motion is move')
+{
+  const m = parseMouse('\x1b[<35;5;3M')
+  assertEq(m.action, 'move', 'buttonless motion is move')
+  assertEq(m.x, 4, 'move x is zero-based')
+  assertEq(m.y, 2, 'move y is zero-based')
+  assert(!('button' in m), 'move has no button')
+
+  const drag = parseMouse('\x1b[<32;5;3M')
+  assertEq(drag.action, 'drag', 'button motion remains drag')
+  assertEq(drag.button, 'left', 'drag preserves button')
+}
+
 // =========================================================================
 // INPUT HANDLER - cross-chunk buffering, paste, esc timer
 // =========================================================================
@@ -183,6 +196,17 @@ suite('handler - sgr mouse split across chunks')
   assertEq(h.mice.length, 1, 'one mouse event')
   assertEq(h.mice[0].action, 'press', 'mouse press')
   assertEq(h.mice[0].button, 'left', 'left button')
+  assertEq(h.keys.length, 0, 'no literal key events leaked')
+}
+
+suite('handler - buttonless mouse motion')
+{
+  const h = makeHandler()
+  h.send('\x1b[<35;9;4M')
+  assertEq(h.mice.length, 1, 'one move event')
+  assertEq(h.mice[0].action, 'move', 'handler dispatches move')
+  assertEq(h.mice[0].x, 8, 'move x dispatched')
+  assertEq(h.mice[0].y, 3, 'move y dispatched')
   assertEq(h.keys.length, 0, 'no literal key events leaked')
 }
 

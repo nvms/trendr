@@ -305,15 +305,15 @@ const { status, data } = useAsync(fetchUsers, { immediate: true })
 
 ```jsx
 useMouse((event) => {
-  // event.action: 'press' | 'release' | 'drag' | 'scroll'
-  // event.button: 'left' | 'middle' | 'right' (press/release only)
-  // event.direction: 'up' | 'down' (scroll only)
+  // event.action: 'press' | 'release' | 'drag' | 'move' | 'scroll'
+  // event.button: 'left' | 'middle' | 'right' (press/release/drag only)
+  // event.direction: 'up' | 'down' | 'left' | 'right' (scroll only)
   // event.x, event.y: 0-based terminal coordinates
   // event.stopPropagation(): prevent other handlers from receiving this event
 })
 ```
 
-Mouse is enabled automatically. Built-in components support click, scroll wheel, and scrollbar dragging.
+Mouse is enabled automatically. Passive pointer movement is reported as `move`, so it can be combined with `useLayout()` to derive hover state. Built-in components support click, scroll wheel, and scrollbar dragging.
 
 ### useStdout
 

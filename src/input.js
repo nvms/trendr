@@ -53,6 +53,8 @@ export function parseMouse(raw) {
     return { type: 'mouse', action: 'scroll', direction, x, y }
   }
 
+  if (motion && button === 3) return { type: 'mouse', action: 'move', x, y }
+
   const buttonName = extended
     ? (button === 0 ? 'back' : button === 1 ? 'forward' : button === 2 ? 'button10' : 'button11')
     : (button === 0 ? 'left' : button === 1 ? 'middle' : 'right')
