@@ -314,8 +314,10 @@ function measureIntrinsic(node, availW, availH) {
   const innerW = availW - chrome.x
   const innerH = availH - chrome.y
 
-  const children = node._resolvedChildren
-  if (!children || children.length === 0) {
+  // absolute children are excluded from flow layout, so they must not
+  // contribute to intrinsic size either, or a hover overlay grows its parent
+  const children = (node._resolvedChildren || []).filter((c) => childStyle(c).position !== 'absolute')
+  if (children.length === 0) {
     return { width: chrome.x, height: chrome.y }
   }
 
