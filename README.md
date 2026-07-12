@@ -313,7 +313,39 @@ useMouse((event) => {
 })
 ```
 
-Mouse is enabled automatically. Passive pointer movement is reported as `move`, so it can be combined with `useLayout()` to derive hover state. Built-in components support click, scroll wheel, and scrollbar dragging.
+Mouse is enabled automatically. Passive pointer movement is reported as `move`; combine it with `useHitTest()` to derive hover state. Built-in components support click, scroll wheel, and scrollbar dragging.
+
+### useHitTest
+
+Mouse events carry terminal coordinates, but `useLayout()` returns logical content-space coordinates - the two disagree inside any scrolled or clipped container. `useHitTest()` returns a function that tests terminal coordinates against the component's final painted, clipped rectangle, with ancestor scroll offsets applied.
+
+```jsx
+function Hoverable({ children, action, onAction }) {
+  const hitTest = useHitTest()
+  const [hovered, setHovered] = createSignal(false)
+
+  useMouse((event) => {
+    if (event.action === 'move') setHovered(hitTest(event.x, event.y))
+    if (event.action === 'press' && event.button === 'left' && hovered() && hitTest(event.x, event.y)) {
+      onAction()
+      event.stopPropagation()
+    }
+  })
+
+  return (
+    <box>
+      {children}
+      {hovered() && (
+        <box style={{ position: 'absolute', top: 0, right: 1 }}>
+          <text style={{ inverse: true }}>{` ${action} `}</text>
+        </box>
+      )}
+    </box>
+  )
+}
+```
+
+The returned function stays accurate across scrolling, resizing, and relayout, and returns `false` once the component unmounts. It answers geometric containment only - focus and z-order stay with the input system. Never bounds-check mouse events against `useLayout()`; inside a scrolled viewport that either misses real hits or, worse, captures events belonging to other components.
 
 ### useStdout
 
