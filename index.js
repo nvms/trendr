@@ -1,7 +1,7 @@
 export { mount, registerOverlay } from './src/renderer.js'
 export { createSignal } from './src/signal.js'
 export { createEffect, createMemo, batch, untrack, onCleanup } from './src/signal.js'
-export { useInput, useMouse, useResize, useInterval, useTimeout, useLayout, useStdout, useRepaint, useTitle, useTheme, useCursor, useFrameStats, useAsync } from './src/hooks.js'
+export { useInput, useMouse, useResize, useInterval, useTimeout, useLayout, useHitTest, useStdout, useRepaint, useTitle, useTheme, useCursor, useFrameStats, useAsync } from './src/hooks.js'
 export { Box, Text, Spacer } from './src/components.js'
 export { TextInput } from './src/text-input.js'
 export { TextArea } from './src/text-area.js'

@@ -1,5 +1,5 @@
 import { EventEmitter } from 'events'
-import { mount, createSignal, useInput } from '../index.js'
+import { mount, createSignal, useInput, useHitTest } from '../index.js'
 import { List } from '../src/list.js'
 import { Table } from '../src/table.js'
 import { Select } from '../src/select.js'
@@ -12,6 +12,7 @@ import { ProgressBar } from '../src/progress.js'
 import { ease, linear, animated } from '../src/animation.js'
 import { Markdown, parseBlocks } from '../src/markdown.js'
 import { useSelection } from '../src/selection.js'
+import { ScrollBox } from '../src/scroll-box.js'
 import { jsx, jsxs } from '../jsx-runtime.js'
 
 let passed = 0
@@ -925,8 +926,6 @@ suite('useSelection ignores plain clicks')
 
 // ----
 
-console.log(`\n${passed} passed, ${failed} failed`)
-process.exit(failed > 0 ? 1 : 0)
 
 suite('useSelection skips chrome cells marked copyIgnore')
 {
@@ -965,3 +964,60 @@ suite('useSelection skips chrome cells marked copyIgnore')
 
   unmount()
 }
+
+suite('useHitTest uses painted, scrolled, clipped geometry')
+{
+  const out = new FakeStream(40, 3)
+  const inp = new FakeInput()
+
+  let hitProbe = null
+  const [offset, setOffset] = createSignal(0)
+  const [tick2, setTick2] = createSignal(0)
+
+  function Target() {
+    const hitTest = useHitTest()
+    hitProbe = hitTest
+    return jsx('text', { children: 'target line' })
+  }
+
+  function App() {
+    tick2()
+    return jsx(ScrollBox, {
+      style: { flexGrow: 1 },
+      focused: false,
+      scrollOffset: offset(),
+      onScroll: () => {},
+      children: [
+        jsx('text', { key: 'a', children: 'row zero' }),
+        jsx('text', { key: 'b', children: 'row one' }),
+        jsx('text', { key: 'c', children: 'row two' }),
+        jsx('text', { key: 'd', children: 'row three' }),
+        jsx(Target, { key: 't' }),
+      ],
+    })
+  }
+
+  const { unmount } = mount(App, { stream: out, stdin: inp })
+  await tick()
+
+  assert(hitProbe(0, 4) === false, 'below the fold: logical position does not hit')
+  assert(hitProbe(0, 0) === false, 'below the fold: viewport top does not hit')
+
+  setOffset(2)
+  await tick()
+
+  assertEq(hitProbe(0, 2), true, 'scrolled into view: painted row hits')
+  assertEq(hitProbe(0, 4), false, 'old logical position no longer hits')
+  assertEq(hitProbe(39, 2), true, 'component hit area spans its allocated row')
+  assertEq(hitProbe(40, 2), false, 'half-open right edge does not hit')
+
+  setTick2(1)
+  await tick()
+  assertEq(hitProbe(0, 2), true, 'rect survives an unrelated re-render (blit path)')
+
+  unmount()
+  assertEq(hitProbe(0, 2), false, 'retained hitTest returns false after unmount')
+}
+
+console.log(`\n${passed} passed, ${failed} failed`)
+process.exit(failed > 0 ? 1 : 0)

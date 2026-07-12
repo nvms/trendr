@@ -60,6 +60,18 @@ export function useLayout() {
   return getInstanceLayout()
 }
 
+// terminal-space hit testing: tests mouse coordinates against the component's
+// final painted, clipped rectangle - unlike useLayout, which is logical
+// content space and knows nothing of ancestor scroll offsets or clipping
+export function useHitTest() {
+  const state = registerHook(() => ({ owner: getCurrentHookOwner() }))
+  return (x, y) => {
+    const rect = state.owner?._paintedRect
+    if (!rect) return false
+    return x >= rect.x && x < rect.x + rect.width && y >= rect.y && y < rect.y + rect.height
+  }
+}
+
 export function useTheme() {
   return getTheme()
 }

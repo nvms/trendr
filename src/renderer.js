@@ -319,6 +319,23 @@ function paintTree(node, buf, clip, offset, prevBuf) {
 
   if (node._resolved) {
     const inst = node._instance
+    // painted terminal-space geometry for useHitTest: logical layout plus
+    // accumulated ancestor paint offset, intersected with the active clip.
+    // recorded before the blit fast-path so clean subtrees stay hit-testable
+    if (inst) {
+      const lay = node._resolved?._layout ?? node._layout
+      if (lay && lay.width > 0 && lay.height > 0) {
+        const painted = offset
+          ? { x: lay.x + offset.x, y: lay.y + offset.y, width: lay.width, height: lay.height }
+          : lay
+        const vis = clip ? clipRect(painted, clip) : painted
+        inst._paintedRect = vis.width > 0 && vis.height > 0
+          ? { x: vis.x, y: vis.y, width: vis.width, height: vis.height }
+          : null
+      } else {
+        inst._paintedRect = null
+      }
+    }
     if (prevBuf && inst && !inst._subtreeDirty) {
       const layout = node._resolved?._layout ?? node._layout
       if (layout && layoutEqual(layout, inst._lastLayout)) {
@@ -913,6 +930,7 @@ export function mount(rootComponent, { stream, stdin, title, theme, onExit: onEx
 
     for (const [key, inst] of instances) {
       if (!visited.has(key)) {
+        inst._paintedRect = null
         disposeScope(inst.scope)
         instances.delete(key)
       }
@@ -1060,6 +1078,7 @@ export function mount(rootComponent, { stream, stdin, title, theme, onExit: onEx
 
     for (const [key, inst] of instances) {
       if (!visited.has(key)) {
+        inst._paintedRect = null
         disposeScope(inst.scope)
         instances.delete(key)
       }
@@ -1173,6 +1192,7 @@ export function mount(rootComponent, { stream, stdin, title, theme, onExit: onEx
     process.off('SIGHUP', onSighup)
 
     for (const inst of instances.values()) {
+      inst._paintedRect = null
       disposeScope(inst.scope)
     }
     instances.clear()
