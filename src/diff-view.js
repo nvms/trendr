@@ -1,6 +1,6 @@
 import { jsx, jsxs } from '../jsx-runtime.js'
 import { createSignal } from './signal.js'
-import { useInput, useMouse, useLayout, useScrollDrag } from './hooks.js'
+import { useInput, useMouse, useLayout, useHitTest, useScrollDrag } from './hooks.js'
 import { sliceVisibleRange } from './wrap.js'
 import { computeDiff } from './diff-engine.js'
 
@@ -141,10 +141,12 @@ export function Diff({
     else if (key === 'end' || key === 'G') setOffset(maxOffset)
   })
 
+  const hitTest = useHitTest()
   useMouse((event) => {
     if (event.action !== 'scroll' || rows.length <= h) return
-    const { x, y } = event
-    if (x < layout.x || x >= layout.x + layout.width || y < layout.y || y >= layout.y + layout.height) return
+    // painted-geometry bounds: logical layout coords are wrong for a diff
+    // inside a scrolled container and would swallow wheel events meant for it
+    if (!hitTest(event.x, event.y)) return
     if (event.direction !== 'up' && event.direction !== 'down') return
     setOffset(clamp(clamped + (event.direction === 'up' ? -3 : 3)))
     event.stopPropagation()
