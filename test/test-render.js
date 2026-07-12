@@ -1,5 +1,5 @@
 import { EventEmitter } from 'events'
-import { mount, createSignal, createEffect, useInput, useFocus, useTheme } from '../index.js'
+import { mount, createSignal, createEffect, useInput, useMouse, useFocus, useTheme } from '../index.js'
 import { TextInput } from '../src/text-input.js'
 import { TextArea } from '../src/text-area.js'
 import { List } from '../src/list.js'
@@ -1374,6 +1374,43 @@ suite('Diff scrolls with j/k when focused')
   await tick()
   const bottom = gridText(parseScreen(out.output, 40, 4))
   assert(bottom.includes('appended'), 'jumps to the appended line at the bottom')
+
+  unmount()
+}
+
+suite('Diff bubbles wheel scroll at its boundaries')
+{
+  const out = new FakeStream(40, 4)
+  const inp = new FakeInput()
+  const before = Array.from({ length: 30 }, (_, i) => `line ${i}`).join('\n')
+  const after = before + '\nappended'
+  let parentScrolls = 0
+
+  function App() {
+    useMouse((event) => {
+      if (event.action === 'scroll') parentScrolls++
+    })
+    return jsx(Diff, { before, after, focused: false, scrollbar: false })
+  }
+
+  const { unmount } = mount(App, { stream: out, stdin: inp, altScreen: false })
+  await tick()
+
+  inp.send('\x1b[<64;5;3M'); await tick()
+  assertEq(parentScrolls, 1, 'wheel up bubbles at the top boundary')
+
+  inp.send('\x1b[<65;5;3M'); await tick()
+  assertEq(parentScrolls, 1, 'wheel down is consumed while diff can scroll')
+
+  for (let i = 0; i < 20; i++) {
+    inp.send('\x1b[<65;5;3M')
+    await tick()
+  }
+  assert(parentScrolls > 1, 'wheel down bubbles after reaching the bottom boundary')
+
+  const atBottom = parentScrolls
+  inp.send('\x1b[<64;5;3M'); await tick()
+  assertEq(parentScrolls, atBottom, 'wheel up is consumed while diff can scroll')
 
   unmount()
 }

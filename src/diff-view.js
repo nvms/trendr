@@ -148,7 +148,9 @@ export function Diff({
     // inside a scrolled container and would swallow wheel events meant for it
     if (!hitTest(event.x, event.y)) return
     if (event.direction !== 'up' && event.direction !== 'down') return
-    setOffset(clamp(clamped + (event.direction === 'up' ? -3 : 3)))
+    const next = clamp(clamped + (event.direction === 'up' ? -3 : 3))
+    if (next === clamped) return
+    setOffset(next)
     event.stopPropagation()
   })
 
