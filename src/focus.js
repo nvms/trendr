@@ -79,13 +79,14 @@ export function useFocus({ initial, cycle = 'tab' } = {}) {
     return state.items.filter(i => i.gen === state.gen).sort((a, b) => a.seq - b.seq)
   }
 
-  function item(name) {
+  function item(name, layout) {
     const existing = state.items.find(i => i.name === name)
     if (existing) {
       existing.gen = state.gen
       existing.seq = state.seq++
+      existing.layout = layout
     } else {
-      state.items.push({ name, type: 'item', gen: state.gen, seq: state.seq++ })
+      state.items.push({ name, type: 'item', gen: state.gen, seq: state.seq++, layout })
     }
     if (state.current() == null) state.setCurrent(name)
   }
@@ -157,6 +158,11 @@ export function useFocus({ initial, cycle = 'tab' } = {}) {
     return state.current()
   }
 
+  function currentLayout() {
+    const name = state.current()
+    return state.items.find(i => i.name === name)?.layout ?? null
+  }
+
   function findTopLevel(cur, items) {
     const parent = state.nameToParent.get(cur)
     if (parent) return items.findIndex(i => i.name === parent)
@@ -220,5 +226,5 @@ export function useFocus({ initial, cycle = 'tab' } = {}) {
     }
   })
 
-  return { item, group, is, focus, push, pop, current }
+  return { item, group, is, focus, push, pop, current, currentLayout }
 }
