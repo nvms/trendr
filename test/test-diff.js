@@ -386,7 +386,7 @@ suite('Diff - zero-height layout renders no rows')
   await new Promise(r => setTimeout(r, 100))
   unmount()
 
-  const rowCounts = captured.map(t => t.props.children.length)
+  const rowCounts = captured.map((tree) => tree.props.children.props.children.length)
   assertEq(rowCounts[0], 0, 'first resolve with zero layout renders no rows')
   const settled = rowCounts[rowCounts.length - 1]
   assert(settled > 0 && settled <= 10, `settled resolve renders at most viewport rows, got ${settled}`)

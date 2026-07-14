@@ -1,5 +1,5 @@
 import { EventEmitter } from 'events'
-import { mount, createSignal, useInput, useHitTest } from '../index.js'
+import { CodeBlock, HorizontalScrollBox, mount, createSignal, useInput, useHitTest } from '../index.js'
 import { List } from '../src/list.js'
 import { Table } from '../src/table.js'
 import { Select } from '../src/select.js'
@@ -802,6 +802,65 @@ suite('Markdown tolerates an unclosed fence while streaming')
   assertEq(blocks.length, 2, 'two blocks parsed')
   assertEq(blocks[1].type, 'code', 'unclosed fence still becomes a code block')
   assertEq(blocks[1].lines.join('\n'), 'const a = 1', 'partial code content kept')
+}
+
+suite('Markdown accepts a code block component')
+{
+  const out = new FakeStream(40, 6)
+  const inp = new FakeInput()
+  let received
+
+  function CustomCodeBlock(props) {
+    received = props
+    return jsx('text', { children: `${props.language}:${props.value}` })
+  }
+
+  function App() {
+    return jsx(Markdown, {
+      text: '```md\nlong markdown text\n```',
+      codeBlock: CustomCodeBlock,
+      highlight: () => 'highlighted',
+      codeBg: 'blue',
+    })
+  }
+
+  const { getBuffer, unmount } = mount(App, { stream: out, stdin: inp, altScreen: false })
+  await tick()
+  assert(screenOf(getBuffer).includes('md:long markdown text'), 'custom component rendered the code block')
+  assertEq(received.language, 'md', 'custom component receives language')
+  assertEq(received.value, 'long markdown text', 'custom component receives raw value')
+  assertEq(received.codeBg, 'blue', 'custom component receives code background')
+  assert(typeof received.highlight === 'function', 'custom component receives highlighter')
+  unmount()
+}
+
+suite('CodeBlock is exported')
+{
+  assert(typeof CodeBlock === 'function', 'default code block component is available for reuse')
+}
+
+suite('HorizontalScrollBox scrolls horizontally under the pointer')
+{
+  const out = new FakeStream(12, 3)
+  const inp = new FakeInput()
+
+  function App() {
+    return jsx(HorizontalScrollBox, {
+      contentWidth: 20,
+      children: jsx('text', { style: { overflow: 'nowrap' }, children: 'abcdefghijklmnopqrst' }),
+    })
+  }
+
+  const { getBuffer, unmount } = mount(App, { stream: out, stdin: inp, altScreen: false })
+  await tick()
+  assert(screenOf(getBuffer).includes('abcdefghijk›'), 'initial view shows the start and right indicator')
+  inp.send('\x1b[<67;5;1M')
+  await tick()
+  assert(screenOf(getBuffer).includes('‹efghijklmn›'), 'wheel right reveals later content')
+  inp.send('\x1b[<66;5;1M')
+  await tick()
+  assert(screenOf(getBuffer).includes('abcdefghijk›'), 'wheel left returns toward the start')
+  unmount()
 }
 
 suite('Markdown renders headings, lists, and inline styles')

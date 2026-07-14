@@ -1,8 +1,9 @@
 import { jsx, jsxs } from '../jsx-runtime.js'
 import { createSignal } from './signal.js'
 import { useInput, useMouse, useLayout, useHitTest, useScrollDrag } from './hooks.js'
-import { sliceVisibleRange } from './wrap.js'
+import { measureText, sliceVisibleRange } from './wrap.js'
 import { computeDiff } from './diff-engine.js'
+import { HorizontalScrollBox } from './horizontal-scroll-box.js'
 
 const PALETTE = {
   addBg: '#10301a', addGutterBg: '#0a2412', addIntraBg: '#1f6e34', addMarker: '#7ee787',
@@ -120,6 +121,8 @@ export function Diff({
 
   const oldW = digits(rows, 'oldNo')
   const newW = digits(rows, 'newNo')
+  const gutterWidth = lineNumbers ? oldW + newW + 6 : 2
+  const contentWidth = gutterWidth + Math.max(0, ...rows.map((row) => measureText(row.text ?? '')))
 
   const headerH = filename ? 1 : 0
   const h = Math.max(0, layout.height - headerH)
@@ -227,6 +230,11 @@ export function Diff({
 
   const visible = h > 0 ? rows.slice(clamped, clamped + h) : []
   const bodyRows = visible.map((row, i) => renderRow(row, clamped + i))
+  const scrollableRows = jsx(HorizontalScrollBox, {
+    contentWidth,
+    style: { flexDirection: 'column', flexGrow: 1 },
+    children: jsx('box', { style: { flexDirection: 'column' }, children: bodyRows }),
+  })
 
   let body
   if (rows.length === 0) {
@@ -247,12 +255,12 @@ export function Diff({
     body = jsxs('box', {
       style: { flexDirection: 'row', flexGrow: 1 },
       children: [
-        jsx('box', { style: { flexDirection: 'column', flexGrow: 1 }, children: bodyRows }),
+        scrollableRows,
         jsx('box', { style: { flexDirection: 'column', width: barW }, children: bar }),
       ],
     })
   } else {
-    body = jsx('box', { style: { flexDirection: 'column', flexGrow: 1 }, children: bodyRows })
+    body = scrollableRows
   }
 
   if (!filename) return body

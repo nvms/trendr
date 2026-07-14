@@ -220,14 +220,14 @@ function clearOverlayRect(overlayTree, buf) {
   fillRect(buf, rect.x, rect.y, rect.width, rect.height, ' ', null, null, 0)
 }
 
-function findScrollContentHeight(node) {
+function findScrollContentSize(node, field) {
   if (!node) return null
-  if (node._contentHeight != null) return node._contentHeight
-  if (node._resolved) return findScrollContentHeight(node._resolved)
+  if (node[field] != null) return node[field]
+  if (node._resolved) return findScrollContentSize(node._resolved, field)
   if (node._resolvedChildren) {
     for (const child of node._resolvedChildren) {
-      const h = findScrollContentHeight(child)
-      if (h != null) return h
+      const size = findScrollContentSize(child, field)
+      if (size != null) return size
     }
   }
   return null
@@ -251,7 +251,8 @@ function updateOverlayLayouts(node) {
   if (node._instance) {
     const rect = node._availableRect ?? node._layout
     if (rect) {
-      const ch = findScrollContentHeight(node)
+      const ch = findScrollContentSize(node, '_contentHeight')
+      const cw = findScrollContentSize(node, '_contentWidth')
       if (!node._instance.layout) node._instance.layout = { x: 0, y: 0, width: 0, height: 0 }
       const target = node._instance.layout
       target.x = rect.x
@@ -259,6 +260,7 @@ function updateOverlayLayouts(node) {
       target.width = rect.width
       target.height = rect.height
       target.contentHeight = ch
+      target.contentWidth = cw
       target.childHeights = findScrollChildHeights(node)
     }
   }
@@ -417,8 +419,9 @@ function paintTree(node, buf, clip, offset, prevBuf) {
   let childOffset = offset
   let childPrevBuf = prevBuf
   if (style.overflow === 'scroll') {
+    const scrollX = style.scrollOffsetX ?? 0
     const scrollY = style.scrollOffset ?? 0
-    childOffset = { x: offset?.x ?? 0, y: (offset?.y ?? 0) - scrollY }
+    childOffset = { x: (offset?.x ?? 0) - scrollX, y: (offset?.y ?? 0) - scrollY }
     childPrevBuf = null
   }
 
@@ -807,15 +810,17 @@ export function mount(rootComponent, { stream, stdin, title, theme, onExit: onEx
     for (const inst of instances.values()) {
       const rect = inst.node?._availableRect ?? inst.node?._layout
       if (!rect) continue
-      const ch = findScrollContentHeight(inst.node)
+      const ch = findScrollContentSize(inst.node, '_contentHeight')
+      const cw = findScrollContentSize(inst.node, '_contentWidth')
       if (!inst.layout) inst.layout = { x: 0, y: 0, width: 0, height: 0 }
       const p = inst.layout
-      if (p.width !== rect.width || p.height !== rect.height || p.contentHeight !== ch) changed = true
+      if (p.width !== rect.width || p.height !== rect.height || p.contentHeight !== ch || p.contentWidth !== cw) changed = true
       p.x = rect.x
       p.y = rect.y
       p.width = rect.width
       p.height = rect.height
       p.contentHeight = ch
+      p.contentWidth = cw
       p.childHeights = findScrollChildHeights(inst.node)
     }
     return changed
@@ -990,10 +995,11 @@ export function mount(rootComponent, { stream, stdin, title, theme, onExit: onEx
     for (const inst of instances.values()) {
       const rect = inst.node?._availableRect ?? inst.node?._layout
       if (!rect) continue
-      const ch = findScrollContentHeight(inst.node)
+      const ch = findScrollContentSize(inst.node, '_contentHeight')
+      const cw = findScrollContentSize(inst.node, '_contentWidth')
       if (!inst.layout) inst.layout = { x: 0, y: 0, width: 0, height: 0 }
       const prev = inst.layout
-      if (prev.width !== rect.width || prev.height !== rect.height || prev.contentHeight !== ch) {
+      if (prev.width !== rect.width || prev.height !== rect.height || prev.contentHeight !== ch || prev.contentWidth !== cw) {
         layoutChanged = true
       }
       prev.x = rect.x
@@ -1001,6 +1007,7 @@ export function mount(rootComponent, { stream, stdin, title, theme, onExit: onEx
       prev.width = rect.width
       prev.height = rect.height
       prev.contentHeight = ch
+      prev.contentWidth = cw
       prev.childHeights = findScrollChildHeights(inst.node)
     }
 
@@ -1014,13 +1021,15 @@ export function mount(rootComponent, { stream, stdin, title, theme, onExit: onEx
       for (const inst of instances.values()) {
         const rect = inst.node?._availableRect ?? inst.node?._layout
         if (!rect) continue
-        const ch = findScrollContentHeight(inst.node)
+        const ch = findScrollContentSize(inst.node, '_contentHeight')
+        const cw = findScrollContentSize(inst.node, '_contentWidth')
         if (!inst.layout) inst.layout = { x: 0, y: 0, width: 0, height: 0 }
         inst.layout.x = rect.x
         inst.layout.y = rect.y
         inst.layout.width = rect.width
         inst.layout.height = rect.height
         inst.layout.contentHeight = ch
+        inst.layout.contentWidth = cw
         inst.layout.childHeights = findScrollChildHeights(inst.node)
         inst._dirty = true
       }

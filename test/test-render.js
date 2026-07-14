@@ -1352,6 +1352,27 @@ suite('Diff renders gutter numbers and changed content')
   unmount()
 }
 
+suite('Diff scrolls horizontally under the pointer')
+{
+  const out = new FakeStream(20, 4)
+  const inp = new FakeInput()
+  const longLine = 'const abcdefghijklmnopqrstuvwxyz = 1'
+
+  function App() {
+    return jsx(Diff, { before: '', after: longLine, focused: true, scrollbar: false })
+  }
+
+  const { unmount } = mount(App, { stream: out, stdin: inp, altScreen: false })
+  await tick()
+  let text = gridText(parseScreen(out.output, 20, 4))
+  assert(text.includes('const abcde'), 'initial diff shows the start of the long line')
+  inp.send('\x1b[<67;10;1M')
+  await tick()
+  text = gridText(parseScreen(out.output, 20, 4))
+  assert(text.includes('nst abcdef'), 'wheel right reveals later diff content')
+  unmount()
+}
+
 suite('Diff scrolls with j/k when focused')
 {
   const out = new FakeStream(40, 4)

@@ -106,7 +106,21 @@ export function renderInline(s, { accent = 'cyan' } = {}) {
   return out
 }
 
-export function Markdown({ text, children, highlight, codeBg = '#1e1e22', style: userStyle }) {
+export function CodeBlock({ value, language, highlight, codeBg = '#1e1e22' }) {
+  const shown = highlight ? highlight(value, language) : value
+  const rows = shown.split('\n').map((line, key) => jsx('text', {
+    key,
+    style: { overflow: 'truncate' },
+    children: line || ' ',
+  }))
+
+  return jsx('box', {
+    style: { flexDirection: 'column', bg: codeBg, paddingX: 1 },
+    children: rows,
+  })
+}
+
+export function Markdown({ text, children, highlight, codeBg = '#1e1e22', codeBlock: CodeBlockComponent = CodeBlock, style: userStyle }) {
   const { accent = 'cyan', muted = 'gray' } = useTheme()
   const layout = useLayout()
   const src = text ?? (Array.isArray(children) ? children.join('') : (children ?? ''))
@@ -126,13 +140,12 @@ export function Markdown({ text, children, highlight, codeBg = '#1e1e22', style:
     }
 
     if (block.type === 'code') {
-      const raw = block.lines.join('\n')
-      const shown = highlight ? highlight(raw, block.lang) : raw
-      const rows = shown.split('\n').map((line, k) => jsx('text', { key: k, style: { overflow: 'truncate' }, children: line || ' ' }))
-      return jsx('box', {
+      return jsx(CodeBlockComponent, {
         key,
-        style: { flexDirection: 'column', bg: codeBg, paddingX: 1 },
-        children: rows,
+        value: block.lines.join('\n'),
+        language: block.lang,
+        highlight,
+        codeBg,
       })
     }
 
