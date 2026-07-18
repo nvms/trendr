@@ -1,5 +1,5 @@
 import { EventEmitter } from 'events'
-import { mount, createSignal, createEffect, useInput, useMouse, useFocus, useTheme } from '../index.js'
+import { mount, createSignal, createEffect, useInput, useMouse, useFocus, useLayout, useTheme } from '../index.js'
 import { TextInput } from '../src/text-input.js'
 import { TextArea } from '../src/text-area.js'
 import { List } from '../src/list.js'
@@ -1294,6 +1294,70 @@ suite('text-area ctrl+u mid-line only deletes back to the line start')
 // ScrollBox
 
 import { ScrollBox } from '../index.js'
+
+suite('ScrollBox follows focus symmetrically across variable-height rows')
+{
+  const out = new FakeStream(24, 6)
+  const inp = new FakeInput()
+  let scrollOffset = 0
+
+  function Row({ name, height, focus }) {
+    const layout = useLayout()
+    focus.item(name, layout)
+    return jsx('box', {
+      style: { height, flexShrink: 0 },
+      children: jsx('text', { children: name }),
+    })
+  }
+
+  function App() {
+    const focus = useFocus({ initial: 'first' })
+    const [offset, setOffset] = createSignal(0)
+    return jsx(ScrollBox, {
+      focused: true,
+      followFocus: focus,
+      focusPadding: 1,
+      scrollOffset: offset(),
+      onScroll: (next) => { scrollOffset = next; setOffset(next) },
+      children: [
+        jsx(Row, { name: 'first', height: 2, focus }),
+        jsx(Row, { name: 'middle', height: 4, focus }),
+        jsx(Row, { name: 'last', height: 2, focus }),
+      ],
+    })
+  }
+
+  const { unmount } = mount(App, { stream: out, stdin: inp, altScreen: false })
+  await tick()
+  await tick()
+  assertEq(scrollOffset, 0, 'first row starts visible with top padding clamped')
+
+  inp.send('\t')
+  await tick()
+  assertEq(scrollOffset, 1, 'forward movement reveals the bottom of a variable-height row with padding')
+
+  inp.send('\t')
+  await tick()
+  assertEq(scrollOffset, 2, 'forward movement reveals a row below the viewport')
+
+  inp.send('\t')
+  await tick()
+  assertEq(scrollOffset, 0, 'forward wrapping from last to first reveals the first row')
+
+  inp.send('\x1b[Z')
+  await tick()
+  assertEq(scrollOffset, 2, 'reverse wrapping from first to last reveals the last row')
+
+  inp.send('\x1b[Z')
+  await tick()
+  assertEq(scrollOffset, 1, 'reverse movement keeps bottom padding around the variable-height row')
+
+  inp.send('\x1b[Z')
+  await tick()
+  assertEq(scrollOffset, 0, 'reverse movement reveals a row above the viewport with top padding')
+
+  unmount()
+}
 
 suite('ScrollBox first scroll-up from an out-of-range (follow) offset moves one row')
 {

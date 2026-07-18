@@ -25,7 +25,7 @@ export function ScrollBox({ children, focused = true, followFocus, focusPadding 
   if (followFocus) {
     const target = typeof followFocus === 'function' ? followFocus() : followFocus.currentLayout?.()
     if (target && visibleH > 0) {
-      const top = target.y - layout.y + clamped
+      const top = target.y - layout.y
       const bottom = top + Math.max(1, target.height ?? 1)
       const padding = Math.max(0, focusPadding)
       const next = top < clamped + padding
