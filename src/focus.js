@@ -17,7 +17,7 @@ export function useFocusTrap(active) {
   })
 }
 
-export function useFocus({ initial, cycle = 'tab' } = {}) {
+export function useFocus({ initial, cycle = 'tab', active = true } = {}) {
   const state = registerHook(() => {
     const [current, setCurrent] = createSignalRaw(initial ?? null)
     return {
@@ -170,6 +170,7 @@ export function useFocus({ initial, cycle = 'tab' } = {}) {
   }
 
   useInput((event) => {
+    if (!active) return
     const items = liveItems()
     if (items.length === 0) return
 

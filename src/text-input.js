@@ -37,10 +37,16 @@ function firstCodePoint(s) {
   return s.slice(0, nextBoundary(s, 0))
 }
 
-export function TextInput({ onSubmit, onCancel, onChange, placeholder, focused = true, initialValue, clearOnSubmit = false, cursor: cursorProp }) {
-  const init = initialValue ?? ''
+export function TextInput({ onSubmit, onCancel, onChange, placeholder, focused = true, initialValue, value: valueProp, clearOnSubmit = false, cursor: cursorProp }) {
+  const init = valueProp ?? initialValue ?? ''
   const [value, setValue] = createSignal(init)
   const [cursor, setCursor] = createSignal(init.length)
+  const [controlledValue, setControlledValue] = createSignal(valueProp)
+  if (valueProp !== undefined && valueProp !== controlledValue()) {
+    setControlledValue(valueProp)
+    setValue(valueProp)
+    setCursor(valueProp.length)
+  }
   const { muted = 'gray' } = useTheme()
   const layout = useLayout()
   const { cursorStyle, reset: resetBlink } = useCursor(cursorProp, focused)

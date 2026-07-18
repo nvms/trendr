@@ -1,5 +1,5 @@
 import { EventEmitter } from 'events'
-import { CodeBlock, HorizontalScrollBox, mount, createSignal, useInput, useHitTest } from '../index.js'
+import { CodeBlock, HorizontalScrollBox, NumberInput, mount, createSignal, useInput, useHitTest } from '../index.js'
 import { List } from '../src/list.js'
 import { Table } from '../src/table.js'
 import { Select } from '../src/select.js'
@@ -13,6 +13,9 @@ import { ease, linear, animated } from '../src/animation.js'
 import { Markdown, parseBlocks } from '../src/markdown.js'
 import { useSelection } from '../src/selection.js'
 import { ScrollBox } from '../src/scroll-box.js'
+import { FieldList, Field } from '../src/field-list.js'
+import { Button } from '../src/button.js'
+import { Checkbox } from '../src/checkbox.js'
 import { jsx, jsxs } from '../jsx-runtime.js'
 
 let passed = 0
@@ -1076,6 +1079,147 @@ suite('useHitTest uses painted, scrolled, clipped geometry')
 
   unmount()
   assertEq(hitProbe(0, 2), false, 'retained hitTest returns false after unmount')
+}
+
+suite('FieldList composes arbitrary variable-height field content')
+{
+  const out = new FakeStream(42, 6)
+  const inp = new FakeInput()
+  const [checked, setChecked] = createSignal(false)
+  let opened = false
+
+  function Row({ focused, label, description, control }) {
+    return jsxs('box', {
+      style: { flexDirection: 'column', marginBottom: 1 },
+      children: [
+        jsxs('box', {
+          style: { flexDirection: 'row', gap: 1 },
+          children: [control(focused), jsx('text', { children: label })],
+        }),
+        jsx('text', { style: { marginLeft: 4 }, children: description }),
+      ],
+    })
+  }
+
+  function App() {
+    return jsx(FieldList, {
+      focused: true,
+      initialFocus: 'clouds',
+      focusPadding: 1,
+      scrollbar: true,
+      style: { height: 6 },
+      children: [
+        [jsx(Field, {
+          name: 'clouds',
+          children: ({ focused }) => jsx(Row, {
+            focused,
+            label: 'Show clouds',
+            description: 'Display decorative clouds',
+            control: (active) => jsx(Checkbox, { checked: checked(), focused: active, onChange: setChecked }),
+          }),
+        })],
+        jsx(Field, {
+          name: 'model',
+          children: ({ focused }) => jsx(Row, {
+            focused,
+            label: 'Research worker model',
+            description: 'Model used by background research agents and this text wraps',
+            control: (active) => jsx(Button, { label: 'Pick', focused: active, onPress: () => { opened = true } }),
+          }),
+        }),
+        jsx(Field, {
+          name: 'limit',
+          children: ({ focused }) => jsx(Row, {
+            focused,
+            label: 'Research agent limit',
+            description: 'Maximum concurrent agents',
+            control: (active) => jsx(Button, { label: '3', focused: active }),
+          }),
+        }),
+      ],
+    })
+  }
+
+  const { unmount, getBuffer } = mount(App, { stream: out, stdin: inp })
+  await tick()
+  await tick()
+
+  inp.key('enter')
+  await tick()
+  assertEq(checked(), true, 'passes focused state to arbitrary checkbox content')
+
+  inp.key('tab')
+  await tick()
+  assert(screenOf(getBuffer).includes('Research worker model'), 'follows focus to a variable-height field')
+  inp.key('enter')
+  await tick()
+  assertEq(opened, true, 'arbitrary button callback can transition to another UI')
+
+  inp.key('tab')
+  await tick()
+  assert(screenOf(getBuffer).includes('Research agent limit'), 'follows focus below the viewport')
+
+  inp.key('shiftTab')
+  await tick()
+  assert(screenOf(getBuffer).includes('Research worker model'), 'reverse navigation follows focus above the viewport')
+
+  unmount()
+}
+
+suite('NumberInput supports typing and arrow-key stepping')
+{
+  const out = new FakeStream(20, 3)
+  const inp = new FakeInput()
+  const [value, setValue] = createSignal(12)
+
+  function App() {
+    return jsx(NumberInput, { value: value(), onChange: setValue, focused: true, min: 10, max: 20, width: 8 })
+  }
+
+  const { unmount, getBuffer } = mount(App, { stream: out, stdin: inp })
+  await tick()
+  inp.key('up')
+  await tick()
+  assertEq(value(), 13, 'up increments by one')
+  inp.key('down')
+  await tick()
+  assertEq(value(), 12, 'down decrements by one')
+  inp.send('3')
+  await tick()
+  assertEq(value(), 20, 'typed values are accepted and clamped')
+  assert(screenOf(getBuffer).includes('20'), 'renders the controlled numeric value')
+  unmount()
+}
+
+suite('FieldList skips disabled fields')
+{
+  const out = new FakeStream(30, 5)
+  const inp = new FakeInput()
+  let activated = null
+
+  function App() {
+    return jsx(FieldList, {
+      focused: true,
+      initialFocus: 'one',
+      children: [
+        jsx(Field, { name: 'one', children: ({ focused }) => jsx(Button, { label: 'one', focused, onPress: () => { activated = 'one' } }) }),
+        jsx(Field, { name: 'two', disabled: true, children: ({ focused, disabled }) => jsx('text', { children: `${focused}:${disabled}:two` }) }),
+        jsx(Field, { name: 'three', children: ({ focused }) => jsx(Button, { label: 'three', focused, onPress: () => { activated = 'three' } }) }),
+      ],
+    })
+  }
+
+  const { unmount, getBuffer } = mount(App, { stream: out, stdin: inp })
+  await tick()
+  await tick()
+
+  inp.key('tab')
+  await tick()
+  inp.key('enter')
+  await tick()
+  assertEq(activated, 'three', 'disabled fields are excluded from tab order')
+
+  unmount()
 }
 
 console.log(`\n${passed} passed, ${failed} failed`)

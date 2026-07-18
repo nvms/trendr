@@ -1295,6 +1295,34 @@ suite('text-area ctrl+u mid-line only deletes back to the line start')
 
 import { ScrollBox } from '../index.js'
 
+suite('inactive focus manager ignores tab navigation')
+{
+  const out = new FakeStream(20, 3)
+  const inp = new FakeInput()
+  let current = null
+
+  function Item({ name, focus }) {
+    focus.item(name, useLayout())
+    current = focus.current()
+    return jsx('text', { children: name })
+  }
+
+  function App() {
+    const focus = useFocus({ initial: 'one', active: false })
+    return jsx('box', { children: [
+      jsx(Item, { name: 'one', focus }),
+      jsx(Item, { name: 'two', focus }),
+    ] })
+  }
+
+  const { unmount } = mount(App, { stream: out, stdin: inp, altScreen: false })
+  await tick()
+  inp.send('\t')
+  await tick()
+  assertEq(current, 'one', 'inactive focus manager does not consume or respond to tab')
+  unmount()
+}
+
 suite('ScrollBox follows focus symmetrically across variable-height rows')
 {
   const out = new FakeStream(24, 6)
