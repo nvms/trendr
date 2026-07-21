@@ -458,6 +458,60 @@ suite('TextArea - meta+enter submit matches normalized return')
   unmount()
 }
 
+suite('TextArea - backslash enter inserts newline')
+{
+  const out = new FakeStream(40, 8)
+  const inp = new FakeInput()
+  let captured = null
+  let submitted = null
+
+  function App() {
+    return jsx(TextArea, {
+      focused: true,
+      submitOnEnter: true,
+      newlineOnBackslashEnter: true,
+      onChange: v => { captured = v },
+      onSubmit: v => { submitted = v }
+    })
+  }
+
+  const { unmount } = mount(App, { stream: out, stdin: inp })
+  await tick()
+  inp.send('hello\\\rworld')
+  await tick()
+  assertEq(captured, 'hello\nworld', 'backslash is replaced by a newline')
+  assertEq(submitted, null, 'backslash enter does not submit')
+
+  inp.send('\x1b[D')
+  inp.send('\x1b[D')
+  inp.send('\\\r')
+  await tick()
+  assertEq(captured, 'hello\nwor\nld', 'newline is inserted at the cursor')
+
+  inp.send('\r')
+  await tick()
+  assertEq(submitted, 'hello\nwor\nld', 'ordinary enter still submits')
+  unmount()
+}
+
+suite('TextArea - backslash enter is opt-in')
+{
+  const out = new FakeStream(40, 8)
+  const inp = new FakeInput()
+  let submitted = null
+
+  function App() {
+    return jsx(TextArea, { focused: true, submitOnEnter: true, onSubmit: v => { submitted = v } })
+  }
+
+  const { unmount } = mount(App, { stream: out, stdin: inp })
+  await tick()
+  inp.send('hello\\\r')
+  await tick()
+  assertEq(submitted, 'hello\\', 'backslash remains literal when disabled')
+  unmount()
+}
+
 suite('TextArea - surrogate-safe delete and arrows')
 {
   const out = new FakeStream(40, 8)

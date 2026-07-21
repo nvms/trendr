@@ -547,6 +547,7 @@ Multi-line text input. Auto-grows up to `maxHeight`, then scrolls.
   value={draft()}          // controlled value (optional)
   submitOnEnter={false}    // default false: Alt+Enter submits, Enter inserts newline.
                            // true flips it: Enter submits, Shift/Alt+Enter inserts newline
+  newlineOnBackslashEnter={false} // replace a backslash immediately before Enter with a newline
   clearOnSubmit={true}     // reset to empty on submit (default true)
   cursor={{ blink: true }} // per-component cursor config (overrides theme)
   onChange={(v, prev) => {}} // every edit, receives new and previous value

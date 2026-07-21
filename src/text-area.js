@@ -124,7 +124,7 @@ function ensureVisible(cursorRow, scroll, height, totalLines) {
   return scroll
 }
 
-export function TextArea({ onSubmit, onCancel, onChange, onKeyDown, placeholder, focused = true, maxHeight = 10, clearOnSubmit = true, cursor: cursorProp, value: valueProp, submitOnEnter = false, color, lineCounter = false }) {
+export function TextArea({ onSubmit, onCancel, onChange, onKeyDown, placeholder, focused = true, maxHeight = 10, clearOnSubmit = true, cursor: cursorProp, value: valueProp, submitOnEnter = false, newlineOnBackslashEnter = false, color, lineCounter = false }) {
   const [value, setValue] = createSignal('')
   const [cursor, setCursor] = createSignal(0)
   if (valueProp !== undefined && valueProp !== value()) {
@@ -169,12 +169,19 @@ export function TextArea({ onSubmit, onCancel, onChange, onKeyDown, placeholder,
       return
     }
 
+    const isBackslashNewlineKey = newlineOnBackslashEnter && key === 'return' && !meta && c > 0 && v[c - 1] === '\\'
     const isSubmitKey = submitOnEnter
       ? (key === 'return' && !meta && !shift)
       : (meta && key === 'return')
     const isNewlineKey = submitOnEnter
       ? ((shift && key === 'return') || (meta && key === 'return'))
       : (key === 'return')
+
+    if (isBackslashNewlineKey) {
+      update(v.slice(0, c - 1) + '\n' + v.slice(c), c)
+      event.stopPropagation()
+      return
+    }
 
     if (isSubmitKey) {
       if (onSubmit) onSubmit(v)
