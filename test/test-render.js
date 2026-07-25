@@ -1387,6 +1387,45 @@ suite('ScrollBox follows focus symmetrically across variable-height rows')
   unmount()
 }
 
+suite('ScrollBox keeps an oversized focused row stable while it intersects the viewport')
+{
+  const out = new FakeStream(24, 6)
+  const inp = new FakeInput()
+  let scrollOffset = 4
+
+  function Row({ name, height, focus }) {
+    const layout = useLayout()
+    focus.item(name, layout)
+    return jsx('box', {
+      style: { height, flexShrink: 0 },
+      children: jsx('text', { children: name }),
+    })
+  }
+
+  function App() {
+    const focus = useFocus({ initial: 'large', active: false })
+    const [offset, setOffset] = createSignal(4)
+    return jsx(ScrollBox, {
+      focused: false,
+      followFocus: focus,
+      focusPadding: 1,
+      scrollOffset: offset(),
+      onScroll: (next) => { scrollOffset = next; setOffset(next) },
+      children: [
+        jsx(Row, { name: 'before', height: 2, focus }),
+        jsx(Row, { name: 'large', height: 12, focus }),
+        jsx(Row, { name: 'after', height: 2, focus }),
+      ],
+    })
+  }
+
+  const { unmount } = mount(App, { stream: out, stdin: inp, altScreen: false })
+  await tick()
+  await tick()
+  assertEq(scrollOffset, 4, 'oversized focused row does not oscillate between its edges')
+  unmount()
+}
+
 suite('ScrollBox first scroll-up from an out-of-range (follow) offset moves one row')
 {
   const out = new FakeStream(20, 6)

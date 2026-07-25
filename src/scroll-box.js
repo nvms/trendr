@@ -28,11 +28,18 @@ export function ScrollBox({ children, focused = true, followFocus, focusPadding 
       const top = target.y - layout.y
       const bottom = top + Math.max(1, target.height ?? 1)
       const padding = Math.max(0, focusPadding)
-      const next = top < clamped + padding
-        ? top - padding
-        : bottom > clamped + visibleH - padding
+      const oversized = bottom - top + padding * 2 > visibleH
+      const next = oversized
+        ? bottom <= clamped + padding
           ? bottom - visibleH + padding
-          : clamped
+          : top >= clamped + visibleH - padding
+            ? top - padding
+            : clamped
+        : top < clamped + padding
+          ? top - padding
+          : bottom > clamped + visibleH - padding
+            ? bottom - visibleH + padding
+            : clamped
       if (clamp(next) !== clamped) setOffset(next)
     }
   }
