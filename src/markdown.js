@@ -1,6 +1,7 @@
 import { jsx, jsxs } from '../jsx-runtime.js'
 import { useTheme, useLayout } from './hooks.js'
 import { fgSgr } from './ansi.js'
+import { measureText, wordWrap } from './wrap.js'
 
 const BOLD_ON = '\x1b[1m'
 const BOLD_OFF = '\x1b[22m'
@@ -16,6 +17,51 @@ const HR = /^ {0,3}(-{3,}|\*{3,}|_{3,})\s*$/
 const LIST_ITEM = /^(\s*)([-*+]|\d+\.)\s+(.*)$/
 const QUOTE = /^>\s?(.*)$/
 const BLANK = /^\s*$/
+
+// A pipe is structural unless escaped by an odd number of backslashes. Inline
+// code spans are deliberately not special here, matching GFM table parsing.
+export function splitTableRow(line) {
+  let source = String(line).trim()
+  if (source.startsWith('|')) source = source.slice(1)
+  if (source.endsWith('|') && !/(^|[^\\])(?:\\\\)*\\\|$/.test(source)) source = source.slice(0, -1)
+  const cells = []
+  let cell = ''
+  let slashes = 0
+  for (const ch of source) {
+    if (ch === '|') {
+      if (slashes % 2) {
+        cell = cell.slice(0, -1) + '|'
+        slashes = 0
+        continue
+      }
+      cells.push(cell.trim())
+      cell = ''
+    } else {
+      cell += ch
+    }
+    slashes = ch === '\\' ? slashes + 1 : 0
+  }
+  cells.push(cell.trim())
+  return cells
+}
+
+function tableDelimiter(line) {
+  const cells = splitTableRow(line)
+  if (!cells.length || cells.some(cell => !/^:?-{3,}:?$/.test(cell.replace(/\s/g, '')))) return null
+  return cells.map(cell => {
+    const compact = cell.replace(/\s/g, '')
+    return compact.startsWith(':') && compact.endsWith(':') ? 'center' : compact.endsWith(':') ? 'right' : 'left'
+  })
+}
+
+function tableAt(lines, i) {
+  if (i + 1 >= lines.length || !lines[i].includes('|')) return null
+  const align = tableDelimiter(lines[i + 1])
+  if (!align) return null
+  const header = splitTableRow(lines[i])
+  if (header.length !== align.length) return null
+  return { header, align }
+}
 
 export function parseBlocks(text) {
   const lines = String(text).split('\n')
@@ -38,6 +84,19 @@ export function parseBlocks(text) {
     }
 
     if (HR.test(line)) { blocks.push({ type: 'hr' }); i++; continue }
+
+    const table = tableAt(lines, i)
+    if (table) {
+      i += 2
+      const rows = []
+      while (i < lines.length && !BLANK.test(lines[i]) && lines[i].includes('|')) {
+        const row = splitTableRow(lines[i++])
+        // GFM pads short rows and ignores cells beyond the header.
+        rows.push(table.header.map((_, col) => row[col] ?? ''))
+      }
+      blocks.push({ type: 'table', header: table.header, align: table.align, rows })
+      continue
+    }
 
     const heading = line.match(HEADING)
     if (heading) {
@@ -106,6 +165,50 @@ export function renderInline(s, { accent = 'cyan' } = {}) {
   return out
 }
 
+function padCell(text, width, align) {
+  const used = measureText(text)
+  const spare = Math.max(0, width - used)
+  const left = align === 'right' ? spare : align === 'center' ? Math.floor(spare / 2) : 0
+  return ' '.repeat(left) + text + ' '.repeat(spare - left)
+}
+
+export function renderTableLines(block, width, colors = {}) {
+  const columns = block.header.length
+  if (!columns) return []
+  const borderWidth = columns + 1
+  const available = Math.max(columns, Math.max(1, width || 40) - borderWidth)
+  const desired = block.header.map((cell, col) => Math.max(1, ...[cell, ...block.rows.map(row => row[col])].map(measureText)))
+  const widths = desired.map(() => 1)
+  let remaining = available - columns
+  // Give space to the columns that need it most, without letting one long cell
+  // starve all its neighbours. This also responds cleanly to terminal resizes.
+  let col = 0
+  while (remaining-- > 0) {
+    let attempts = 0
+    while (attempts++ < columns && widths[col] >= desired[col]) col = (col + 1) % columns
+    widths[col]++
+    col = (col + 1) % columns
+  }
+
+  const rule = '├' + widths.map(w => '─'.repeat(w)).join('┼') + '┤'
+  const renderRow = (cells, header = false) => {
+    const wrapped = cells.map((cell, col) => wordWrap(renderInline(cell, colors), widths[col]))
+    const height = Math.max(1, ...wrapped.map(lines => lines.length))
+    return Array.from({ length: height }, (_, row) => '│' + wrapped.map((lines, col) => {
+      let value = lines[row] || ''
+      if (header) value = BOLD_ON + value + BOLD_OFF
+      return padCell(value, widths[col], block.align[col])
+    }).join('│') + '│')
+  }
+  return [
+    '┌' + widths.map(w => '─'.repeat(w)).join('┬') + '┐',
+    ...renderRow(block.header, true),
+    rule,
+    ...block.rows.flatMap(row => renderRow(row)),
+    '└' + widths.map(w => '─'.repeat(w)).join('┴') + '┘',
+  ]
+}
+
 export function CodeBlock({ value, language, highlight, codeBg = '#1e1e22' }) {
   const shown = highlight ? highlight(value, language) : value
   const rows = shown.split('\n').map((line, key) => jsx('text', {
@@ -137,6 +240,15 @@ export function Markdown({ text, children, highlight, codeBg = '#1e1e22', codeBl
 
     if (block.type === 'hr') {
       return jsx('text', { key, style: { color: muted, dim: true }, children: '─'.repeat(Math.max(1, layout.width || 40)) })
+    }
+
+    if (block.type === 'table') {
+      const lines = renderTableLines(block, layout.width || 40, colors)
+      return jsx('box', {
+        key,
+        style: { flexDirection: 'column', color: muted },
+        children: lines.map((line, row) => jsx('text', { key: row, style: { overflow: 'truncate' }, children: line })),
+      })
     }
 
     if (block.type === 'code') {

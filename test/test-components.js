@@ -10,7 +10,8 @@ import { MenuBar } from '../src/menubar.js'
 import { MillerNav } from '../src/miller-nav.js'
 import { ProgressBar } from '../src/progress.js'
 import { ease, linear, animated } from '../src/animation.js'
-import { Markdown, parseBlocks } from '../src/markdown.js'
+import { Markdown, parseBlocks, renderTableLines, splitTableRow } from '../src/markdown.js'
+import { measureText, stripAnsi } from '../src/wrap.js'
 import { useSelection } from '../src/selection.js'
 import { ScrollBox } from '../src/scroll-box.js'
 import { FieldList, Field } from '../src/field-list.js'
@@ -797,6 +798,44 @@ suite('Markdown block parsing')
   assertEq(blocks[4].type, 'quote', 'fifth block is a quote')
   assertEq(blocks[5].type, 'hr', 'sixth block is a rule')
   assertEq(blocks[6].type, 'para', 'seventh block is the tail paragraph')
+}
+
+suite('Markdown parses GFM tables, alignment, escapes, and uneven rows')
+{
+  const blocks = parseBlocks([
+    '| Name | Notes | Score |',
+    '| :--- | :---: | ---: |',
+    '| **Ada** | one \\| two | 10 | extra |',
+    '| Bob | |',
+  ].join('\n'))
+  assertEq(blocks.length, 1, 'table is one block')
+  const table = blocks[0]
+  assertEq(table.type, 'table', 'recognized table')
+  assertEq(table.align.join(','), 'left,center,right', 'delimiter alignment parsed')
+  assertEq(table.rows[0].join(','), '**Ada**,one | two,10', 'escaped pipe retained and excess cell ignored')
+  assertEq(table.rows[1].join(','), 'Bob,,', 'short row padded')
+  assertEq(splitTableRow('a \\\\| b | c').join(','), 'a \\\\,b,c', 'even backslashes do not escape pipe')
+}
+
+suite('Markdown only recognizes valid GFM table delimiters')
+{
+  assertEq(parseBlocks('a | b\n-- | ---').length, 1, 'fewer than three dashes remains a paragraph')
+  assertEq(parseBlocks('a | b\n--- | nope')[0].type, 'para', 'non-delimiter cell remains a paragraph')
+  assertEq(parseBlocks('a | b\n--- | ---')[0].type, 'table', 'valid delimiter recognized without outer pipes')
+}
+
+suite('Markdown table renderer aligns, styles, and wraps to width')
+{
+  const table = parseBlocks('| Left | Mid | Right |\n| :--- | :---: | ---: |\n| **bold** | a very long value | 7 |')[0]
+  const lines = renderTableLines(table, 22)
+  assert(lines.every(line => measureText(line) <= 22), 'all rendered rows fit requested width')
+  assert(lines.length > 5, 'long cell wraps onto another terminal row')
+  assert(lines[1].includes('\x1b[1m'), 'header is bold')
+  assert(lines.some(line => line.includes('\x1b[1mbold\x1b[22m')), 'inline styling survives in cells')
+  const visible = lines.map(stripAnsi)
+  const body = visible.find(line => line.includes('7'))
+  const lastCell = body.slice(body.lastIndexOf('│', body.length - 2) + 1, -1)
+  assert(lastCell.startsWith(' ') && lastCell.endsWith('7'), 'right aligned body cell')
 }
 
 suite('Markdown tolerates an unclosed fence while streaming')
