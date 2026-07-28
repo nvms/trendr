@@ -1,5 +1,6 @@
 import { jsx, jsxs } from '../jsx-runtime.js'
-import { useTheme, useLayout } from './hooks.js'
+import { useTheme, useLayout, useMouse, useHitTest } from './hooks.js'
+import { createSignal } from './signal.js'
 import { fgSgr } from './ansi.js'
 import { measureText, wordWrap } from './wrap.js'
 
@@ -172,9 +173,9 @@ function padCell(text, width, align) {
   return ' '.repeat(left) + text + ' '.repeat(spare - left)
 }
 
-export function renderTableLines(block, width, colors = {}) {
+function renderTableRows(block, width, colors = {}, borderColor) {
   const columns = block.header.length
-  if (!columns) return []
+  if (!columns) return { top: '', header: [], rule: '', rows: [], bottom: '' }
   const borderWidth = columns + 1
   const available = Math.max(columns, Math.max(1, width || 40) - borderWidth)
   const desired = block.header.map((cell, col) => Math.max(1, ...[cell, ...block.rows.map(row => row[col])].map(measureText)))
@@ -190,23 +191,71 @@ export function renderTableLines(block, width, colors = {}) {
     col = (col + 1) % columns
   }
 
-  const rule = '├' + widths.map(w => '─'.repeat(w)).join('┼') + '┤'
+  const border = value => borderColor == null ? value : fgSgr(borderColor) + value + FG_RESET
   const renderRow = (cells, header = false) => {
     const wrapped = cells.map((cell, col) => wordWrap(renderInline(cell, colors), widths[col]))
     const height = Math.max(1, ...wrapped.map(lines => lines.length))
-    return Array.from({ length: height }, (_, row) => '│' + wrapped.map((lines, col) => {
+    return Array.from({ length: height }, (_, row) => border('│') + wrapped.map((lines, col) => {
       let value = lines[row] || ''
       if (header) value = BOLD_ON + value + BOLD_OFF
       return padCell(value, widths[col], block.align[col])
-    }).join('│') + '│')
+    }).join(border('│')) + border('│'))
   }
-  return [
-    '┌' + widths.map(w => '─'.repeat(w)).join('┬') + '┐',
-    ...renderRow(block.header, true),
-    rule,
-    ...block.rows.flatMap(row => renderRow(row)),
-    '└' + widths.map(w => '─'.repeat(w)).join('┴') + '┘',
-  ]
+
+  return {
+    top: border('┌' + widths.map(w => '─'.repeat(w)).join('┬') + '┐'),
+    header: renderRow(block.header, true),
+    rule: border('├' + widths.map(w => '─'.repeat(w)).join('┼') + '┤'),
+    rows: block.rows.map(row => renderRow(row)),
+    bottom: border('└' + widths.map(w => '─'.repeat(w)).join('┴') + '┘'),
+  }
+}
+
+export function renderTableLines(block, width, colors = {}, borderColor) {
+  const table = renderTableRows(block, width, colors, borderColor)
+  return [table.top, ...table.header, table.rule, ...table.rows.flat(), table.bottom].filter(Boolean)
+}
+
+function MarkdownTableRow({ lines, hoverBg }) {
+  const [hovered, setHovered] = createSignal(false)
+  const hitTest = useHitTest()
+
+  useMouse(event => {
+    if (event.action !== 'move') return
+    const inside = hitTest(event.x, event.y)
+    if (inside !== hovered()) setHovered(inside)
+  })
+
+  return jsx('box', {
+    style: { flexDirection: 'column', bg: hovered() ? hoverBg : null },
+    children: lines.map((line, key) => jsx('text', {
+      key,
+      style: { overflow: 'truncate' },
+      children: line,
+    })),
+  })
+}
+
+function MarkdownTable({ block, width, colors, borderColor, rowHoverBg }) {
+  const table = renderTableRows(block, width, colors, borderColor)
+  const text = (line, key) => jsx('text', { key, style: { overflow: 'truncate' }, children: line })
+  const children = [text(table.top, 'top'), ...table.header.map((line, key) => text(line, `header-${key}`)), text(table.rule, 'rule')]
+
+  table.rows.forEach((lines, key) => {
+    children.push(rowHoverBg == null
+      ? jsx('box', {
+          key: `row-${key}`,
+          style: { flexDirection: 'column' },
+          children: lines.map((line, lineKey) => text(line, lineKey)),
+        })
+      : jsx(MarkdownTableRow, { key: `row-${key}`, lines, hoverBg: rowHoverBg }))
+  })
+  children.push(text(table.bottom, 'bottom'))
+
+  return jsx('box', {
+    style: { flexDirection: 'column', color: colors.muted },
+    children,
+  })
 }
 
 export function CodeBlock({ value, language, highlight, codeBg = '#1e1e22' }) {
@@ -223,7 +272,16 @@ export function CodeBlock({ value, language, highlight, codeBg = '#1e1e22' }) {
   })
 }
 
-export function Markdown({ text, children, highlight, codeBg = '#1e1e22', codeBlock: CodeBlockComponent = CodeBlock, style: userStyle }) {
+export function Markdown({
+  text,
+  children,
+  highlight,
+  codeBg = '#1e1e22',
+  codeBlock: CodeBlockComponent = CodeBlock,
+  tableBorderColor,
+  tableRowHoverBg,
+  style: userStyle,
+}) {
   const { accent = 'cyan', muted = 'gray' } = useTheme()
   const layout = useLayout()
   const src = text ?? (Array.isArray(children) ? children.join('') : (children ?? ''))
@@ -243,11 +301,13 @@ export function Markdown({ text, children, highlight, codeBg = '#1e1e22', codeBl
     }
 
     if (block.type === 'table') {
-      const lines = renderTableLines(block, layout.width || 40, colors)
-      return jsx('box', {
+      return jsx(MarkdownTable, {
         key,
-        style: { flexDirection: 'column', color: muted },
-        children: lines.map((line, row) => jsx('text', { key: row, style: { overflow: 'truncate' }, children: line })),
+        block,
+        width: layout.width || 40,
+        colors,
+        borderColor: tableBorderColor,
+        rowHoverBg: tableRowHoverBg,
       })
     }
 

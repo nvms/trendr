@@ -836,6 +836,38 @@ suite('Markdown table renderer aligns, styles, and wraps to width')
   const body = visible.find(line => line.includes('7'))
   const lastCell = body.slice(body.lastIndexOf('│', body.length - 2) + 1, -1)
   assert(lastCell.startsWith(' ') && lastCell.endsWith('7'), 'right aligned body cell')
+
+  const colored = renderTableLines(table, 22, {}, '#123456')
+  assert(colored[0].startsWith('\x1b[38;2;18;52;86m┌'), 'table border color is applied')
+  assert(colored.some(line => line.includes('\x1b[39m') && line.includes('bold')), 'border color resets before cell content')
+}
+
+suite('Markdown table body rows support hover backgrounds')
+{
+  const out = new FakeStream(30, 8)
+  const inp = new FakeInput()
+
+  function App() {
+    return jsx(Markdown, {
+      text: '| Name | Value |\n| --- | --- |\n| Ada | one |\n| Bob | two |',
+      tableRowHoverBg: '#20242a',
+    })
+  }
+
+  const { getBuffer, unmount } = mount(App, { stream: out, stdin: inp, altScreen: false })
+  await tick()
+  inp.send('\x1b[<35;2;4M')
+  await tick()
+
+  let buffer = getBuffer()
+  assertEq(buffer.cells[3 * buffer.width + 1].bg, '#20242a', 'hovered row receives its background')
+  assertEq(buffer.cells[4 * buffer.width + 1].bg, null, 'other body rows keep their background')
+
+  inp.send('\x1b[<35;2;7M')
+  await tick()
+  buffer = getBuffer()
+  assertEq(buffer.cells[3 * buffer.width + 1].bg, null, 'background clears when pointer leaves the row')
+  unmount()
 }
 
 suite('Markdown tolerates an unclosed fence while streaming')
