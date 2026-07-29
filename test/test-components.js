@@ -12,7 +12,7 @@ import { ProgressBar } from '../src/progress.js'
 import { ease, linear, animated } from '../src/animation.js'
 import { Markdown, parseBlocks, renderTableLines, splitTableRow } from '../src/markdown.js'
 import { measureText, stripAnsi } from '../src/wrap.js'
-import { useSelection } from '../src/selection.js'
+import { extractSelectionText, useSelection } from '../src/selection.js'
 import { ScrollBox } from '../src/scroll-box.js'
 import { FieldList, Field } from '../src/field-list.js'
 import { Button } from '../src/button.js'
@@ -984,6 +984,30 @@ suite('Markdown code block paints its own background')
   assertEq(cell.bg, '#1e1e22', 'code block background applied')
 
   unmount()
+}
+
+suite('extractSelectionText starts at the selected cell')
+{
+  const makeBuffer = (lines, softWrap = []) => ({
+    width: 40,
+    height: lines.length,
+    softWrap,
+    cells: lines.flatMap((line) => Array.from({ length: 40 }, (_, x) => ({ ch: line[x] || ' ', attrs: 0 }))),
+  })
+
+  const prose = makeBuffer(['                    this is where i started'], [1])
+  assertEq(
+    extractSelectionText(prose, { sx: 20, sy: 0, ex: 34, ey: 0 }),
+    'this is where i',
+    'mid-row soft-wrap selection excludes unselected columns',
+  )
+
+  const code = makeBuffer(['        first', '          second'])
+  assertEq(
+    extractSelectionText(code, { sx: 8, sy: 0, ex: 15, ey: 1 }),
+    'first\n  second',
+    'multiline selection preserves indentation relative to the selected column',
+  )
 }
 
 suite('useSelection copies wrapped prose as one paragraph and code with newlines')

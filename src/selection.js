@@ -19,31 +19,39 @@ export function extractSelectionText(buf, sel) {
   const rows = []
   const lastY = Math.min(sel.ey, buf.height - 1)
   for (let y = Math.max(0, sel.sy); y <= lastY; y++) {
+    const from = y === sel.sy ? Math.max(0, sel.sx) : 0
     const to = y === sel.ey ? Math.min(sel.ex, buf.width - 1) : buf.width - 1
     let text = ''
+    let screenIndent = 0
+    let measuringIndent = true
     for (let x = 0; x <= to; x++) {
       const cell = buf.cells[y * buf.width + x]
       if (cell.ch === '') continue
       // chrome cells (scrollbars, counters) never belong in copied text
       const ch = cell.attrs & COPY_IGNORE ? ' ' : cell.ch
-      text += y === sel.sy && x < sel.sx ? ' ' : ch
+      if (measuringIndent) {
+        if (ch === ' ') screenIndent++
+        else measuringIndent = false
+      }
+      if (x >= from) text += ch
     }
-    rows.push({ text: text.replace(/\s+$/, ''), soft: !!buf.softWrap[y] })
+    rows.push({ text: text.replace(/\s+$/, ''), from, screenIndent, soft: !!buf.softWrap[y] })
   }
 
   let indent = Infinity
   for (const row of rows) {
     if (row.soft || row.text === '') continue
-    indent = Math.min(indent, row.text.match(/^ */)[0].length)
+    indent = Math.min(indent, row.screenIndent)
   }
   if (indent === Infinity) indent = 0
 
   let out = ''
   for (let i = 0; i < rows.length; i++) {
     const row = rows[i]
-    if (i === 0) out = row.text.slice(indent)
+    const dedent = Math.max(0, indent - row.from)
+    if (i === 0) out = row.text.slice(dedent)
     else if (row.soft) out += (out === '' || out.endsWith('\n') ? '' : ' ') + row.text.trim()
-    else out += '\n' + (row.text === '' ? '' : row.text.slice(indent))
+    else out += '\n' + (row.text === '' ? '' : row.text.slice(dedent))
   }
 
   return out.replace(/^\n+/, '').replace(/\s+$/, '')
