@@ -55,6 +55,7 @@ Options:
 - `title` - terminal window title
 - `theme` - theme object, see [Theming](#theming)
 - `onExit` - called after ctrl-c unmounts the app; when provided it replaces the default `process.exit(0)`
+- `onOpenLink` - called with a URL when a Markdown or plain-text link is clicked; defaults to opening it with the platform browser
 - `altScreen` - enter the alternate screen buffer, default `true`
 - `inline` - inline mode, default `false` (see [Inline mode](#inline-mode))
 

@@ -870,6 +870,60 @@ suite('Markdown table body rows support hover backgrounds')
   unmount()
 }
 
+suite('Markdown links are clickable, hoverable, and preserve drag selection')
+{
+  const out = new FakeStream(50, 6)
+  const inp = new FakeInput()
+  const opened = []
+
+  function App() {
+    useSelection({ copy: false })
+    return jsx(Markdown, { text: '[Google](https://google.com) and https://example.com.' })
+  }
+
+  const { getBuffer, unmount } = mount(App, {
+    stream: out,
+    stdin: inp,
+    altScreen: false,
+    theme: { accent: 'magenta' },
+    onOpenLink: url => opened.push(url),
+  })
+  await tick()
+
+  let buffer = getBuffer()
+  assertEq(buffer.cells[0].link, 'https://google.com', 'markdown destination is retained on painted cells')
+  assertEq(buffer.cells[11].link, 'https://example.com', 'plain URL is automatically linked')
+  assertEq(buffer.cells[30].link, null, 'trailing punctuation is outside the plain URL')
+
+  inp.send('\x1b[<35;2;1M')
+  await tick()
+  buffer = getBuffer()
+  assertEq(buffer.cells[0].fg, 'magenta', 'hovered link receives the accent color')
+  assert(out.chunks.some(chunk => String(chunk).includes('\x1b]22;pointer\x1b\\')), 'hovered link requests the pointer cursor')
+
+  inp.send('\x1b[<0;2;1M\x1b[<0;2;1m')
+  await tick()
+  assertEq(opened.join(','), 'https://google.com', 'click opens the link on release')
+
+  inp.send('\x1b[<0;2;1M\x1b[<32;5;1M\x1b[<0;5;1m')
+  await tick()
+  assertEq(opened.length, 1, 'dragging over a link does not open it')
+  unmount()
+}
+
+suite('Markdown does not link URLs inside inline code')
+{
+  const out = new FakeStream(40, 4)
+  const inp = new FakeInput()
+  const { getBuffer, unmount } = mount(
+    () => jsx(Markdown, { text: '`https://example.com`' }),
+    { stream: out, stdin: inp, altScreen: false },
+  )
+  await tick()
+  assertEq(getBuffer().cells[0].link, null, 'inline code remains non-interactive')
+  unmount()
+}
+
 suite('Markdown tolerates an unclosed fence while streaming')
 {
   const blocks = parseBlocks('before\n\n```js\nconst a = 1')

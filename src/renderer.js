@@ -1,5 +1,6 @@
 import { createBuffer, clearBuffer, fillRect, writeText, dimBuffer, dimRect, blitRect } from './buffer.js'
 import { diff } from './diff.js'
+import { openUrl } from './open-url.js'
 import { bufferToLines } from './serialize.js'
 import { computeLayout, resolveBorderEdges, intrinsicHeight } from './layout.js'
 import { Fragment } from './element.js'
@@ -311,8 +312,16 @@ function applySelectionHighlight(buf, sel) {
     const base = y * buf.width
     for (let x = from; x <= to; x++) {
       const c = buf.cells[base + x]
-      buf.cells[base + x] = { ch: c.ch, fg: c.fg, bg: c.bg, attrs: c.attrs ^ ansi.INVERSE }
+      buf.cells[base + x] = { ...c, attrs: c.attrs ^ ansi.INVERSE }
     }
+  }
+}
+
+function applyLinkHover(buf, url, color) {
+  if (!url) return
+  for (let i = 0; i < buf.cells.length; i++) {
+    const cell = buf.cells[i]
+    if (cell.link === url) buf.cells[i] = { ...cell, fg: color }
   }
 }
 
@@ -753,7 +762,7 @@ function renderElementToLines(element, width) {
   return lines
 }
 
-export function mount(rootComponent, { stream, stdin, title, theme, onExit: onExitCb, altScreen = true, inline = false } = {}) {
+export function mount(rootComponent, { stream, stdin, title, theme, onExit: onExitCb, onOpenLink = openUrl, altScreen = true, inline = false } = {}) {
   const out = stream ?? process.stdout
   const inp = stdin ?? process.stdin
 
@@ -764,6 +773,11 @@ export function mount(rootComponent, { stream, stdin, title, theme, onExit: onEx
   let curr = createBuffer(width, height)
 
   const ctx = { stream: out, input: null, stdin: inp, theme: { ...DEFAULT_THEME, ...theme }, captureOwner: null, selection: null }
+  const linkPointer = { hovered: null, pressed: null, dragged: false }
+  const cellLink = (x, y) => {
+    const buf = ctx.getPaintBuffer?.()
+    return buf && x >= 0 && y >= 0 && x < buf.width && y < buf.height ? buf.cells[y * buf.width + x]?.link ?? null : null
+  }
   const input = createInputHandler(inp, {
     isEligible: (owner) => {
       const cap = ctx.captureOwner
@@ -777,6 +791,27 @@ export function mount(rootComponent, { stream, stdin, title, theme, onExit: onEx
     },
   })
   ctx.input = input
+  input.onMouse(event => {
+    const link = cellLink(event.x, event.y)
+    if (event.action === 'move') {
+      if (link !== linkPointer.hovered) {
+        linkPointer.hovered = link
+        out.write(ansi.setPointerShape(link ? 'pointer' : ''))
+        forceFullPaint = true
+        ctx.requestFrame?.()
+      }
+    } else if (event.action === 'press' && event.button === 'left') {
+      linkPointer.pressed = link
+      linkPointer.dragged = false
+    } else if (event.action === 'drag' && linkPointer.pressed) {
+      linkPointer.dragged = true
+    } else if (event.action === 'release') {
+      if (linkPointer.pressed && !linkPointer.dragged && link === linkPointer.pressed) onOpenLink?.(link)
+      linkPointer.pressed = null
+      linkPointer.dragged = false
+    }
+  })
+  ctx.hoveredLink = () => linkPointer.hovered
   activeContext = ctx
 
   // component instance cache persists across frames
@@ -1082,6 +1117,7 @@ export function mount(rootComponent, { stream, stdin, title, theme, onExit: onEx
     // selection paints last, over everything, by flipping inverse on the
     // covered cells. new cell objects are required: blitting shares cell refs
     // with prev, and diff must see prev unchanged
+    applyLinkHover(curr, linkPointer.hovered, ctx.theme.accent)
     if (ctx.selection) applySelectionHighlight(curr, ctx.selection)
     prevHadSelection = !!ctx.selection
 
@@ -1207,9 +1243,9 @@ export function mount(rootComponent, { stream, stdin, title, theme, onExit: onEx
     instances.clear()
 
     if (inline) {
-      out.write((overlayActive ? ansi.exitAltScreen : '') + ansi.sgrReset + disableBracketedPaste + ansi.showCursor + '\r\n')
+      out.write((overlayActive ? ansi.exitAltScreen : '') + ansi.sgrReset + ansi.setPointerShape() + disableBracketedPaste + ansi.showCursor + '\r\n')
     } else {
-      out.write(ansi.sgrReset + ansi.disableMouse + disableBracketedPaste + ansi.showCursor + (altScreen ? ansi.exitAltScreen : ansi.moveTo(height, 1) + '\n'))
+      out.write(ansi.sgrReset + ansi.setPointerShape() + ansi.disableMouse + disableBracketedPaste + ansi.showCursor + (altScreen ? ansi.exitAltScreen : ansi.moveTo(height, 1) + '\n'))
     }
     if (inp.isTTY && inp.setRawMode) inp.setRawMode(false)
     activeContext = null

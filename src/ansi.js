@@ -17,6 +17,7 @@ export const exitAltScreen = `${ESC}?1049l`
 export const sgrReset = `${ESC}0m`
 
 export const setTitle = (title) => `\x1b]2;${title}\x07`
+export const setPointerShape = (shape = '') => `\x1b]22;${shape}\x1b\\`
 export const osc52Copy = (text) => `\x1b]52;c;${Buffer.from(text, 'utf8').toString('base64')}\x07`
 
 export const beginSync = `${ESC}?2026h`

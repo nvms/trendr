@@ -29,7 +29,7 @@ export function setCell(buf, x, y, ch, fg, bg, attrs) {
   buf.cells[y * buf.width + x] = { ch, fg: fg ?? null, bg: bg ?? null, attrs: attrs ?? 0 }
 }
 
-function putCell(buf, idx, ch, fg, bg, attrs) {
+function putCell(buf, idx, ch, fg, bg, attrs, link) {
   const prev = buf.cells[idx]
   const transparent = ch === ' ' && !bg && prev.ch !== ' '
   buf.cells[idx] = {
@@ -37,6 +37,7 @@ function putCell(buf, idx, ch, fg, bg, attrs) {
     fg: transparent ? prev.fg : (fg ?? prev.fg),
     bg: bg ?? prev.bg,
     attrs: transparent ? prev.attrs : (attrs ?? prev.attrs),
+    link: transparent ? prev.link : (link ?? null),
   }
 }
 
@@ -49,6 +50,7 @@ export function writeText(buf, x, y, text, fg, bg, attrs, maxWidth) {
   const max = maxWidth ?? (buf.width - x)
   const base = y * buf.width
   let ansi = null
+  let link = null
   let col = 0
   let i = 0
 
@@ -59,6 +61,9 @@ export function writeText(buf, x, y, text, fg, bg, attrs, maxWidth) {
         if (text[i + 1] === '[' && text[end - 1] === 'm') {
           if (ansi === null) ansi = { fg: null, bg: null, attrs: 0 }
           parseSgr(text.slice(i + 2, end - 1), ansi)
+        } else if (text.startsWith('\x1b]8;;', i)) {
+          const terminator = text[end - 1] === '\x07' ? 1 : 2
+          link = text.slice(i + 5, end - terminator) || null
         }
         i = end
         continue
@@ -77,7 +82,7 @@ export function writeText(buf, x, y, text, fg, bg, attrs, maxWidth) {
       if (stop > max) stop = max
       while (col < stop) {
         const cx = x + col
-        if (cx >= 0 && cx < buf.width) putCell(buf, base + cx, ' ', efg, ebg, eattrs)
+        if (cx >= 0 && cx < buf.width) putCell(buf, base + cx, ' ', efg, ebg, eattrs, link)
         col++
       }
       i++
@@ -101,7 +106,7 @@ export function writeText(buf, x, y, text, fg, bg, attrs, maxWidth) {
     if (col + w > max) break
     const cx = x + col
     if (cx >= 0 && cx + w <= buf.width) {
-      putCell(buf, base + cx, len === 1 ? text[i] : text.slice(i, i + len), efg, ebg, eattrs)
+      putCell(buf, base + cx, len === 1 ? text[i] : text.slice(i, i + len), efg, ebg, eattrs, link)
       if (w === 2) buf.cells[base + cx + 1] = { ch: '', fg: efg ?? null, bg: ebg ?? null, attrs: eattrs ?? 0 }
     }
     col += w

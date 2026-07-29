@@ -149,6 +149,28 @@ export function parseBlocks(text) {
   return blocks
 }
 
+const LINK_OPEN = url => `\x1b]8;;${url}\x1b\\`
+const LINK_CLOSE = '\x1b]8;;\x1b\\'
+const LINK_RE = /\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)|(https?:\/\/[^\s<>]+)/g
+const TRAILING_URL_PUNCTUATION = /[.,;:!?]+$/
+
+function renderLinks(text) {
+  return text.replace(LINK_RE, (match, label, markdownUrl, plainUrl) => {
+    let url = markdownUrl || plainUrl
+    let trailing = ''
+    if (plainUrl) {
+      const punctuation = url.match(TRAILING_URL_PUNCTUATION)?.[0] || ''
+      url = url.slice(0, url.length - punctuation.length)
+      trailing = punctuation
+      while (url.endsWith(')') && (url.match(/\(/g)?.length || 0) < (url.match(/\)/g)?.length || 0)) {
+        trailing = ')' + trailing
+        url = url.slice(0, -1)
+      }
+    }
+    return `${LINK_OPEN(url)}${UNDERLINE_ON}${label || url}${UNDERLINE_OFF}${LINK_CLOSE}${trailing}`
+  })
+}
+
 export function renderInline(s, { accent = 'cyan' } = {}) {
   const codeOn = fgSgr(accent)
   let out = ''
@@ -156,8 +178,7 @@ export function renderInline(s, { accent = 'cyan' } = {}) {
     if (part.length > 2 && part.startsWith('`') && part.endsWith('`')) {
       out += codeOn + part.slice(1, -1) + FG_RESET
     } else {
-      out += part
-        .replace(/\[([^\]]+)\]\(([^)]+)\)/g, `${UNDERLINE_ON}$1${UNDERLINE_OFF}`)
+      out += renderLinks(part)
         .replace(/\*\*([^*]+)\*\*/g, `${BOLD_ON}$1${BOLD_OFF}`)
         .replace(/\*([^*\s][^*]*?)\*/g, `${ITALIC_ON}$1${ITALIC_OFF}`)
         .replace(/(^|\s)_([^_]+)_(?=\s|$|[.,;:!?])/g, `$1${ITALIC_ON}$2${ITALIC_OFF}`)

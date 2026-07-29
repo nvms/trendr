@@ -103,10 +103,10 @@ export function sliceVisible(text, maxWidth) {
 
 const sgrIsDefault = (s) => s.fg == null && s.bg == null && s.attrs === 0
 
-// minimal prefix that reproduces an SGR state on a fresh line
-const sgrCarry = (s) => sgrIsDefault(s) ? '' : sgr(s.fg, s.bg, s.attrs)
+// minimal prefix that reproduces the active style and hyperlink on a fresh line
+const sgrCarry = (s) => (sgrIsDefault(s) ? '' : sgr(s.fg, s.bg, s.attrs)) + (s.link ? `\x1b]8;;${s.link}\x1b\\` : '')
 
-// folds every SGR sequence found in str into state; other escapes are ignored
+// folds every SGR and OSC 8 sequence found in str into state
 function updateSgrState(str, state) {
   let i = str.indexOf('\x1b')
   while (i !== -1) {
@@ -116,6 +116,10 @@ function updateSgrState(str, state) {
       continue
     }
     if (str[i + 1] === '[' && str[end - 1] === 'm') parseSgr(str.slice(i + 2, end - 1), state)
+    else if (str.startsWith('\x1b]8;;', i)) {
+      const terminator = str[end - 1] === '\x07' ? 1 : 2
+      state.link = str.slice(i + 5, end - terminator) || null
+    }
     i = str.indexOf('\x1b', end)
   }
   return state
@@ -129,7 +133,7 @@ export function sliceVisibleRange(text, start, end) {
   let out = ''
   let opened = false
   let i = 0
-  const state = { fg: null, bg: null, attrs: 0 }
+  const state = { fg: null, bg: null, attrs: 0, link: null }
 
   while (i < text.length && idx < end) {
     if (text[i] === '\x1b') {
@@ -252,7 +256,7 @@ export function wordWrapMarked(text, maxWidth) {
 
   const lines = []
   const soft = []
-  const state = { fg: null, bg: null, attrs: 0 }
+  const state = { fg: null, bg: null, attrs: 0, link: null }
 
   for (const rawLine of text.split('\n')) {
     const startIdx = lines.length
