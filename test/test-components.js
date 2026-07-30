@@ -899,7 +899,6 @@ suite('Markdown links are clickable, hoverable, and preserve drag selection')
   await tick()
   buffer = getBuffer()
   assertEq(buffer.cells[0].fg, 'magenta', 'hovered link receives the accent color')
-  assert(out.chunks.some(chunk => String(chunk).includes('\x1b]22;pointer\x1b\\')), 'hovered link requests the pointer cursor')
 
   inp.send('\x1b[<0;2;1M\x1b[<0;2;1m')
   await tick()

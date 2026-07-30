@@ -796,7 +796,6 @@ export function mount(rootComponent, { stream, stdin, title, theme, onExit: onEx
     if (event.action === 'move') {
       if (link !== linkPointer.hovered) {
         linkPointer.hovered = link
-        out.write(ansi.setPointerShape(link ? 'pointer' : ''))
         forceFullPaint = true
         ctx.requestFrame?.()
       }
@@ -1243,9 +1242,9 @@ export function mount(rootComponent, { stream, stdin, title, theme, onExit: onEx
     instances.clear()
 
     if (inline) {
-      out.write((overlayActive ? ansi.exitAltScreen : '') + ansi.sgrReset + ansi.setPointerShape() + disableBracketedPaste + ansi.showCursor + '\r\n')
+      out.write((overlayActive ? ansi.exitAltScreen : '') + ansi.sgrReset + disableBracketedPaste + ansi.showCursor + '\r\n')
     } else {
-      out.write(ansi.sgrReset + ansi.setPointerShape() + ansi.disableMouse + disableBracketedPaste + ansi.showCursor + (altScreen ? ansi.exitAltScreen : ansi.moveTo(height, 1) + '\n'))
+      out.write(ansi.sgrReset + ansi.disableMouse + disableBracketedPaste + ansi.showCursor + (altScreen ? ansi.exitAltScreen : ansi.moveTo(height, 1) + '\n'))
     }
     if (inp.isTTY && inp.setRawMode) inp.setRawMode(false)
     activeContext = null
