@@ -1021,54 +1021,25 @@ export function mount(rootComponent, { stream, stdin, title, theme, onExit: onEx
     const counters = new Map()
     const visited = new Set()
     const element = { type: rootComponent, props: {}, key: null }
-    const tree = resolveForFrame(element, null, instances, counters, visited, '')
-
+    let tree = resolveForFrame(element, null, instances, counters, visited, '')
     computeLayout(tree, { x: 0, y: 0, width, height })
 
-    let layoutChanged = false
-    for (const inst of instances.values()) {
-      const rect = inst.node?._availableRect ?? inst.node?._layout
-      if (!rect) continue
-      const ch = findScrollContentSize(inst.node, '_contentHeight')
-      const cw = findScrollContentSize(inst.node, '_contentWidth')
-      if (!inst.layout) inst.layout = { x: 0, y: 0, width: 0, height: 0 }
-      const prev = inst.layout
-      if (prev.width !== rect.width || prev.height !== rect.height || prev.contentHeight !== ch || prev.contentWidth !== cw) {
-        layoutChanged = true
-      }
-      prev.x = rect.x
-      prev.y = rect.y
-      prev.width = rect.width
-      prev.height = rect.height
-      prev.contentHeight = ch
-      prev.contentWidth = cw
-      prev.childHeights = findScrollChildHeights(inst.node)
-    }
-
-    // layout values changed - re-resolve so components see updated useLayout()
-    if (layoutChanged) {
+    let layoutChanged = syncInstanceLayouts()
+    const hadLayoutChange = layoutChanged
+    let layoutPass = 1
+    while (layoutChanged && layoutPass++ < 32) {
       overlays = []
       counters.clear()
       visited.clear()
-      const tree2 = resolveForFrame(element, null, instances, counters, visited, '')
-      computeLayout(tree2, { x: 0, y: 0, width, height })
-      for (const inst of instances.values()) {
-        const rect = inst.node?._availableRect ?? inst.node?._layout
-        if (!rect) continue
-        const ch = findScrollContentSize(inst.node, '_contentHeight')
-        const cw = findScrollContentSize(inst.node, '_contentWidth')
-        if (!inst.layout) inst.layout = { x: 0, y: 0, width: 0, height: 0 }
-        inst.layout.x = rect.x
-        inst.layout.y = rect.y
-        inst.layout.width = rect.width
-        inst.layout.height = rect.height
-        inst.layout.contentHeight = ch
-        inst.layout.contentWidth = cw
-        inst.layout.childHeights = findScrollChildHeights(inst.node)
-        inst._dirty = true
-      }
-      propagateDirty(tree2)
-      paintTree(tree2, curr, null, null, null)
+      tree = resolveForFrame(element, null, instances, counters, visited, '')
+      computeLayout(tree, { x: 0, y: 0, width, height })
+      layoutChanged = syncInstanceLayouts()
+    }
+
+    if (hadLayoutChange) {
+      for (const inst of instances.values()) inst._dirty = true
+      propagateDirty(tree)
+      paintTree(tree, curr, null, null, null)
     } else {
       propagateDirty(tree)
       paintTree(tree, curr, null, null, (forceFullPaint || prevHadOverlays || prevHadSelection) ? null : prev)

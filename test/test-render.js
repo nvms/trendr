@@ -1426,6 +1426,35 @@ suite('ScrollBox keeps an oversized focused row stable while it intersects the v
   unmount()
 }
 
+suite('ScrollBox settles changed content before painting a controlled bottom offset')
+{
+  const out = new FakeStream(20, 6)
+  const inp = new FakeInput()
+  let setPage
+
+  function App() {
+    const [page, updatePage] = createSignal(0)
+    setPage = updatePage
+    const lines = page() === 0 ? ['main'] : Array.from({ length: 20 }, (_, i) => `worker ${i}`)
+    return jsx(ScrollBox, {
+      scrollOffset: 1e9,
+      scrollbar: true,
+      children: lines.map((line, i) => jsx('text', { key: `${page()}:${i}`, children: line })),
+    })
+  }
+
+  const { unmount } = mount(App, { stream: out, stdin: inp, altScreen: false })
+  await tick()
+  let grid = parseScreen(out.output, 20, 6)
+  out.clear()
+
+  setPage(1)
+  await tick()
+  grid = parseScreen(out.output, 20, 6, grid)
+  assert(findInGrid(grid, 'worker 19'), 'new long content is visible at the controlled bottom offset without another input frame')
+  unmount()
+}
+
 suite('ScrollBox first scroll-up from an out-of-range (follow) offset moves one row')
 {
   const out = new FakeStream(20, 6)
