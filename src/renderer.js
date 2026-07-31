@@ -1036,6 +1036,14 @@ export function mount(rootComponent, { stream, stdin, title, theme, onExit: onEx
       layoutChanged = syncInstanceLayouts()
     }
 
+    if (layoutChanged) {
+      overlays = []
+      counters.clear()
+      visited.clear()
+      tree = resolveForFrame(element, null, instances, counters, visited, '')
+      computeLayout(tree, { x: 0, y: 0, width, height })
+    }
+
     if (hadLayoutChange) {
       for (const inst of instances.values()) inst._dirty = true
       propagateDirty(tree)

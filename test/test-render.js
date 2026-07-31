@@ -1455,6 +1455,37 @@ suite('ScrollBox settles changed content before painting a controlled bottom off
   unmount()
 }
 
+suite('layout settling paints the tree that matches the final synchronized layout')
+{
+  const out = new FakeStream(20, 6)
+  const inp = new FakeInput()
+  let observedHeight
+
+  function OscillatingLayout() {
+    const layout = useLayout()
+    observedHeight = layout.height
+    const oneRow = layout.height === 1
+    return jsx('box', {
+      style: { height: oneRow ? 2 : 1 },
+      children: jsx('text', { children: oneRow ? 'one row' : 'two rows' }),
+    })
+  }
+
+  function App() {
+    return jsx('box', {
+      style: { flexDirection: 'column' },
+      children: jsx(OscillatingLayout, {}),
+    })
+  }
+
+  const { unmount } = mount(App, { stream: out, stdin: inp, altScreen: false })
+  await tick()
+  const grid = parseScreen(out.output, 20, 6)
+  const expected = observedHeight === 1 ? 'one row' : 'two rows'
+  assert(findInGrid(grid, expected), 'painted content matches the layout observed by the final render')
+  unmount()
+}
+
 suite('ScrollBox first scroll-up from an out-of-range (follow) offset moves one row')
 {
   const out = new FakeStream(20, 6)
