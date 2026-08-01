@@ -1,6 +1,6 @@
 import { jsx, jsxs } from '../jsx-runtime.js'
 import { createSignal } from './signal.js'
-import { useInput, useMouse, useLayout, useCursor, useTheme } from './hooks.js'
+import { useInput, useMouse, useLayout, useCursor, useTheme, useScrollDrag } from './hooks.js'
 import { registerHook } from './renderer.js'
 import { charWidth, measureText } from './wrap.js'
 
@@ -124,15 +124,37 @@ function ensureVisible(cursorRow, scroll, height, totalLines) {
   return scroll
 }
 
-export function TextArea({ onSubmit, onCancel, onChange, onKeyDown, placeholder, focused = true, maxHeight = 10, clearOnSubmit = true, cursor: cursorProp, value: valueProp, submitOnEnter = false, newlineOnBackslashEnter = false, color, lineCounter = false }) {
+function editorView(text, width, maxHeight, lineCounter, scrollbar) {
+  const fullWidth = width || 80
+  let lineMap = wrapForEditor(text, fullWidth)
+  let counterActive = lineCounter && lineMap.length > maxHeight
+  let textHeight = counterActive ? Math.max(1, maxHeight - 1) : maxHeight
+  let hasBar = scrollbar && lineMap.length > textHeight
+
+  if (hasBar) {
+    lineMap = wrapForEditor(text, Math.max(1, fullWidth - 2))
+    counterActive = lineCounter && lineMap.length > maxHeight
+    textHeight = counterActive ? Math.max(1, maxHeight - 1) : maxHeight
+  }
+
+  return {
+    lineMap,
+    counterActive,
+    displayHeight: Math.max(1, Math.min(lineMap.length, textHeight)),
+    hasBar,
+  }
+}
+
+export function TextArea({ onSubmit, onCancel, onChange, onKeyDown, placeholder, focused = true, maxHeight = 10, clearOnSubmit = true, cursor: cursorProp, value: valueProp, submitOnEnter = false, newlineOnBackslashEnter = false, color, lineCounter = false, scrollbar = false, thumbChar = '\u2588', trackChar = '\u2502' }) {
   const [value, setValue] = createSignal('')
   const [cursor, setCursor] = createSignal(0)
   if (valueProp !== undefined && valueProp !== value()) {
     setValue(valueProp)
     setCursor(valueProp.length)
   }
-  const ref = registerHook(() => ({ scroll: 0, goalCol: null }))
-  const { muted = 'gray' } = useTheme()
+  const [scroll, setScroll] = createSignal(0)
+  const ref = registerHook(() => ({ goalCol: null, manualScroll: false }))
+  const { accent = 'cyan', muted = 'gray' } = useTheme()
   const layout = useLayout()
   const { cursorStyle, reset: resetBlink } = useCursor(cursorProp, focused)
 
@@ -141,21 +163,30 @@ export function TextArea({ onSubmit, onCancel, onChange, onKeyDown, placeholder,
     setValue(next)
     setCursor(c)
     ref.goalCol = null
+    ref.manualScroll = false
     if (onChange) onChange(next, prev)
   }
 
   useMouse((event) => {
-    if (!focused || event.action !== 'press' || event.button !== 'left') return
+    if (!focused) return
     if (event.x < layout.x || event.x >= layout.x + layout.width || event.y < layout.y || event.y >= layout.y + layout.height) return
 
     const v = value()
-    const lineMap = wrapForEditor(v, layout.width || 80)
-    const counterActive = lineCounter && lineMap.length > maxHeight
-    const textHeight = counterActive ? Math.max(1, maxHeight - 1) : maxHeight
-    const visibleHeight = Math.max(1, Math.min(lineMap.length, textHeight))
-    const row = Math.min(event.y - layout.y, visibleHeight - 1) + ref.scroll
+    const view = editorView(v, layout.width, maxHeight, lineCounter, scrollbar)
+    const maxScroll = Math.max(0, view.lineMap.length - view.displayHeight)
+
+    if (event.action === 'scroll' && (event.direction === 'up' || event.direction === 'down') && maxScroll > 0) {
+      const delta = event.direction === 'up' ? -3 : 3
+      setScroll(Math.max(0, Math.min(maxScroll, scroll() + delta)))
+      ref.manualScroll = true
+      event.stopPropagation()
+      return
+    }
+
+    if (event.action !== 'press' || event.button !== 'left') return
+    const row = Math.min(event.y - layout.y, view.displayHeight - 1) + scroll()
     const col = event.x - layout.x
-    setCursor(displayToCursor(row, col, lineMap, v))
+    setCursor(displayToCursor(row, col, view.lineMap, v))
     ref.goalCol = null
     resetBlink()
     event.stopPropagation()
@@ -174,6 +205,7 @@ export function TextArea({ onSubmit, onCancel, onChange, onKeyDown, placeholder,
     }
 
     resetBlink()
+    ref.manualScroll = false
 
     const { key, raw, ctrl, meta, shift } = event
     const v = value()
@@ -203,7 +235,8 @@ export function TextArea({ onSubmit, onCancel, onChange, onKeyDown, placeholder,
     if (isSubmitKey) {
       if (onSubmit) onSubmit(v)
       if (clearOnSubmit) update('', 0)
-      ref.scroll = 0
+      setScroll(0)
+      ref.manualScroll = false
       event.stopPropagation()
       return
     }
@@ -339,19 +372,32 @@ export function TextArea({ onSubmit, onCancel, onChange, onKeyDown, placeholder,
     return jsx('text', { style: { color: muted, flexGrow: 1 }, children: placeholder })
   }
 
-  const effectiveWidth = w || 80
-  const lineMap = wrapForEditor(v, effectiveWidth)
+  const view = editorView(v, w, maxHeight, lineCounter, scrollbar)
+  const { lineMap, counterActive, displayHeight, hasBar } = view
   const displayPos = cursorToDisplay(c, lineMap, v)
+  const maxScroll = Math.max(0, lineMap.length - displayHeight)
+  const currentScroll = ref.manualScroll
+    ? Math.max(0, Math.min(maxScroll, scroll()))
+    : ensureVisible(displayPos.row, scroll(), displayHeight, lineMap.length)
+  if (currentScroll !== scroll()) setScroll(currentScroll)
 
-  // an active counter reserves the bottom row for itself so it can never
-  // overlap text or the cursor; overflow state costs one visible text row
-  const counterActive = lineCounter && lineMap.length > maxHeight
-  const boxMax = counterActive ? Math.max(1, maxHeight - 1) : maxHeight
-  const displayHeight = Math.max(1, Math.min(lineMap.length, boxMax))
-  ref.scroll = ensureVisible(displayPos.row, ref.scroll, displayHeight, lineMap.length)
-  const scroll = ref.scroll
+  const barThumbH = hasBar ? Math.max(1, Math.round((displayHeight / lineMap.length) * displayHeight)) : 0
+  const barThumbStart = hasBar && maxScroll > 0 ? Math.round((currentScroll / maxScroll) * (displayHeight - barThumbH)) : 0
 
-  const visibleLines = lineMap.slice(scroll, scroll + displayHeight)
+  useScrollDrag({
+    barX: hasBar ? layout.x + layout.width - 1 : null,
+    barY: layout.y + barThumbStart,
+    thumbHeight: barThumbH,
+    trackHeight: displayHeight,
+    maxOffset: maxScroll,
+    scrollOffset: currentScroll,
+    onScroll: (next) => {
+      setScroll(next)
+      ref.manualScroll = true
+    },
+  })
+
+  const visibleLines = lineMap.slice(currentScroll, currentScroll + displayHeight)
 
   if (!v && placeholder && focused) {
     const first = placeholder.slice(0, nextBoundary(placeholder, 0))
@@ -368,27 +414,38 @@ export function TextArea({ onSubmit, onCancel, onChange, onKeyDown, placeholder,
   }
 
   const rows = visibleLines.map((line, i) => {
-    const row = scroll + i
+    const row = currentScroll + i
     const content = v.slice(line.start, line.end)
     const hasCursor = focused && row === displayPos.row
+    let textRow
 
     if (!hasCursor) {
-      return jsx('text', { key: row, style: color ? { color } : {}, children: content || ' ' })
+      textRow = jsx('text', { style: color ? { color } : {}, children: content || ' ' })
+    } else {
+      const cursorIdx = Math.max(line.start, Math.min(c, line.end))
+      const nb = cursorIdx < line.end ? nextBoundary(v, cursorIdx) : cursorIdx
+      const before = v.slice(line.start, cursorIdx)
+      const cursorChar = cursorIdx < line.end ? v.slice(cursorIdx, nb) : ' '
+      const after = v.slice(nb, line.end)
+
+      textRow = jsxs('box', {
+        style: { flexDirection: 'row', height: 1 },
+        children: [
+          before && jsx('text', { style: color ? { color } : {}, children: before }),
+          jsx('text', { style: cs ?? {}, children: cursorChar }),
+          after && jsx('text', { style: color ? { color } : {}, children: after }),
+        ],
+      })
     }
 
-    const cursorIdx = Math.max(line.start, Math.min(c, line.end))
-    const nb = cursorIdx < line.end ? nextBoundary(v, cursorIdx) : cursorIdx
-    const before = v.slice(line.start, cursorIdx)
-    const cursorChar = cursorIdx < line.end ? v.slice(cursorIdx, nb) : ' '
-    const after = v.slice(nb, line.end)
-
+    if (!hasBar) return jsx('box', { key: row, style: { height: 1 }, children: textRow })
+    const isThumb = i >= barThumbStart && i < barThumbStart + barThumbH
     return jsxs('box', {
       key: row,
       style: { flexDirection: 'row', height: 1 },
       children: [
-        before && jsx('text', { style: color ? { color } : {}, children: before }),
-        jsx('text', { style: cs ?? {}, children: cursorChar }),
-        after && jsx('text', { style: color ? { color } : {}, children: after }),
+        jsx('box', { style: { flexGrow: 1, height: 1 }, children: textRow }),
+        jsx('text', { style: { color: isThumb && focused ? accent : muted, dim: !isThumb, copyIgnore: true }, children: ` ${isThumb ? thumbChar : trackChar}` }),
       ],
     })
   })

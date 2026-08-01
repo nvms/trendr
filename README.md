@@ -545,6 +545,7 @@ Multi-line text input. Auto-grows up to `maxHeight`, then scrolls.
   focused={fm.is('input')}
   placeholder="write something..."
   maxHeight={10}           // default 10
+  scrollbar={false}        // show a scrollbar only when content overflows
   value={draft()}          // controlled value (optional)
   submitOnEnter={false}    // default false: Alt+Enter submits, Enter inserts newline.
                            // true flips it: Enter submits, Shift/Alt+Enter inserts newline
@@ -561,7 +562,7 @@ Multi-line text input. Auto-grows up to `maxHeight`, then scrolls.
 
 Keys: Enter inserts newline. Up/down with sticky goal column. Home/end operate on display rows. Ctrl-u/k/w operate on logical lines.
 
-Mouse: left-click moves the cursor to the clicked text cell. Clicking past a line's text clamps to its end. Clicking below the final visible text row clamps to the final cursor position.
+Mouse: left-click moves the cursor to the clicked text cell. Clicking past a line's text clamps to its end. Clicking below the final visible text row clamps to the final cursor position. The mouse wheel scrolls overflowing content while the pointer is over the textarea. When `scrollbar` is enabled, the scrollbar appears only while content overflows and its thumb can be dragged.
 
 ### List
 

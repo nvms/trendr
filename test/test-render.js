@@ -1343,6 +1343,52 @@ suite('text-area click accounts for wrapping and scroll')
 
 import { ScrollBox } from '../index.js'
 
+suite('text-area mouse wheel scrolls overflowing content')
+{
+  const out = new FakeStream(5, 4)
+  const inp = new FakeInput()
+  let value = 'abcdefghijklmnop'
+
+  function App() {
+    return jsx(TextArea, { value, maxHeight: 2, onChange: (v) => { value = v }, focused: true })
+  }
+
+  const { unmount } = mount(App, { stream: out, stdin: inp, altScreen: false })
+  await tick()
+
+  inp.send('\x1b[<64;3;1M'); await tick()
+  inp.send('\x1b[<0;3;1M'); await tick()
+  inp.send('X'); await tick()
+  assertEq(value, 'abXcdefghijklmnop', 'wheel scroll persists without snapping back to the cursor')
+
+  unmount()
+}
+
+suite('text-area scrollbar appears only when content overflows')
+{
+  const out = new FakeStream(10, 4)
+  const inp = new FakeInput()
+  let setValue
+
+  function App() {
+    const [value, set] = createSignal('one')
+    setValue = set
+    return jsx(TextArea, { value: value(), maxHeight: 2, scrollbar: true, focused: true })
+  }
+
+  const { unmount } = mount(App, { stream: out, stdin: inp, altScreen: false })
+  await tick()
+  let screen = parseScreen(out.output, 10, 4)
+  assert(!screen.some(row => row.includes('│') || row.includes('█')), 'short content has no scrollbar')
+
+  setValue('abcdefghijABCDEFGHIJ0123456789')
+  await tick()
+  screen = parseScreen(out.output, 10, 4, screen)
+  assert(screen.some(row => row.includes('│') || row.includes('█')), 'overflowing content has a scrollbar')
+
+  unmount()
+}
+
 suite('inactive focus manager ignores tab navigation')
 {
   const out = new FakeStream(20, 3)
