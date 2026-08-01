@@ -1291,6 +1291,54 @@ suite('text-area ctrl+u mid-line only deletes back to the line start')
   unmount()
 }
 
+suite('text-area click moves the cursor to the clicked cell')
+{
+  const out = new FakeStream(40, 10)
+  const inp = new FakeInput()
+  let value = 'hello world'
+
+  function App() {
+    return jsx(TextArea, { value, onChange: (v) => { value = v }, focused: true })
+  }
+
+  const { unmount } = mount(App, { stream: out, stdin: inp, altScreen: false })
+  await tick()
+
+  inp.send('\x1b[<0;7;1M'); await tick()
+  inp.send('X'); await tick()
+  assertEq(value, 'hello Xworld', 'click inserts at the selected cell')
+
+  inp.send('\x1b[<0;31;1M'); await tick()
+  inp.send('!'); await tick()
+  assertEq(value, 'hello Xworld!', 'click past the line clamps to its end')
+
+  unmount()
+}
+
+suite('text-area click accounts for wrapping and scroll')
+{
+  const out = new FakeStream(5, 4)
+  const inp = new FakeInput()
+  let value = 'abcdefghijklmnop'
+
+  function App() {
+    return jsx(TextArea, { value, maxHeight: 2, onChange: (v) => { value = v }, focused: true })
+  }
+
+  const { unmount } = mount(App, { stream: out, stdin: inp, altScreen: false })
+  await tick()
+
+  inp.send('\x1b[<0;3;1M'); await tick()
+  inp.send('X'); await tick()
+  assertEq(value, 'abcdefghijklXmnop', 'click maps through the visible scroll offset')
+
+  inp.send('\x1b[<0;5;2M'); await tick()
+  inp.send('!'); await tick()
+  assertEq(value, 'abcdefghijklXmnop!', 'bottom-right click clamps to the final text cell')
+
+  unmount()
+}
+
 // ScrollBox
 
 import { ScrollBox } from '../index.js'

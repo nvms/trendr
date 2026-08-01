@@ -1,6 +1,6 @@
 import { jsx, jsxs } from '../jsx-runtime.js'
 import { createSignal } from './signal.js'
-import { useInput, useLayout, useCursor, useTheme } from './hooks.js'
+import { useInput, useMouse, useLayout, useCursor, useTheme } from './hooks.js'
 import { registerHook } from './renderer.js'
 import { charWidth, measureText } from './wrap.js'
 
@@ -143,6 +143,23 @@ export function TextArea({ onSubmit, onCancel, onChange, onKeyDown, placeholder,
     ref.goalCol = null
     if (onChange) onChange(next, prev)
   }
+
+  useMouse((event) => {
+    if (!focused || event.action !== 'press' || event.button !== 'left') return
+    if (event.x < layout.x || event.x >= layout.x + layout.width || event.y < layout.y || event.y >= layout.y + layout.height) return
+
+    const v = value()
+    const lineMap = wrapForEditor(v, layout.width || 80)
+    const counterActive = lineCounter && lineMap.length > maxHeight
+    const textHeight = counterActive ? Math.max(1, maxHeight - 1) : maxHeight
+    const visibleHeight = Math.max(1, Math.min(lineMap.length, textHeight))
+    const row = Math.min(event.y - layout.y, visibleHeight - 1) + ref.scroll
+    const col = event.x - layout.x
+    setCursor(displayToCursor(row, col, lineMap, v))
+    ref.goalCol = null
+    resetBlink()
+    event.stopPropagation()
+  })
 
   useInput((event) => {
     if (!focused) return

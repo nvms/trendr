@@ -561,6 +561,8 @@ Multi-line text input. Auto-grows up to `maxHeight`, then scrolls.
 
 Keys: Enter inserts newline. Up/down with sticky goal column. Home/end operate on display rows. Ctrl-u/k/w operate on logical lines.
 
+Mouse: left-click moves the cursor to the clicked text cell. Clicking past a line's text clamps to its end. Clicking below the final visible text row clamps to the final cursor position.
+
 ### List
 
 Used in [explorer](examples/explorer.jsx), [chat](examples/chat.jsx), [modal-form](examples/modal-form.jsx), [components](examples/components.jsx), [focus-demo](examples/focus-demo.jsx), [layout](examples/layout.jsx)
