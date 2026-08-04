@@ -362,14 +362,19 @@ export function Markdown({
 
     if (block.type === 'quote') {
       const rows = block.lines.map((line, k) =>
-        jsx('text', { key: k, style: { color: muted, italic: true }, children: renderInline(line, colors) }))
-      return jsxs('box', {
+        jsxs('box', {
+          key: k,
+          style: { flexDirection: 'row' },
+          children: [
+            jsx('text', { selection: 'outer', style: { color: muted }, children: '▎ ' }),
+            jsx('text', { style: { color: muted, italic: true }, children: renderInline(line, colors) }),
+          ],
+        }))
+      return jsx('box', {
         key,
-        style: { flexDirection: 'row' },
-        children: [
-          jsx('text', { style: { color: muted }, children: '▎ ' }),
-          jsx('box', { style: { flexDirection: 'column', flexGrow: 1 }, children: rows }),
-        ],
+        selection: 'contain',
+        style: { flexDirection: 'column' },
+        children: rows,
       })
     }
 

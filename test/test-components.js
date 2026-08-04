@@ -800,6 +800,36 @@ suite('Markdown block parsing')
   assertEq(blocks[6].type, 'para', 'seventh block is the tail paragraph')
 }
 
+suite('Markdown blockquotes use contained selection with an outer marker')
+{
+  const out = new FakeStream(30, 5)
+  const inp = new FakeInput()
+  let copied = null
+
+  function App() {
+    useSelection({ copy: false, onCopy: text => { copied = text } })
+    return jsx(Markdown, { text: '> hello\n> world' })
+  }
+
+  const { unmount } = mount(App, { stream: out, stdin: inp })
+  await tick()
+
+  inp.send('\x1b[<0;3;1M')
+  inp.send('\x1b[<32;8;2M')
+  inp.send('\x1b[<0;8;2m')
+  await tick()
+  assertEq(copied, 'hello\nworld', 'text-origin selection excludes quote marker')
+
+  copied = null
+  inp.send('\x1b[<0;1;1M')
+  inp.send('\x1b[<32;8;2M')
+  inp.send('\x1b[<0;8;2m')
+  await tick()
+  assertEq(copied, '▎ hello\n▎ world', 'marker-origin selection includes every quote marker')
+
+  unmount()
+}
+
 suite('Markdown parses GFM tables, alignment, escapes, and uneven rows')
 {
   const blocks = parseBlocks([
