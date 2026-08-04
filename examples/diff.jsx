@@ -1,4 +1,4 @@
-import { mount, createSignal, useInput, useFocus, useTheme, computeDiff } from '../index.js'
+import { mount, createSignal, useInput, useFocus, useTheme, useSelection, computeDiff } from '../index.js'
 import { List } from '../src/list.js'
 import { Diff } from '../src/diff-view.js'
 import { codeToANSI } from '@shikijs/cli'
@@ -148,6 +148,7 @@ function App() {
   useInput(({ key, ctrl }) => {
     if ((ctrl && key === 'c') || key === 'q') process.exit(0)
   })
+  useSelection()
 
   const sample = () => SAMPLES[idx()]
 
@@ -158,6 +159,12 @@ function App() {
         <box style={{ flexGrow: 1 }} />
         <text style={{ color: 'gray', dim: true }}>
           {fm.is('files') ? 'j/k: file   tab: diff   q: quit' : 'j/k: scroll   tab: files   q: quit'}
+        </text>
+      </box>
+
+      <box style={{ paddingX: 1 }}>
+        <text style={{ color: 'gray', dim: true }}>
+          drag code to copy without gutters; drag a line number to include complete rows
         </text>
       </box>
 
