@@ -147,8 +147,9 @@ export function MenuBar({ items, focused = false, maxVisible = 10, onSubmit, hot
   if (isOpen && openChildren.length > 0) {
     const instLayout = getInstanceLayout()
     const ctx = getContext()
-    const termH = ctx?.stream?.rows ?? 24
-    const termW = ctx?.stream?.columns ?? 80
+    const viewport = ctx?.getViewportSize?.()
+    const termH = viewport?.height ?? 24
+    const termW = viewport?.width ?? 80
 
     let itemX = 0
     for (let i = 0; i < openIndex(); i++) {

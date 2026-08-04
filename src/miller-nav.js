@@ -1,7 +1,7 @@
 import { jsx, jsxs } from '../jsx-runtime.js'
 import { createSignal, batch } from './signal.js'
-import { useInput, useMouse, useTheme, useLayout, useStdout } from './hooks.js'
-import { registerHook } from './renderer.js'
+import { useInput, useMouse, useTheme, useLayout } from './hooks.js'
+import { registerHook, getContext } from './renderer.js'
 import { List } from './list.js'
 
 function sameColumn(a, b) {
@@ -56,7 +56,7 @@ export function MillerNav({
 }) {
   const { accent = 'cyan', accentText = 'black' } = useTheme()
   const layout = useLayout()
-  const stdout = useStdout()
+  const viewport = getContext()?.getViewportSize?.()
 
   const focusedMax = typeof maxChars === 'number' ? maxChars : maxChars.focused ?? 20
   const unfocusedMax = typeof maxChars === 'number' ? maxChars : maxChars.unfocused ?? 10
@@ -308,7 +308,7 @@ export function MillerNav({
   }
 
   if (divider) {
-    const rows = layout.height || stdout.rows || 24
+    const rows = layout.height || viewport?.height || 24
     const bar = Array.from({ length: rows }, () => dividerChar).join('\n')
     children.push(jsx('box', {
       key: 'divider',

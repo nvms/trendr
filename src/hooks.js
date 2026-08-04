@@ -32,7 +32,7 @@ export function useResize(handler) {
     if (!ctx) throw new Error('useResize must be called within a mounted component')
     const stream = ctx.stream
     const state = { current: handler }
-    const onResize = () => state.current({ width: stream.columns, height: stream.rows })
+    const onResize = () => state.current(ctx.getViewportSize())
     stream.on('resize', onResize)
     onCleanup(() => stream.off('resize', onResize))
     return state

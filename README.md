@@ -58,8 +58,17 @@ Options:
 - `onOpenLink` - called with a URL when a Markdown or plain-text link is clicked; defaults to opening it with the platform browser
 - `altScreen` - enter the alternate screen buffer, default `true`
 - `inline` - inline mode, default `false` (see [Inline mode](#inline-mode))
+- `maxSize` - optional `{ columns, rows }` upper bound for the render size; smaller terminals use their actual size
 
 Returns `{ unmount, repaint, getBuffer }`. `unmount` tears down input handling and restores the terminal, `repaint` forces a full repaint, `getBuffer` returns the last rendered cell buffer.
+
+To limit resource use when terminal dimensions are untrusted, set a maximum render size:
+
+```jsx
+mount(App, { maxSize: { columns: 240, rows: 80 } })
+```
+
+The limits apply independently. A `300x40` terminal renders at `240x40`. Without `maxSize`, rendering is uncapped.
 
 ### Inline mode
 

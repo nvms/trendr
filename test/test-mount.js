@@ -1,5 +1,5 @@
 import { EventEmitter } from 'events'
-import { mount, createSignal, useInput } from '../index.js'
+import { mount, createSignal, useInput, useResize } from '../index.js'
 import { jsx, jsxs } from '../jsx-runtime.js'
 
 let passed = 0
@@ -189,6 +189,54 @@ console.log('MOUNT: shared signal across concurrent mounts')
   assert(outA.output === '', 'shared signal drops an unmounted subscriber')
   assert(outB.output.includes('2'), 'shared signal keeps remaining subscriber')
   mountB.unmount()
+}
+
+console.log('MOUNT: max size')
+{
+  const out = new FakeStream(300, 40)
+  const inp = new FakeInput()
+  const sizes = []
+
+  function App() {
+    useResize(size => sizes.push(size))
+    return jsx('text', { children: 'capped' })
+  }
+
+  const mounted = mount(App, {
+    stream: out,
+    stdin: inp,
+    maxSize: { columns: 240, rows: 80 },
+  })
+
+  assert(mounted.getBuffer().width === 240, 'maxSize caps columns independently')
+  assert(mounted.getBuffer().height === 40, 'maxSize leaves smaller row count unchanged')
+
+  out.columns = 120
+  out.rows = 100
+  out.emit('resize')
+  assert(mounted.getBuffer().width === 120, 'resize leaves columns below maxSize unchanged')
+  assert(mounted.getBuffer().height === 80, 'resize caps rows at maxSize')
+  assert(sizes.at(-1).width === 120 && sizes.at(-1).height === 80, 'useResize receives the capped viewport')
+
+  out.columns = 10000
+  out.rows = 10000
+  out.emit('resize')
+  assert(mounted.getBuffer().width === 240 && mounted.getBuffer().height === 80, 'absurd resize remains capped')
+  mounted.unmount()
+}
+
+console.log('MOUNT: max size validation')
+{
+  const out = new FakeStream(30, 8)
+  const inp = new FakeInput()
+  const App = () => jsx('text', { children: 'validation' })
+  let invalidObject = false
+  let invalidDimension = false
+
+  try { mount(App, { stream: out, stdin: inp, maxSize: 80 }) } catch (error) { invalidObject = error instanceof TypeError }
+  try { mount(App, { stream: out, stdin: inp, maxSize: { columns: 0 } }) } catch (error) { invalidDimension = error instanceof RangeError }
+  assert(invalidObject, 'maxSize rejects non-object values')
+  assert(invalidDimension, 'maxSize rejects invalid dimensions')
 }
 
 console.log('MOUNT: main screen mode')

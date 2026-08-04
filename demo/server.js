@@ -71,6 +71,7 @@ server.on('connection', (client, info) => {
             stream,
             stdin: stream,
             title: 'trend',
+            maxSize: { columns: 240, rows: 80 },
             onExit: () => {
               stream.exit(0)
               stream.end()

@@ -105,8 +105,9 @@ export function Select({ items = [], selected, onChange, onFocus, focused = fals
   if (overlay) {
     instLayout = getInstanceLayout()
     const ctx = getContext()
-    termH = ctx?.stream?.rows ?? 24
-    termW = ctx?.stream?.columns ?? 80
+    const viewport = ctx?.getViewportSize?.()
+    termH = viewport?.height ?? 24
+    termW = viewport?.width ?? 80
     const placed = placeDropdown({ anchorTop: instLayout.y, itemCount: items.length, maxVisible, termH })
     direction = placed.direction
     visibleCount = placed.visibleCount

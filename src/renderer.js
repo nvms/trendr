@@ -813,18 +813,46 @@ function renderElementToLines(element, width) {
   return lines
 }
 
-export function mount(rootComponent, { stream, stdin, title, theme, onExit: onExitCb, onOpenLink = openUrl, altScreen = true, inline = false } = {}) {
+function normalizeMaxSize(maxSize) {
+  if (maxSize == null) return { columns: Infinity, rows: Infinity }
+  if (typeof maxSize !== 'object') throw new TypeError('maxSize must be an object')
+
+  const normalizeLimit = (value, name) => {
+    if (value == null) return Infinity
+    if (!Number.isFinite(value) || value < 1) throw new RangeError(`maxSize.${name} must be a positive finite number`)
+    return Math.floor(value)
+  }
+
+  return {
+    columns: normalizeLimit(maxSize.columns, 'columns'),
+    rows: normalizeLimit(maxSize.rows, 'rows'),
+  }
+}
+
+function viewportSize(stream, limits) {
+  const dimension = (value, fallback, limit) => {
+    const normalized = Number.isFinite(value) && value >= 1 ? Math.floor(value) : fallback
+    return Math.min(normalized, limit)
+  }
+  return {
+    width: dimension(stream.columns, 80, limits.columns),
+    height: dimension(stream.rows, 24, limits.rows),
+  }
+}
+
+export function mount(rootComponent, { stream, stdin, title, theme, onExit: onExitCb, onOpenLink = openUrl, altScreen = true, inline = false, maxSize } = {}) {
   const out = stream ?? process.stdout
   const inp = stdin ?? process.stdin
+  const sizeLimits = normalizeMaxSize(maxSize)
 
-  let width = out.columns ?? 80
-  let height = out.rows ?? 24
+  let { width, height } = viewportSize(out, sizeLimits)
 
   let prev = createBuffer(width, height)
   let curr = createBuffer(width, height)
 
   const ctx = {
     stream: out,
+    getViewportSize: () => viewportSize(out, sizeLimits),
     input: null,
     stdin: inp,
     theme: { ...DEFAULT_THEME, ...theme },
@@ -1233,11 +1261,8 @@ export function mount(rootComponent, { stream, stdin, title, theme, onExit: onEx
   scheduler.requestFrame()
 
   const onResize = () => {
-    width = out.columns ?? 80
-    height = out.rows ?? 24
+    ;({ width, height } = viewportSize(out, sizeLimits))
     if (inline) {
-      width = out.columns ?? 80
-      height = out.rows ?? 24
       if (overlayActive) {
         // on the alternate screen: just clear and re-render the modal centered
         // at the new size. the saved main screen is restored on close
