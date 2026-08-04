@@ -1175,6 +1175,65 @@ suite('useSelection skips chrome cells marked copyIgnore')
   unmount()
 }
 
+suite('selection contain scopes outer regions')
+{
+  const out = new FakeStream(20, 4)
+  const inp = new FakeInput()
+  let copied = null
+
+  function App() {
+    useSelection({ copy: false, onCopy: (text) => { copied = text } })
+    return jsxs('box', {
+      style: { flexDirection: 'column' },
+      children: [
+        jsx('text', { children: 'before' }),
+        jsx('box', {
+          selection: 'contain',
+          style: { width: 12, height: 2, flexDirection: 'column' },
+          children: [
+            jsxs('box', { style: { flexDirection: 'row' }, children: [
+              jsx('text', { selection: 'outer', children: '1 ' }),
+              jsx('text', { children: 'alpha' }),
+              jsx('text', { selection: 'none', children: '|' }),
+            ] }),
+            jsxs('box', { style: { flexDirection: 'row' }, children: [
+              jsx('text', { selection: 'outer', children: '2 ' }),
+              jsx('text', { children: 'beta' }),
+              jsx('text', { selection: 'none', children: '|' }),
+            ] }),
+          ],
+        }),
+      ],
+    })
+  }
+
+  const { unmount } = mount(App, { stream: out, stdin: inp })
+  await tick()
+
+  inp.send('\x1b[<0;3;2M')
+  inp.send('\x1b[<32;12;3M')
+  inp.send('\x1b[<0;12;3m')
+  await tick()
+  assertEq(copied, 'alpha\nbeta', 'content-origin selection excludes outer and none regions')
+
+  copied = null
+  inp.send('\x1b[<0;1;2M')
+  inp.send('\x1b[<32;12;3M')
+  inp.send('\x1b[<0;12;3m')
+  await tick()
+  assertEq(copied, '1 alpha\n2 beta', 'outer-origin selection includes outer region inside the contained scope')
+
+  copied = null
+  inp.send('\x1b[<0;1;1M')
+  inp.send('\x1b[<32;12;3M')
+  inp.send('\x1b[<0;12;3m')
+  await tick()
+  assert(copied?.includes('1 alpha'), 'global selection includes outer region')
+  assert(!copied?.includes('|'), 'global selection excludes none region')
+
+  unmount()
+}
+
 suite('useHitTest uses painted, scrolled, clipped geometry')
 {
   const out = new FakeStream(40, 3)

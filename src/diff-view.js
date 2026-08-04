@@ -182,11 +182,13 @@ export function Diff({
       const oldStr = row.oldNo != null ? String(row.oldNo) : ''
       const newStr = row.newNo != null ? String(row.newNo) : ''
       children.push(jsx('text', {
+        selection: 'outer',
         style: { color: palette.lineNo, bg: gutterBg, overflow: 'nowrap' },
         children: ` ${oldStr.padStart(oldW)} ${newStr.padStart(newW)} `,
       }))
     }
     children.push(jsx('text', {
+      selection: 'outer',
       style: { color: markerColor, bg: gutterBg, bold: true, overflow: 'nowrap' },
       children: `${marker} `,
     }))
@@ -233,7 +235,11 @@ export function Diff({
   const scrollableRows = jsx(HorizontalScrollBox, {
     contentWidth,
     style: { flexDirection: 'column', flexGrow: 1 },
-    children: jsx('box', { style: { flexDirection: 'column' }, children: bodyRows }),
+    children: jsx('box', {
+      selection: 'contain',
+      style: { flexDirection: 'column', width: contentWidth },
+      children: bodyRows,
+    }),
   })
 
   let body
@@ -248,7 +254,8 @@ export function Diff({
       const isThumb = i >= thumbStart && i < thumbStart + thumbH
       bar.push(jsx('text', {
         key: i,
-        style: { color: palette.lineNo, dim: !isThumb, copyIgnore: true },
+        selection: 'none',
+        style: { color: palette.lineNo, dim: !isThumb },
         children: isThumb ? '█' : '│',
       }))
     }
@@ -256,7 +263,7 @@ export function Diff({
       style: { flexDirection: 'row', flexGrow: 1 },
       children: [
         scrollableRows,
-        jsx('box', { style: { flexDirection: 'column', width: barW }, children: bar }),
+        jsx('box', { selection: 'none', style: { flexDirection: 'column', width: barW }, children: bar }),
       ],
     })
   } else {

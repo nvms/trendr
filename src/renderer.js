@@ -304,15 +304,28 @@ function layoutEqual(a, b) {
   return a && b && a.x === b.x && a.y === b.y && a.width === b.width && a.height === b.height
 }
 
+function selectionIncludes(buf, index, sel) {
+  if (buf.selectionModes[index] === 2) return false
+  if (buf.selectionModes[index] !== 1 || !sel.scope) return true
+  const scope = buf.selectionScopes[index]
+  return scope !== sel.scope || sel.includeOuter
+}
+
 function applySelectionHighlight(buf, sel) {
   const lastY = Math.min(sel.ey, buf.height - 1)
   for (let y = Math.max(0, sel.sy); y <= lastY; y++) {
-    const from = y === sel.sy ? Math.max(0, sel.sx) : 0
-    const to = y === sel.ey ? Math.min(sel.ex, buf.width - 1) : buf.width - 1
+    let from = y === sel.sy ? Math.max(0, sel.sx) : 0
+    let to = y === sel.ey ? Math.min(sel.ex, buf.width - 1) : buf.width - 1
+    if (sel.bounds) {
+      from = Math.max(from, sel.bounds.x)
+      to = Math.min(to, sel.bounds.x + sel.bounds.width - 1)
+    }
     const base = y * buf.width
     for (let x = from; x <= to; x++) {
-      const c = buf.cells[base + x]
-      buf.cells[base + x] = { ...c, attrs: c.attrs ^ ansi.INVERSE }
+      const index = base + x
+      const c = buf.cells[index]
+      if (c.attrs & ansi.COPY_IGNORE || !selectionIncludes(buf, index, sel)) continue
+      buf.cells[index] = { ...c, attrs: c.attrs ^ ansi.INVERSE }
     }
   }
 }
@@ -325,7 +338,36 @@ function applyLinkHover(buf, url, color) {
   }
 }
 
-function paintTree(node, buf, clip, offset, prevBuf) {
+function markSelectionRect(buf, rect, scope, mode = 0, replaceMode = false) {
+  const x1 = Math.max(0, rect.x)
+  const y1 = Math.max(0, rect.y)
+  const x2 = Math.min(buf.width, rect.x + rect.width)
+  const y2 = Math.min(buf.height, rect.y + rect.height)
+  for (let y = y1; y < y2; y++) {
+    const base = y * buf.width
+    for (let x = x1; x < x2; x++) {
+      buf.selectionScopes[base + x] = scope
+      if (replaceMode) buf.selectionModes[base + x] = mode
+      else if (mode > buf.selectionModes[base + x]) buf.selectionModes[base + x] = mode
+    }
+  }
+}
+
+function selectionContentRect(rect, style) {
+  const padding = style.padding ?? 0
+  const left = style.paddingLeft ?? style.paddingX ?? padding
+  const right = style.paddingRight ?? style.paddingX ?? padding
+  const top = style.paddingTop ?? style.paddingY ?? padding
+  const bottom = style.paddingBottom ?? style.paddingY ?? padding
+  return {
+    x: rect.x + left,
+    y: rect.y + top,
+    width: Math.max(0, rect.width - left - right),
+    height: Math.max(0, rect.height - top - bottom),
+  }
+}
+
+function paintTree(node, buf, clip, offset, prevBuf, selectionScope = null) {
   if (!node) return
 
   if (node._resolved) {
@@ -355,13 +397,13 @@ function paintTree(node, buf, clip, offset, prevBuf) {
       }
     }
     if (inst) inst._lastLayout = node._resolved?._layout ?? node._layout
-    paintTree(node._resolved, buf, clip, offset, prevBuf)
+    paintTree(node._resolved, buf, clip, offset, prevBuf, selectionScope)
     return
   }
 
   if (node.type === Fragment) {
     if (node._resolvedChildren) {
-      for (const child of node._resolvedChildren) paintTree(child, buf, clip, offset, prevBuf)
+      for (const child of node._resolvedChildren) paintTree(child, buf, clip, offset, prevBuf, selectionScope)
     }
     return
   }
@@ -378,6 +420,18 @@ function paintTree(node, buf, clip, offset, prevBuf) {
 
   const style = node.props?.style ?? {}
   const attrs = resolveAttrs(style)
+  const selection = node.props?.selection
+  let childSelectionScope = selectionScope
+  if (selection === 'contain') {
+    const rect = selectionContentRect(clipped, style)
+    childSelectionScope = ++buf.selectionScopeCount
+    buf.selectionRects.set(childSelectionScope, { ...rect, parent: selectionScope })
+    markSelectionRect(buf, rect, childSelectionScope, 0, true)
+  } else if (selection === 'outer') {
+    markSelectionRect(buf, clipped, selectionScope, 1)
+  } else if (selection === 'none') {
+    markSelectionRect(buf, clipped, selectionScope, 2)
+  }
 
   if (node.type === 'text') {
     const text = extractText(node)
@@ -436,7 +490,7 @@ function paintTree(node, buf, clip, offset, prevBuf) {
 
   if (node._resolvedChildren) {
     for (const child of node._resolvedChildren) {
-      paintTree(child, buf, childClip, childOffset, childPrevBuf)
+      paintTree(child, buf, childClip, childOffset, childPrevBuf, childSelectionScope)
     }
   }
 

@@ -7,13 +7,26 @@ export function createBuffer(width, height) {
   const size = width * height
   const cells = new Array(size)
   for (let i = 0; i < size; i++) cells[i] = EMPTY
-  return { width, height, cells, softWrap: new Uint8Array(height) }
+  return {
+    width,
+    height,
+    cells,
+    softWrap: new Uint8Array(height),
+    selectionScopes: new Uint32Array(size),
+    selectionModes: new Uint8Array(size),
+    selectionRects: new Map(),
+    selectionScopeCount: 0,
+  }
 }
 
 export function clearBuffer(buf) {
   const len = buf.cells.length
   for (let i = 0; i < len; i++) buf.cells[i] = EMPTY
   buf.softWrap.fill(0)
+  buf.selectionScopes.fill(0)
+  buf.selectionModes.fill(0)
+  buf.selectionRects.clear()
+  buf.selectionScopeCount = 0
 }
 
 export function resizeBuffer(buf, width, height) {
@@ -22,6 +35,10 @@ export function resizeBuffer(buf, width, height) {
   buf.cells = new Array(width * height)
   for (let i = 0; i < buf.cells.length; i++) buf.cells[i] = EMPTY
   buf.softWrap = new Uint8Array(height)
+  buf.selectionScopes = new Uint32Array(width * height)
+  buf.selectionModes = new Uint8Array(width * height)
+  buf.selectionRects = new Map()
+  buf.selectionScopeCount = 0
 }
 
 export function setCell(buf, x, y, ch, fg, bg, attrs) {
@@ -162,7 +179,12 @@ export function blitRect(src, dst, x, y, w, h) {
   for (let row = y1; row < y2; row++) {
     const base = row * dst.width
     for (let col = x1; col < x2; col++) {
-      dst.cells[base + col] = src.cells[base + col]
+      const idx = base + col
+      dst.cells[idx] = src.cells[idx]
+      const scope = src.selectionScopes[idx]
+      dst.selectionScopes[idx] = scope
+      dst.selectionModes[idx] = src.selectionModes[idx]
+      if (scope && !dst.selectionRects.has(scope)) dst.selectionRects.set(scope, src.selectionRects.get(scope))
     }
     // softWrap is per-row metadata set at text paint time; a blitted clean
     // subtree must carry its wrap flags or selection re-joins lines wrongly
