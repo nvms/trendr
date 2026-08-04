@@ -1264,6 +1264,67 @@ suite('selection contain scopes outer regions')
   unmount()
 }
 
+suite('multi-click selection uses word and line boundaries')
+{
+  const out = new FakeStream(24, 5)
+  const inp = new FakeInput()
+  const copies = []
+
+  function App() {
+    useSelection({ copy: false, onCopy: text => copies.push(text) })
+    return jsx('box', {
+      selection: 'contain',
+      style: { width: 14, height: 3, flexDirection: 'column' },
+      children: [
+        jsxs('box', { style: { flexDirection: 'row' }, children: [
+          jsx('text', { selection: 'outer', children: '1 ' }),
+          jsx('text', { children: 'alpha beta' }),
+        ] }),
+        jsxs('box', { style: { flexDirection: 'row' }, children: [
+          jsx('text', { selection: 'outer', children: '2 ' }),
+          jsx('text', { children: 'gamma delta' }),
+        ] }),
+        jsxs('box', { style: { flexDirection: 'row' }, children: [
+          jsx('text', { selection: 'outer', children: '3 ' }),
+          jsx('text', { children: 'omega' }),
+        ] }),
+      ],
+    })
+  }
+
+  const click = (x, y) => {
+    inp.send(`\x1b[<0;${x + 1};${y + 1}M`)
+    inp.send(`\x1b[<0;${x + 1};${y + 1}m`)
+  }
+  const press = (x, y) => inp.send(`\x1b[<0;${x + 1};${y + 1}M`)
+  const drag = (x, y) => inp.send(`\x1b[<32;${x + 1};${y + 1}M`)
+  const release = (x, y) => inp.send(`\x1b[<0;${x + 1};${y + 1}m`)
+
+  const { unmount } = mount(App, { stream: out, stdin: inp })
+  await tick()
+
+  click(4, 0)
+  click(4, 0)
+  await tick()
+  assertEq(copies.at(-1), 'alpha', 'double click copies the word')
+
+  press(4, 0)
+  drag(8, 1)
+  release(8, 1)
+  await tick()
+  assertEq(copies.at(-1), 'alpha beta\ngamma delta', 'triple click drag selects contained whole lines without outer gutter')
+
+  click(0, 0)
+  click(0, 0)
+  press(0, 0)
+  drag(8, 1)
+  release(8, 1)
+  await tick()
+  assertEq(copies.at(-1), '1 alpha beta\n2 gamma delta', 'triple click drag from gutter includes outer gutter')
+
+  unmount()
+}
+
 suite('useHitTest uses painted, scrolled, clipped geometry')
 {
   const out = new FakeStream(40, 3)

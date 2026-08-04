@@ -1,6 +1,10 @@
 import { useMouse } from './hooks.js'
 import { getContext, registerHook } from './renderer.js'
 import { osc52Copy, COPY_IGNORE } from './ansi.js'
+import { onCleanup } from './signal.js'
+
+const MULTI_CLICK_MS = 400
+const CLICK_FEEDBACK_MS = 500
 
 function clampPoint(point, rect) {
   return {
@@ -28,6 +32,44 @@ function selectionRowRange(buf, sel, y) {
     to = Math.min(to, sel.bounds.x + sel.bounds.width - 1)
   }
   return { from, to }
+}
+
+function cellClass(ch) {
+  if (/\s/u.test(ch)) return 'space'
+  if (/[\p{L}\p{N}_]/u.test(ch)) return 'word'
+  return 'punctuation'
+}
+
+function wordRange(buf, point, bounds) {
+  const y = Math.max(0, Math.min(buf.height - 1, point.y))
+  const min = bounds ? bounds.x : 0
+  const max = bounds ? bounds.x + bounds.width - 1 : buf.width - 1
+  let x = Math.max(min, Math.min(max, point.x))
+  const base = y * buf.width
+  while (x > min && buf.cells[base + x].ch === '') x--
+  const kind = cellClass(buf.cells[base + x].ch)
+  let start = x
+  let end = x
+  while (start > min && cellClass(buf.cells[base + start - 1].ch) === kind) start--
+  while (end < max && cellClass(buf.cells[base + end + 1].ch) === kind) end++
+  return { start, end, y }
+}
+
+function wordSelection(buf, anchor, head, bounds) {
+  const a = wordRange(buf, anchor, bounds)
+  const b = wordRange(buf, head, bounds)
+  const forward = a.y < b.y || (a.y === b.y && a.start <= b.start)
+  return forward
+    ? { sx: a.start, sy: a.y, ex: b.end, ey: b.y, bounds }
+    : { sx: b.start, sy: b.y, ex: a.end, ey: a.y, bounds }
+}
+
+function lineSelection(anchor, head, bounds, buf) {
+  const min = bounds ? bounds.x : 0
+  const max = bounds ? bounds.x + bounds.width - 1 : buf.width - 1
+  const ay = bounds ? clampPoint(anchor, bounds).y : Math.max(0, Math.min(buf.height - 1, anchor.y))
+  const hy = bounds ? clampPoint(head, bounds).y : Math.max(0, Math.min(buf.height - 1, head.y))
+  return { sx: min, sy: Math.min(ay, hy), ex: max, ey: Math.max(ay, hy), bounds }
 }
 
 function selectionIncludes(buf, index, sel) {
@@ -91,24 +133,77 @@ export function extractSelectionText(buf, sel) {
 // false), and passed to onCopy. registered handlers never stop propagation
 // on press, so clicks still reach interactive components underneath
 export function useSelection({ onCopy, copy = true } = {}) {
-  const state = registerHook(() => ({ anchor: null, scope: null, scopeId: 0, includeOuter: false, dragging: false }))
+  const state = registerHook(() => ({
+    anchor: null,
+    scope: null,
+    scopeId: 0,
+    includeOuter: false,
+    mode: 'cell',
+    dragging: false,
+    lastClick: null,
+    clickCount: 0,
+    feedbackTimer: null,
+  }))
   const ctx = getContext()
   if (!ctx) throw new Error('useSelection must be called within a mounted component')
 
+  const clearFeedback = () => {
+    if (state.feedbackTimer) clearTimeout(state.feedbackTimer)
+    state.feedbackTimer = null
+    if (ctx.selection) {
+      ctx.selection = null
+      ctx.requestFrame()
+    }
+  }
+  onCleanup(() => {
+    if (state.feedbackTimer) clearTimeout(state.feedbackTimer)
+  })
+
+  const decorate = (selection) => {
+    selection.scope = state.scopeId
+    selection.includeOuter = state.includeOuter
+    return selection
+  }
+
+  const selectTo = (point) => {
+    const buf = ctx.getPaintBuffer()
+    if (state.mode === 'word') return decorate(wordSelection(buf, state.anchor, point, state.scope))
+    if (state.mode === 'line') return decorate(lineSelection(state.anchor, point, state.scope, buf))
+    return decorate(normalize(state.anchor, point, state.scope))
+  }
+
+  const copySelection = () => {
+    if (!ctx.selection) return false
+    const text = extractSelectionText(ctx.getPaintBuffer(), ctx.selection)
+    if (text) {
+      if (copy) ctx.stream.write(osc52Copy(text))
+      if (onCopy) onCopy(text)
+    }
+    return !!text
+  }
+
   useMouse((event) => {
     if (event.action === 'press' && event.button === 'left') {
+      const now = Date.now()
+      const sameCell = state.lastClick && state.lastClick.x === event.x && state.lastClick.y === event.y
+      state.clickCount = sameCell && now - state.lastClick.time <= MULTI_CLICK_MS && state.clickCount < 3
+        ? state.clickCount + 1
+        : 1
+      state.lastClick = { x: event.x, y: event.y, time: now }
+      clearFeedback()
+
       const buf = ctx.getPaintBuffer()
+      const inside = event.x >= 0 && event.y >= 0 && event.x < buf.width && event.y < buf.height
       const index = event.y * buf.width + event.x
       state.anchor = { x: event.x, y: event.y }
-      const scope = event.x >= 0 && event.y >= 0 && event.x < buf.width && event.y < buf.height
-        ? buf.selectionScopes[index]
-        : null
-      state.scopeId = scope
-      state.scope = scope ? buf.selectionRects.get(scope) : null
-      state.includeOuter = !!scope && buf.selectionModes[index] === 1
+      state.scopeId = inside ? buf.selectionScopes[index] : 0
+      state.scope = state.scopeId ? buf.selectionRects.get(state.scopeId) : null
+      state.includeOuter = !!state.scopeId && buf.selectionModes[index] === 1
+      state.mode = state.clickCount === 2 ? 'word' : state.clickCount === 3 ? 'line' : 'cell'
       state.dragging = false
-      if (ctx.selection) {
-        ctx.selection = null
+
+      if (state.mode !== 'cell') {
+        ctx.selection = selectTo(state.anchor)
         ctx.requestFrame()
       }
       return
@@ -116,27 +211,32 @@ export function useSelection({ onCopy, copy = true } = {}) {
 
     if (event.action === 'drag' && state.anchor) {
       state.dragging = true
-      ctx.selection = normalize(state.anchor, { x: event.x, y: event.y }, state.scope)
-      ctx.selection.scope = state.scopeId
-      ctx.selection.includeOuter = state.includeOuter
+      ctx.selection = selectTo({ x: event.x, y: event.y })
       ctx.requestFrame()
       return
     }
 
     if (event.action === 'release') {
-      if (state.dragging && ctx.selection) {
-        const text = extractSelectionText(ctx.getPaintBuffer(), ctx.selection)
-        ctx.selection = null
-        ctx.requestFrame()
-        if (text) {
-          if (copy) ctx.stream.write(osc52Copy(text))
-          if (onCopy) onCopy(text)
+      if (ctx.selection && (state.dragging || state.mode !== 'cell')) {
+        copySelection()
+        if (state.mode === 'cell') {
+          ctx.selection = null
+          ctx.requestFrame()
+        } else {
+          state.feedbackTimer = setTimeout(() => {
+            state.feedbackTimer = null
+            if (ctx.selection) {
+              ctx.selection = null
+              ctx.requestFrame()
+            }
+          }, CLICK_FEEDBACK_MS)
         }
       }
       state.anchor = null
       state.scope = null
       state.scopeId = 0
       state.includeOuter = false
+      state.mode = 'cell'
       state.dragging = false
     }
   })
