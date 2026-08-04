@@ -6,15 +6,13 @@ import { computeLayout, resolveBorderEdges, intrinsicHeight } from './layout.js'
 import { Fragment } from './element.js'
 import { createScheduler } from './scheduler.js'
 import { createInputHandler } from './input.js'
-import { setSchedulerHook, setHookRegistrar, createScope, disposeScope, runInScope, onCleanup, startRenderTracking, stopRenderTracking } from './signal.js'
+import { createReactiveRuntime, runInReactiveRuntime, disposeReactiveRuntime, setHookRegistrar, createScope, disposeScope, runInScope, onCleanup, startRenderTracking, stopRenderTracking } from './signal.js'
 import { wordWrap, wordWrapMarked, measureText, sliceVisible, sliceVisibleRange } from './wrap.js'
 import * as ansi from './ansi.js'
 
 let activeContext = null
-let overlays = []
-let lastFrameStats = { changed: 0, total: 0, bytes: 0, fps: 0 }
-let frameTimeWindow = []
-let lastFrameTimestamp = 0
+const detachedHookContext = { currentHookOwner: null, hookIndex: 0 }
+const EMPTY_FRAME_STATS = { changed: 0, total: 0, bytes: 0, fps: 0 }
 
 export function getContext() {
   return activeContext
@@ -38,29 +36,30 @@ export function getCursor(propCursor) {
 }
 
 export function getFrameStats() {
-  return lastFrameStats
+  return activeContext?.frameStats ?? EMPTY_FRAME_STATS
 }
 
 export function getInstanceLayout() {
-  if (!currentHookOwner) return { x: 0, y: 0, width: 0, height: 0 }
-  if (!currentHookOwner.layout) currentHookOwner.layout = { x: 0, y: 0, width: 0, height: 0 }
-  return currentHookOwner.layout
+  const owner = (activeContext ?? detachedHookContext).currentHookOwner
+  if (!owner) return { x: 0, y: 0, width: 0, height: 0 }
+  if (!owner.layout) owner.layout = { x: 0, y: 0, width: 0, height: 0 }
+  return owner.layout
 }
 
 export function registerOverlay(element, { backdrop, fullscreen, capture } = {}) {
-  if (!currentHookOwner) return
-  overlays.push({ element, owner: currentHookOwner, backdrop, fullscreen, capture })
+  const owner = activeContext?.currentHookOwner
+  if (!owner) return
+  activeContext.overlays.push({ element, owner, backdrop, fullscreen, capture })
 }
 
 export function getCurrentHookOwner() {
-  return currentHookOwner
+  return (activeContext ?? detachedHookContext).currentHookOwner
 }
 
 // instances created while an overlay tree resolves are tagged with the overlay's
 // owning instance, so input dispatch can tell whether a handler lives inside a
 // capturing overlay's subtree (following the chain for overlays inside overlays)
 const overlayContexts = new WeakMap()
-let resolvingOverlayOwner = null
 
 function captureOwnerFrom(list) {
   for (let i = list.length - 1; i >= 0; i--) {
@@ -584,20 +583,19 @@ function flattenChildren(children) {
 // hooks idempotent. each hook checks a per-scope registry to see
 // if it's already been called with the same identity.
 
-let hookIndex = 0
-let currentHookOwner = null
-
 export function startHookTracking(owner) {
-  currentHookOwner = owner
-  hookIndex = 0
+  const context = activeContext ?? detachedHookContext
+  context.currentHookOwner = owner
+  context.hookIndex = 0
   setHookRegistrar(registerHook)
 }
 
 export function endHookTracking() {
-  const owner = currentHookOwner
-  const count = hookIndex
-  currentHookOwner = null
-  hookIndex = 0
+  const context = activeContext ?? detachedHookContext
+  const owner = context.currentHookOwner
+  const count = context.hookIndex
+  context.currentHookOwner = null
+  context.hookIndex = 0
   setHookRegistrar(null)
   if (owner) {
     if (owner._hookCount == null) {
@@ -613,13 +611,12 @@ export function endHookTracking() {
 }
 
 export function registerHook(setupFn) {
-  if (!currentHookOwner) {
-    return setupFn()
-  }
+  const context = activeContext ?? detachedHookContext
+  const owner = context.currentHookOwner
+  if (!owner) return setupFn()
 
-  const owner = currentHookOwner
   if (!owner.hooks) owner.hooks = []
-  const idx = hookIndex++
+  const idx = context.hookIndex++
 
   if (idx >= owner.hooks.length) {
     const result = setupFn()
@@ -733,7 +730,7 @@ function resolveForFrame(element, parent, instances, counters, visited, scope) {
       let result
       instance = { scope: null, fn, hooks: [], node: null, layout: null, _dirty: true }
       instances.set(instanceKey, instance)
-      if (resolvingOverlayOwner) overlayContexts.set(instance, resolvingOverlayOwner)
+      if (activeContext?.resolvingOverlayOwner) overlayContexts.set(instance, activeContext.resolvingOverlayOwner)
       instance.scope = createScope(() => {
         startHookTracking(instance)
         startRenderTracking()
@@ -826,7 +823,19 @@ export function mount(rootComponent, { stream, stdin, title, theme, onExit: onEx
   let prev = createBuffer(width, height)
   let curr = createBuffer(width, height)
 
-  const ctx = { stream: out, input: null, stdin: inp, theme: { ...DEFAULT_THEME, ...theme }, captureOwner: null, selection: null }
+  const ctx = {
+    stream: out,
+    input: null,
+    stdin: inp,
+    theme: { ...DEFAULT_THEME, ...theme },
+    captureOwner: null,
+    selection: null,
+    overlays: [],
+    resolvingOverlayOwner: null,
+    currentHookOwner: null,
+    hookIndex: 0,
+    frameStats: { ...EMPTY_FRAME_STATS },
+  }
   const linkPointer = { hovered: null, pressed: null, dragged: false }
   const cellLink = (x, y) => {
     const buf = ctx.getPaintBuffer?.()
@@ -865,7 +874,6 @@ export function mount(rootComponent, { stream, stdin, title, theme, onExit: onEx
     }
   })
   ctx.hoveredLink = () => linkPointer.hovered
-  activeContext = ctx
 
   // component instance cache persists across frames
   // maps instanceKey -> { scope, fn, hooks }
@@ -873,6 +881,8 @@ export function mount(rootComponent, { stream, stdin, title, theme, onExit: onEx
   let forceFullPaint = false
   let prevHadOverlays = false
   let prevHadSelection = false
+  let frameTimeWindow = []
+  let lastFrameTimestamp = 0
 
   // inline mode state: how many scrollback items have been committed, the
   // visible width of each line the live region last emitted (so a later resize
@@ -914,10 +924,10 @@ export function mount(rootComponent, { stream, stdin, title, theme, onExit: onEx
     return changed
   }
 
-  function inlineFrame() {
+  function renderInlineFrame() {
     const prevCtx = activeContext
     activeContext = ctx
-    overlays = []
+    ctx.overlays = []
 
     const counters = new Map()
     const visited = new Set()
@@ -929,7 +939,7 @@ export function mount(rootComponent, { stream, stdin, title, theme, onExit: onEx
     // terminal around it - no scrollback wipe, no relative-erase guesswork.
     // we reconstruct the visible transcript + live region into the alt buffer
     // as a backdrop so the conversation still shows behind the modal
-    if (overlays.length > 0) {
+    if (ctx.overlays.length > 0) {
       if (!overlayActive) {
         out.write(ansi.altScreen + ansi.hideCursor + ansi.clearScreen)
         overlayActive = true
@@ -954,13 +964,13 @@ export function mount(rootComponent, { stream, stdin, title, theme, onExit: onEx
       const visible = bg.slice(Math.max(0, bg.length - height))
       for (let i = 0; i < visible.length; i++) writeText(overlayCurr, 0, i, visible[i], null, null, 0)
 
-      for (const { element: ovEl, owner, backdrop } of overlays) {
-        resolvingOverlayOwner = owner
+      for (const { element: ovEl, owner, backdrop } of ctx.overlays) {
+        ctx.resolvingOverlayOwner = owner
         let ovTree
         try {
           ovTree = resolveForFrame(ovEl, null, instances, counters, visited, '')
         } finally {
-          resolvingOverlayOwner = null
+          ctx.resolvingOverlayOwner = null
         }
         if (!ovTree) continue
         computeLayout(ovTree, { x: 0, y: 0, width, height })
@@ -969,7 +979,7 @@ export function mount(rootComponent, { stream, stdin, title, theme, onExit: onEx
         clearOverlayRect(ovTree, overlayCurr)
         paintTree(ovTree, overlayCurr, null, null, null)
       }
-      ctx.captureOwner = captureOwnerFrom(overlays)
+      ctx.captureOwner = captureOwnerFrom(ctx.overlays)
 
       for (const [key, inst] of instances) {
         if (!visited.has(key)) {
@@ -1063,11 +1073,11 @@ export function mount(rootComponent, { stream, stdin, title, theme, onExit: onEx
 
   let lastInlineBuf = null
 
-  function frame() {
+  function renderFrame() {
     const frameStart = performance.now()
     const prevCtx = activeContext
     activeContext = ctx
-    overlays = []
+    ctx.overlays = []
 
     clearBuffer(curr)
 
@@ -1082,7 +1092,7 @@ export function mount(rootComponent, { stream, stdin, title, theme, onExit: onEx
     const hadLayoutChange = layoutChanged
     let layoutPass = 1
     while (layoutChanged && layoutPass++ < 32) {
-      overlays = []
+      ctx.overlays = []
       counters.clear()
       visited.clear()
       tree = resolveForFrame(element, null, instances, counters, visited, '')
@@ -1091,7 +1101,7 @@ export function mount(rootComponent, { stream, stdin, title, theme, onExit: onEx
     }
 
     if (layoutChanged) {
-      overlays = []
+      ctx.overlays = []
       counters.clear()
       visited.clear()
       tree = resolveForFrame(element, null, instances, counters, visited, '')
@@ -1108,17 +1118,17 @@ export function mount(rootComponent, { stream, stdin, title, theme, onExit: onEx
     }
     forceFullPaint = false
 
-    const hasOverlays = overlays.length > 0
+    const hasOverlays = ctx.overlays.length > 0
 
-    for (const { element: overlayEl, owner, backdrop, fullscreen } of overlays) {
+    for (const { element: overlayEl, owner, backdrop, fullscreen } of ctx.overlays) {
       if (backdrop) dimBuffer(curr)
 
-      resolvingOverlayOwner = owner
+      ctx.resolvingOverlayOwner = owner
       let overlayTree
       try {
         overlayTree = resolveForFrame(overlayEl, null, instances, counters, visited, '')
       } finally {
-        resolvingOverlayOwner = null
+        ctx.resolvingOverlayOwner = null
       }
       if (overlayTree) {
         let overlayRect
@@ -1144,7 +1154,7 @@ export function mount(rootComponent, { stream, stdin, title, theme, onExit: onEx
     }
 
     prevHadOverlays = hasOverlays
-    ctx.captureOwner = captureOwnerFrom(overlays)
+    ctx.captureOwner = captureOwnerFrom(ctx.overlays)
 
     // selection paints last, over everything, by flipping inverse on the
     // covered cells. new cell objects are required: blitting shares cell refs
@@ -1181,19 +1191,19 @@ export function mount(rootComponent, { stream, stdin, title, theme, onExit: onEx
     }
     lastFrameTimestamp = now
     const avgMs = frameTimeWindow.length > 0 ? frameTimeWindow.reduce((a, b) => a + b, 0) / frameTimeWindow.length : 16.67
-    lastFrameStats = { changed, total: width * height, bytes: output ? Buffer.byteLength(output) : 0, fps: Math.round(1000 / avgMs), renderMs: performance.now() - frameStart }
+    ctx.frameStats = { changed, total: width * height, bytes: output ? Buffer.byteLength(output) : 0, fps: Math.round(1000 / avgMs), renderMs: performance.now() - frameStart }
 
     const tmp = prev
     prev = curr
     curr = tmp
   }
 
+  let runtime
   const scheduler = createScheduler({
     fps: 60,
-    onFrame: inline ? inlineFrame : frame,
+    onFrame: () => runInReactiveRuntime(runtime, inline ? renderInlineFrame : renderFrame),
   })
-
-  setSchedulerHook(scheduler.requestFrame)
+  runtime = createReactiveRuntime(scheduler.requestFrame)
 
   // inline mode stays on the main screen buffer so native scrollback survives:
   // no alt screen, no clear, no mouse capture (so the terminal handles scroll
@@ -1219,8 +1229,7 @@ export function mount(rootComponent, { stream, stdin, title, theme, onExit: onEx
     }
   })
 
-  if (inline) inlineFrame()
-  else frame()
+  scheduler.forceFrame()
   scheduler.requestFrame()
 
   const onResize = () => {
@@ -1280,8 +1289,8 @@ export function mount(rootComponent, { stream, stdin, title, theme, onExit: onEx
       out.write(ansi.sgrReset + ansi.disableMouse + disableBracketedPaste + ansi.showCursor + (altScreen ? ansi.exitAltScreen : ansi.moveTo(height, 1) + '\n'))
     }
     if (inp.isTTY && inp.setRawMode) inp.setRawMode(false)
-    activeContext = null
-    setSchedulerHook(null)
+    if (activeContext === ctx) activeContext = null
+    disposeReactiveRuntime(runtime)
   }
 
   function onExit() {

@@ -91,6 +91,106 @@ console.log('MOUNT: basic counter')
   assert(out.output.includes('\x1b[?25h'), 'unmount shows cursor')
 }
 
+console.log('MOUNT: concurrent mounts')
+{
+  const outA = new FakeStream(30, 8)
+  const outB = new FakeStream(30, 8)
+  const inpA = new FakeInput()
+  const inpB = new FakeInput()
+  let setA
+  let setB
+
+  function AppA() {
+    const [value, setValue] = createSignal(0)
+    setA = setValue
+    useInput(({ key }) => {
+      if (key === 'up') setValue(v => v + 1)
+    })
+    return jsx('text', { children: `A:${value()}` })
+  }
+
+  function AppB() {
+    const [value, setValue] = createSignal(0)
+    setB = setValue
+    useInput(({ key }) => {
+      if (key === 'down') setValue(v => v + 1)
+    })
+    return jsx('text', { children: `B:${value()}` })
+  }
+
+  const mountA = mount(AppA, { stream: outA, stdin: inpA })
+  const mountB = mount(AppB, { stream: outB, stdin: inpB })
+  outA.output = ''
+  outB.output = ''
+
+  inpA.sendKey('\x1b[A')
+  await new Promise(r => setTimeout(r, 30))
+  assert(outA.output.includes('1'), 'first mount renders its own input update after second mount starts')
+  assert(outB.output === '', 'first mount input does not render to second mount')
+
+  outA.output = ''
+  inpB.sendKey('\x1b[B')
+  await new Promise(r => setTimeout(r, 30))
+  assert(outB.output.includes('1'), 'second mount renders its own input update')
+  assert(outA.output === '', 'second mount input does not render to first mount')
+
+  outA.output = ''
+  outB.output = ''
+  setA(2)
+  setB(2)
+  await new Promise(r => setTimeout(r, 30))
+  assert(outA.output.includes('2'), 'first mount schedules direct signal updates independently')
+  assert(outB.output.includes('2'), 'second mount schedules direct signal updates independently')
+
+  outA.output = ''
+  outB.output = ''
+  mountB.unmount()
+  outB.output = ''
+  setA(3)
+  await new Promise(r => setTimeout(r, 30))
+  assert(outA.output.includes('3'), 'unmounting second mount leaves first scheduler active')
+  assert(outB.output === '', 'unmounted second mount receives no rendering')
+
+  outA.output = ''
+  outA.columns = 34
+  outA.rows = 9
+  outA.emit('resize')
+  assert(outA.output.includes('\x1b[2J'), 'first mount still handles resize independently')
+
+  mountA.unmount()
+}
+
+console.log('MOUNT: shared signal across concurrent mounts')
+{
+  const outA = new FakeStream(30, 8)
+  const outB = new FakeStream(30, 8)
+  const inpA = new FakeInput()
+  const inpB = new FakeInput()
+  const [value, setValue] = createSignal(0)
+
+  function Shared() {
+    return jsx('text', { children: `shared:${value()}` })
+  }
+
+  const mountA = mount(Shared, { stream: outA, stdin: inpA })
+  const mountB = mount(Shared, { stream: outB, stdin: inpB })
+  outA.output = ''
+  outB.output = ''
+  setValue(1)
+  await new Promise(r => setTimeout(r, 30))
+  assert(outA.output.includes('1'), 'shared signal schedules first subscriber mount')
+  assert(outB.output.includes('1'), 'shared signal schedules second subscriber mount')
+
+  mountA.unmount()
+  outA.output = ''
+  outB.output = ''
+  setValue(2)
+  await new Promise(r => setTimeout(r, 30))
+  assert(outA.output === '', 'shared signal drops an unmounted subscriber')
+  assert(outB.output.includes('2'), 'shared signal keeps remaining subscriber')
+  mountB.unmount()
+}
+
 console.log('MOUNT: main screen mode')
 {
   const out = new FakeStream(30, 8)

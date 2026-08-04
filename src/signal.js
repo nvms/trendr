@@ -1,35 +1,87 @@
 let currentEffect = null
 let currentScope = null
 let pendingEffects = null
+let pendingSignals = null
 let batchDepth = 0
+let currentRuntime = null
 let schedulerHook = null
-let hookRegistrar = null
-let renderTracker = null
-
-export function startRenderTracking() {
-  renderTracker = []
+const detachedRuntime = {
+  requestFrame: () => schedulerHook?.(),
+  signals: new Set(),
+  hookRegistrar: null,
+  renderTracker: null,
+  disposed: false,
 }
 
-export function stopRenderTracking() {
-  const tracked = renderTracker
-  renderTracker = null
-  return tracked
+function getRuntime() {
+  return currentRuntime ?? detachedRuntime
 }
 
 export function setSchedulerHook(fn) {
   schedulerHook = fn
 }
 
+export function createReactiveRuntime(requestFrame) {
+  return { requestFrame, signals: new Set(), hookRegistrar: null, renderTracker: null, disposed: false }
+}
+
+export function runInReactiveRuntime(runtime, fn) {
+  const prev = currentRuntime
+  currentRuntime = runtime
+  try {
+    return fn()
+  } finally {
+    currentRuntime = prev
+  }
+}
+
+export function disposeReactiveRuntime(runtime) {
+  if (runtime.disposed) return
+  runtime.disposed = true
+  for (const signal of runtime.signals) signal.runtimes.delete(runtime)
+  runtime.signals.clear()
+  runtime.hookRegistrar = null
+  runtime.renderTracker = null
+}
+
+export function startRenderTracking() {
+  getRuntime().renderTracker = []
+}
+
+export function stopRenderTracking() {
+  const runtime = getRuntime()
+  const tracked = runtime.renderTracker ?? []
+  runtime.renderTracker = null
+  return tracked
+}
+
 export function setHookRegistrar(fn) {
-  hookRegistrar = fn
+  getRuntime().hookRegistrar = fn
+}
+
+function subscribeRuntime(signal) {
+  const runtime = getRuntime()
+  if (runtime.disposed || signal.runtimes.has(runtime)) return
+  signal.runtimes.add(runtime)
+  runtime.signals.add(signal)
+}
+
+function schedule(signal) {
+  if (signal.runtimes.size === 0) schedulerHook?.()
+  for (const runtime of signal.runtimes) {
+    if (!runtime.disposed) runtime.requestFrame()
+  }
 }
 
 export function createSignalRaw(value) {
   const subs = new Set()
+  const signal = { runtimes: new Set() }
 
   function get() {
     if (currentEffect) subs.add(currentEffect)
-    if (renderTracker) renderTracker.push(get)
+    const runtime = getRuntime()
+    if (runtime.renderTracker) runtime.renderTracker.push(get)
+    subscribeRuntime(signal)
     return value
   }
 
@@ -49,35 +101,38 @@ export function createSignalRaw(value) {
         else s.run()
       }
     }
-    if (schedulerHook && batchDepth === 0) schedulerHook()
+    if (batchDepth === 0) schedule(signal)
+    else pendingSignals.add(signal)
   }
 
   return [get, set]
 }
 
 export function createSignal(value) {
-  if (hookRegistrar) {
-    return hookRegistrar(() => createSignalRaw(value))
-  }
+  const registrar = getRuntime().hookRegistrar
+  if (registrar) return registrar(() => createSignalRaw(value))
   return createSignalRaw(value)
 }
 
 export function createEffectRaw(fn) {
+  const runtime = getRuntime()
   const effect = {
     fn,
     cleanup: null,
     disposed: false,
     run() {
       if (effect.disposed) return
-      if (effect.cleanup) effect.cleanup()
-      const prev = currentEffect
-      currentEffect = effect
-      try {
-        const result = fn()
-        effect.cleanup = typeof result === 'function' ? result : null
-      } finally {
-        currentEffect = prev
-      }
+      return runInReactiveRuntime(runtime, () => {
+        if (effect.cleanup) effect.cleanup()
+        const prev = currentEffect
+        currentEffect = effect
+        try {
+          const result = fn()
+          effect.cleanup = typeof result === 'function' ? result : null
+        } finally {
+          currentEffect = prev
+        }
+      })
     },
   }
 
@@ -89,9 +144,8 @@ export function createEffectRaw(fn) {
 }
 
 export function createEffect(fn) {
-  if (hookRegistrar) {
-    return hookRegistrar(() => createEffectRaw(fn))
-  }
+  const registrar = getRuntime().hookRegistrar
+  if (registrar) return registrar(() => createEffectRaw(fn))
   return createEffectRaw(fn)
 }
 
@@ -102,7 +156,10 @@ export function createMemo(fn) {
 }
 
 export function batch(fn) {
-  if (batchDepth === 0) pendingEffects = new Set()
+  if (batchDepth === 0) {
+    pendingEffects = new Set()
+    pendingSignals = new Set()
+  }
   batchDepth++
   try {
     fn()
@@ -110,9 +167,11 @@ export function batch(fn) {
     batchDepth--
     if (batchDepth === 0) {
       const effects = [...pendingEffects]
+      const signals = [...pendingSignals]
       pendingEffects = null
+      pendingSignals = null
       for (const e of effects) e.run()
-      if (schedulerHook) schedulerHook()
+      for (const signal of signals) schedule(signal)
     }
   }
 }
@@ -184,5 +243,6 @@ export function runInScope(scope, fn) {
 }
 
 export function notifyScheduler() {
-  if (schedulerHook) schedulerHook()
+  const runtime = getRuntime()
+  if (!runtime.disposed) runtime.requestFrame()
 }
