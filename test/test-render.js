@@ -857,6 +857,59 @@ suite('scroll container clips and offsets')
   unmount()
 }
 
+suite('cached components follow scroll paint geometry')
+{
+  const out = new FakeStream(20, 5)
+  const inp = new FakeInput()
+  const [offset, setOffset] = createSignal(1)
+
+  function Row({ label }) {
+    return jsx('text', { children: label })
+  }
+
+  function App() {
+    return jsxs('box', {
+      style: { flexDirection: 'column', height: 5 },
+      children: [
+        jsx('text', { children: 'HEADER' }),
+        jsx('box', {
+          style: { overflow: 'scroll', scrollOffset: offset(), flexDirection: 'column', height: 2 },
+          children: [
+            jsx(Row, { label: 'ROW0' }),
+            jsx(Row, { label: 'ROW1' }),
+            jsx(Row, { label: 'ROW2' }),
+            jsx(Row, { label: 'ROW3' }),
+          ],
+        }),
+        jsx('text', { children: 'FOOTER' }),
+      ],
+    })
+  }
+
+  const { unmount, getBuffer } = mount(App, { stream: out, stdin: inp })
+  await tick()
+
+  const rows = () => {
+    const buf = getBuffer()
+    return Array.from({ length: buf.height }, (_, y) =>
+      buf.cells.slice(y * buf.width, (y + 1) * buf.width).map(cell => cell.ch).join('').trimEnd()
+    )
+  }
+
+  assertEq(rows()[1], 'ROW1', 'first offset paints the first visible cached row')
+  assertEq(rows()[2], 'ROW2', 'first offset paints the second visible cached row')
+
+  setOffset(2)
+  await tick()
+
+  assertEq(rows()[0], 'HEADER', 'scrolled cached content stays below the viewport')
+  assertEq(rows()[1], 'ROW2', 'changed offset moves a clean component to its painted row')
+  assertEq(rows()[2], 'ROW3', 'changed offset paints newly visible clean content')
+  assertEq(rows()[3], 'FOOTER', 'scrolled cached content stays above following content')
+
+  unmount()
+}
+
 suite('nested text styles')
 {
   const out = new FakeStream(30, 3)

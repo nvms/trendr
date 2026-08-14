@@ -299,8 +299,13 @@ function propagateDirty(node) {
   return false
 }
 
-function layoutEqual(a, b) {
-  return a && b && a.x === b.x && a.y === b.y && a.width === b.width && a.height === b.height
+function rectEqual(a, b) {
+  if (a === b) return true
+  return !!a && !!b && a.x === b.x && a.y === b.y && a.width === b.width && a.height === b.height
+}
+
+function offsetEqual(a, b) {
+  return !!a && !!b && a.x === b.x && a.y === b.y
 }
 
 function selectionIncludes(buf, index, sel) {
@@ -388,14 +393,29 @@ function paintTree(node, buf, clip, offset, prevBuf, selectionScope = null) {
         inst._paintedRect = null
       }
     }
-    if (prevBuf && inst && !inst._subtreeDirty) {
-      const layout = node._resolved?._layout ?? node._layout
-      if (layout && layoutEqual(layout, inst._lastLayout)) {
-        blitRect(prevBuf, buf, layout.x, layout.y, layout.width, layout.height)
-        return
-      }
+    const layout = node._resolved?._layout ?? node._layout
+    const paintOffset = { x: offset?.x ?? 0, y: offset?.y ?? 0 }
+    const painted = layout && {
+      x: layout.x + paintOffset.x,
+      y: layout.y + paintOffset.y,
+      width: layout.width,
+      height: layout.height,
     }
-    if (inst) inst._lastLayout = node._resolved?._layout ?? node._layout
+    const visible = painted && (clip ? clipRect(painted, clip) : painted)
+    if (prevBuf && inst && !inst._subtreeDirty &&
+        rectEqual(layout, inst._lastLayout) &&
+        offsetEqual(paintOffset, inst._lastPaintOffset) &&
+        rectEqual(clip, inst._lastClip)) {
+      if (visible.width > 0 && visible.height > 0) {
+        blitRect(prevBuf, buf, visible.x, visible.y, visible.width, visible.height)
+      }
+      return
+    }
+    if (inst) {
+      inst._lastLayout = layout && { ...layout }
+      inst._lastPaintOffset = paintOffset
+      inst._lastClip = clip && { ...clip }
+    }
     paintTree(node._resolved, buf, clip, offset, prevBuf, selectionScope)
     return
   }
@@ -479,17 +499,15 @@ function paintTree(node, buf, clip, offset, prevBuf, selectionScope = null) {
   const childClip = clip ? clipRect(layout, clip) : layout
 
   let childOffset = offset
-  let childPrevBuf = prevBuf
   if (style.overflow === 'scroll') {
     const scrollX = style.scrollOffsetX ?? 0
     const scrollY = style.scrollOffset ?? 0
     childOffset = { x: (offset?.x ?? 0) - scrollX, y: (offset?.y ?? 0) - scrollY }
-    childPrevBuf = null
   }
 
   if (node._resolvedChildren) {
     for (const child of node._resolvedChildren) {
-      paintTree(child, buf, childClip, childOffset, childPrevBuf, childSelectionScope)
+      paintTree(child, buf, childClip, childOffset, prevBuf, childSelectionScope)
     }
   }
 
