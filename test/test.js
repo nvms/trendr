@@ -256,6 +256,16 @@ suite('ansi - sgr')
   assert(bg.includes('48;5;4'), 'bg color')
 }
 
+suite('ansi - streamed sgr state')
+{
+  const state = ansi.updateSgrState('\x1b[31mred\n\x1b[38;2;1;2')
+  assertEq(state.fg, 'red', 'tracks completed sgr')
+  assertEq(state.pending, '\x1b[38;2;1;2', 'retains incomplete sgr')
+  ansi.updateSgrState(';3mgreen\x1b[0m', state)
+  assertEq(state.fg, null, 'continues split sgr and tracks reset')
+  assertEq(state.pending, '', 'clears completed pending sgr')
+}
+
 suite('ansi - parseSgr basic colors')
 {
   const s = ansi.parseSgr('31')

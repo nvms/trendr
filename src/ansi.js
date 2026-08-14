@@ -180,6 +180,25 @@ export function parseSgr(params, state) {
   return state
 }
 
+export function updateSgrState(text, state = { fg: null, bg: null, attrs: 0 }) {
+  const input = (state.pending || '') + text
+  state.pending = ''
+  let i = 0
+  while (i < input.length) {
+    const start = input.indexOf('\x1b[', i)
+    if (start === -1) break
+    let end = start + 2
+    while (end < input.length && !(input.charCodeAt(end) >= 0x40 && input.charCodeAt(end) <= 0x7e)) end++
+    if (end >= input.length) {
+      state.pending = input.slice(start)
+      break
+    }
+    if (input[end] === 'm') parseSgr(input.slice(start + 2, end), state)
+    i = end + 1
+  }
+  return state
+}
+
 export function fgSgr(color) {
   const code = parseColor(color, 38)
   return code ? `${ESC}${code}m` : ''
