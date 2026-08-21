@@ -99,6 +99,51 @@ const markedItem = (item, { selected }) => jsx('text', { children: `${selected ?
 
 // ---- tests ----
 
+suite('useSelection cleanup lifecycle')
+{
+  const out = new FakeStream(40, 10)
+  const inp = new FakeInput()
+  let setFrame
+  let renders = 0
+
+  function App() {
+    renders++
+    const [frame, set] = createSignal(0)
+    setFrame = set
+    useSelection({ onCopy: () => frame() })
+    return jsx('text', { children: String(frame()) })
+  }
+
+  const realClearTimeout = globalThis.clearTimeout
+  let cleanupCalls = 0
+  globalThis.clearTimeout = (id) => {
+    cleanupCalls++
+    return realClearTimeout(id)
+  }
+
+  let app
+  try {
+    app = mount(App, { stream: out, stdin: inp, altScreen: false })
+    await tick()
+    for (let i = 1; i <= 20; i++) {
+      setFrame(i)
+      await tick(20)
+    }
+    assert(renders > 1, 'component rerendered')
+    inp.send('\x1b[<0;1;1M')
+    inp.send('\x1b[<0;1;1m')
+    inp.send('\x1b[<0;1;1M')
+    inp.send('\x1b[<0;1;1m')
+    await tick(20)
+    app.unmount()
+    app = null
+    assertEq(cleanupCalls, 1, 'one cleanup registered for the component instance')
+  } finally {
+    app?.unmount()
+    globalThis.clearTimeout = realClearTimeout
+  }
+}
+
 suite('MillerNav settles without scheduling frames forever')
 {
   const out = new FakeStream(60, 10)

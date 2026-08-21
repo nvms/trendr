@@ -133,17 +133,23 @@ export function extractSelectionText(buf, sel) {
 // false), and passed to onCopy. registered handlers never stop propagation
 // on press, so clicks still reach interactive components underneath
 export function useSelection({ onCopy, copy = true } = {}) {
-  const state = registerHook(() => ({
-    anchor: null,
-    scope: null,
-    scopeId: 0,
-    includeOuter: false,
-    mode: 'cell',
-    dragging: false,
-    lastClick: null,
-    clickCount: 0,
-    feedbackTimer: null,
-  }))
+  const state = registerHook(() => {
+    const state = {
+      anchor: null,
+      scope: null,
+      scopeId: 0,
+      includeOuter: false,
+      mode: 'cell',
+      dragging: false,
+      lastClick: null,
+      clickCount: 0,
+      feedbackTimer: null,
+    }
+    onCleanup(() => {
+      if (state.feedbackTimer) clearTimeout(state.feedbackTimer)
+    })
+    return state
+  })
   const ctx = getContext()
   if (!ctx) throw new Error('useSelection must be called within a mounted component')
 
@@ -155,9 +161,6 @@ export function useSelection({ onCopy, copy = true } = {}) {
       ctx.requestFrame()
     }
   }
-  onCleanup(() => {
-    if (state.feedbackTimer) clearTimeout(state.feedbackTimer)
-  })
 
   const decorate = (selection) => {
     selection.scope = state.scopeId
