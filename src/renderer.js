@@ -499,15 +499,17 @@ function paintTree(node, buf, clip, offset, prevBuf, selectionScope = null) {
   const childClip = clip ? clipRect(layout, clip) : layout
 
   let childOffset = offset
+  let childPrevBuf = prevBuf
   if (style.overflow === 'scroll') {
     const scrollX = style.scrollOffsetX ?? 0
     const scrollY = style.scrollOffset ?? 0
     childOffset = { x: (offset?.x ?? 0) - scrollX, y: (offset?.y ?? 0) - scrollY }
+    childPrevBuf = null
   }
 
   if (node._resolvedChildren) {
     for (const child of node._resolvedChildren) {
-      paintTree(child, buf, childClip, childOffset, prevBuf, childSelectionScope)
+      paintTree(child, buf, childClip, childOffset, childPrevBuf, childSelectionScope)
     }
   }
 

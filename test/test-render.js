@@ -863,8 +863,10 @@ suite('cached components follow scroll paint geometry')
   const inp = new FakeInput()
   const [offset, setOffset] = createSignal(1)
 
-  function Row({ label }) {
-    return jsx('text', { children: label })
+  const [suffix, setSuffix] = createSignal('')
+
+  function Row({ label, live = false }) {
+    return jsx('text', { children: live ? label + suffix() : label })
   }
 
   function App() {
@@ -877,7 +879,7 @@ suite('cached components follow scroll paint geometry')
           children: [
             jsx(Row, { label: 'ROW0' }),
             jsx(Row, { label: 'ROW1' }),
-            jsx(Row, { label: 'ROW2' }),
+            jsx(Row, { label: 'ROW2', live: true }),
             jsx(Row, { label: 'ROW3' }),
           ],
         }),
@@ -906,6 +908,11 @@ suite('cached components follow scroll paint geometry')
   assertEq(rows()[1], 'ROW2', 'changed offset moves a clean component to its painted row')
   assertEq(rows()[2], 'ROW3', 'changed offset paints newly visible clean content')
   assertEq(rows()[3], 'FOOTER', 'scrolled cached content stays above following content')
+
+  setSuffix(' UPDATED')
+  await tick()
+  assertEq(rows()[1], 'ROW2 UPDATED', 'dirty scrolled content replaces all stale cells')
+  assertEq(rows()[2], 'ROW3', 'clean sibling remains intact after dirty repaint')
 
   unmount()
 }
