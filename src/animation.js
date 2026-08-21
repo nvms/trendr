@@ -98,6 +98,7 @@ export function useAnimated(initial, interpolator) {
     const a = animated(initial, interpolator)
     onCleanup(() => {
       active.delete(a._anim)
+      if (active.size === 0) stopLoop()
     })
     return a
   })

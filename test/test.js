@@ -378,6 +378,31 @@ suite('signal - effect tracking')
   assertEq(result, 30, 'reacts to second signal')
 }
 
+suite('signal - dynamic effect dependencies')
+{
+  const [enabled, setEnabled] = createSignal(true)
+  const [value, setValue] = createSignal(0)
+  let runs = 0
+  createEffect(() => {
+    runs++
+    if (enabled()) value()
+  })
+  setEnabled(false)
+  assertEq(runs, 2, 'effect reruns when branch changes')
+  setValue(1)
+  assertEq(runs, 2, 'effect unsubscribes from dependencies no longer read')
+}
+
+suite('signal - disposed effect dependencies')
+{
+  const [value, setValue] = createSignal(0)
+  let runs = 0
+  const scope = createScope(() => createEffect(() => { value(); runs++ }))
+  disposeScope(scope)
+  setValue(1)
+  assertEq(runs, 1, 'disposed effect is detached from its signals')
+}
+
 suite('signal - effect cleanup')
 {
   let cleaned = false

@@ -209,8 +209,13 @@ export function useAsync(fn, { immediate = false } = {}) {
     const [data, setData] = createSignalRaw(null)
     const [error, setError] = createSignalRaw(null)
     let generation = 0
+    let disposed = false
 
     const s = { status, data, error, fn }
+    onCleanup(() => {
+      disposed = true
+      generation++
+    })
 
     s.run = (...args) => {
       const gen = ++generation
@@ -218,8 +223,8 @@ export function useAsync(fn, { immediate = false } = {}) {
       setData(null)
       setError(null)
       s.fn(...args).then(
-        result => { if (gen === generation) { setData(result); setStatus('success') } },
-        err => { if (gen === generation) { setError(err); setStatus('error') } },
+        result => { if (!disposed && gen === generation) { setData(result); setStatus('success') } },
+        err => { if (!disposed && gen === generation) { setError(err); setStatus('error') } },
       )
     }
 

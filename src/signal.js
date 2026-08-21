@@ -78,7 +78,10 @@ export function createSignalRaw(value) {
   const signal = { runtimes: new Set() }
 
   function get() {
-    if (currentEffect) subs.add(currentEffect)
+    if (currentEffect) {
+      subs.add(currentEffect)
+      currentEffect.dependencies.add(subs)
+    }
     const runtime = getRuntime()
     if (runtime.renderTracker) runtime.renderTracker.push(get)
     subscribeRuntime(signal)
@@ -120,10 +123,16 @@ export function createEffectRaw(fn) {
     fn,
     cleanup: null,
     disposed: false,
+    dependencies: new Set(),
+    unsubscribe() {
+      for (const subs of effect.dependencies) subs.delete(effect)
+      effect.dependencies.clear()
+    },
     run() {
       if (effect.disposed) return
       return runInReactiveRuntime(runtime, () => {
         if (effect.cleanup) effect.cleanup()
+        effect.unsubscribe()
         const prev = currentEffect
         currentEffect = effect
         try {
@@ -219,6 +228,7 @@ export function disposeScope(scope) {
   for (const child of scope.children) disposeScope(child)
   for (const effect of scope.effects) {
     effect.disposed = true
+    effect.unsubscribe()
     if (effect.cleanup) effect.cleanup()
     effect.cleanup = null
   }
