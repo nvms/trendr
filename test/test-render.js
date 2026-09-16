@@ -1375,6 +1375,49 @@ suite('text-area click moves the cursor to the clicked cell')
   unmount()
 }
 
+suite('text-area cursorOffset controls replacement cursor and reports keyboard and mouse changes')
+{
+  const out = new FakeStream(40, 10)
+  const inp = new FakeInput()
+  let setValue
+  let setCursorOffset
+  let value = 'hello /wo tail'
+  let cursorOffset = 9
+  const cursors = []
+
+  function App() {
+    const [controlledValue, updateValue] = createSignal(value)
+    const [controlledCursor, updateCursor] = createSignal(cursorOffset)
+    setValue = (next) => { value = next; updateValue(next) }
+    setCursorOffset = (next) => { cursorOffset = next; updateCursor(next) }
+    return jsx(TextArea, {
+      value: controlledValue(),
+      cursorOffset: controlledCursor(),
+      onChange: (next) => { value = next; updateValue(next) },
+      onCursorChange: (next) => { cursorOffset = next; cursors.push(next); updateCursor(next) },
+      focused: true,
+    })
+  }
+
+  const { unmount } = mount(App, { stream: out, stdin: inp, altScreen: false })
+  await tick()
+
+  setValue('hello world tail')
+  setCursorOffset(11)
+  await tick()
+  inp.send('!'); await tick()
+  assertEq(value, 'hello world! tail', 'controlled value replacement preserves the controlled cursor')
+  assertEq(cursors.at(-1), 12, 'text insertion reports its resulting cursor')
+
+  inp.send('\x1b[D'); await tick()
+  assertEq(cursors.at(-1), 11, 'keyboard navigation reports cursor changes')
+
+  inp.send('\x1b[<0;4;1M'); await tick()
+  assertEq(cursors.at(-1), 3, 'mouse navigation reports cursor changes')
+
+  unmount()
+}
+
 suite('text-area click accounts for wrapping and scroll')
 {
   const out = new FakeStream(5, 4)

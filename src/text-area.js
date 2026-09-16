@@ -145,12 +145,16 @@ function editorView(text, width, maxHeight, lineCounter, scrollbar) {
   }
 }
 
-export function TextArea({ onSubmit, onCancel, onChange, onKeyDown, placeholder, focused = true, maxHeight = 10, clearOnSubmit = true, cursor: cursorProp, value: valueProp, submitOnEnter = false, newlineOnBackslashEnter = false, color, lineCounter = false, scrollbar = false, thumbChar = '\u2588', trackChar = '\u2502' }) {
+export function TextArea({ onSubmit, onCancel, onChange, onKeyDown, onCursorChange, placeholder, focused = true, maxHeight = 10, clearOnSubmit = true, cursor: cursorProp, cursorOffset, value: valueProp, submitOnEnter = false, newlineOnBackslashEnter = false, color, lineCounter = false, scrollbar = false, thumbChar = '\u2588', trackChar = '\u2502' }) {
   const [value, setValue] = createSignal('')
   const [cursor, setCursor] = createSignal(0)
   if (valueProp !== undefined && valueProp !== value()) {
     setValue(valueProp)
-    setCursor(valueProp.length)
+    setCursor(cursorOffset === undefined ? valueProp.length : Math.max(0, Math.min(cursorOffset, valueProp.length)))
+  }
+  if (cursorOffset !== undefined) {
+    const controlledCursor = Math.max(0, Math.min(cursorOffset, value().length))
+    if (controlledCursor !== cursor()) setCursor(controlledCursor)
   }
   const [scroll, setScroll] = createSignal(0)
   const ref = registerHook(() => ({ goalCol: null, manualScroll: false }))
@@ -158,10 +162,20 @@ export function TextArea({ onSubmit, onCancel, onChange, onKeyDown, placeholder,
   const layout = useLayout()
   const { cursorStyle, reset: resetBlink } = useCursor(cursorProp, focused)
 
+  function moveCursor(next) {
+    const clamped = Math.max(0, Math.min(next, value().length))
+    if (clamped === cursor()) return
+    setCursor(clamped)
+    if (onCursorChange) onCursorChange(clamped)
+  }
+
   function update(next, c) {
     const prev = value()
+    const prevCursor = cursor()
     setValue(next)
-    setCursor(c)
+    const nextCursor = Math.max(0, Math.min(c, next.length))
+    setCursor(nextCursor)
+    if (onCursorChange && nextCursor !== prevCursor) onCursorChange(nextCursor)
     ref.goalCol = null
     ref.manualScroll = false
     if (onChange) onChange(next, prev)
@@ -186,7 +200,7 @@ export function TextArea({ onSubmit, onCancel, onChange, onKeyDown, placeholder,
     if (event.action !== 'press' || event.button !== 'left') return
     const row = Math.min(event.y - layout.y, view.displayHeight - 1) + scroll()
     const col = event.x - layout.x
-    setCursor(displayToCursor(row, col, view.lineMap, v))
+    moveCursor(displayToCursor(row, col, view.lineMap, v))
     ref.goalCol = null
     resetBlink()
     event.stopPropagation()
@@ -271,14 +285,14 @@ export function TextArea({ onSubmit, onCancel, onChange, onKeyDown, placeholder,
     }
 
     if (key === 'left') {
-      setCursor(prevBoundary(v, c))
+      moveCursor(prevBoundary(v, c))
       ref.goalCol = null
       event.stopPropagation()
       return
     }
 
     if (key === 'right') {
-      setCursor(nextBoundary(v, c))
+      moveCursor(nextBoundary(v, c))
       ref.goalCol = null
       event.stopPropagation()
       return
@@ -293,7 +307,7 @@ export function TextArea({ onSubmit, onCancel, onChange, onKeyDown, placeholder,
 
       const newRow = key === 'up' ? pos.row - 1 : pos.row + 1
       if (newRow >= 0 && newRow < lineMap.length) {
-        setCursor(displayToCursor(newRow, goal, lineMap, v))
+        moveCursor(displayToCursor(newRow, goal, lineMap, v))
       }
       event.stopPropagation()
       return
@@ -303,7 +317,7 @@ export function TextArea({ onSubmit, onCancel, onChange, onKeyDown, placeholder,
       const w = layout.width || 80
       const lineMap = wrapForEditor(v, w)
       const pos = cursorToDisplay(c, lineMap, v)
-      setCursor(lineMap[pos.row].start)
+      moveCursor(lineMap[pos.row].start)
       ref.goalCol = null
       event.stopPropagation()
       return
@@ -313,7 +327,7 @@ export function TextArea({ onSubmit, onCancel, onChange, onKeyDown, placeholder,
       const w = layout.width || 80
       const lineMap = wrapForEditor(v, w)
       const pos = cursorToDisplay(c, lineMap, v)
-      setCursor(lineMap[pos.row].end)
+      moveCursor(lineMap[pos.row].end)
       ref.goalCol = null
       event.stopPropagation()
       return
