@@ -1370,6 +1370,33 @@ suite('multi-click selection uses word and line boundaries')
   unmount()
 }
 
+suite('ScrollBox reports viewport metrics')
+{
+  const out = new FakeStream(20, 4)
+  const inp = new FakeInput()
+  let metrics = null
+
+  function App() {
+    return jsx(ScrollBox, {
+      style: { flexGrow: 1 },
+      focused: false,
+      onMetrics: (next) => { metrics = next },
+      children: [
+        jsx('text', { key: 'a', children: 'row one' }),
+        jsx('text', { key: 'b', children: 'row two' }),
+      ],
+    })
+  }
+
+  const { unmount } = mount(App, { stream: out, stdin: inp })
+  await tick()
+
+  assertEq(metrics?.visibleHeight, 4, 'reports visible height')
+  assertEq(metrics?.contentHeight, 2, 'reports content height')
+  assertEq(metrics?.maxOffset, 0, 'reports maximum offset')
+  unmount()
+}
+
 suite('useHitTest uses painted, scrolled, clipped geometry')
 {
   const out = new FakeStream(40, 3)
