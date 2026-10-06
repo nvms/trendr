@@ -151,24 +151,32 @@ export function parseBlocks(text) {
 
 const LINK_OPEN = url => `\x1b]8;;${url}\x1b\\`
 const LINK_CLOSE = '\x1b]8;;\x1b\\'
-const LINK_RE = /\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)|(https?:\/\/[^\s<>]+)/g
+const MARKDOWN_LINK_RE = /\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g
+const LINK_RE = /https?:\/\/[^\s<>\x00\x1b]+/g
 const TRAILING_URL_PUNCTUATION = /[.,;:!?]+$/
 
+function renderLink(label, url) {
+  return `${LINK_OPEN(url)}${UNDERLINE_ON}${label}${UNDERLINE_OFF}${LINK_CLOSE}`
+}
+
 function renderLinks(text) {
-  return text.replace(LINK_RE, (match, label, markdownUrl, plainUrl) => {
-    let url = markdownUrl || plainUrl
-    let trailing = ''
-    if (plainUrl) {
-      const punctuation = url.match(TRAILING_URL_PUNCTUATION)?.[0] || ''
-      url = url.slice(0, url.length - punctuation.length)
-      trailing = punctuation
-      while (url.endsWith(')') && (url.match(/\(/g)?.length || 0) < (url.match(/\)/g)?.length || 0)) {
-        trailing = ')' + trailing
-        url = url.slice(0, -1)
-      }
+  return text.replace(LINK_RE, url => {
+    const punctuation = url.match(TRAILING_URL_PUNCTUATION)?.[0] || ''
+    url = url.slice(0, url.length - punctuation.length)
+    let trailing = punctuation
+    while (url.endsWith(')') && (url.match(/\(/g)?.length || 0) < (url.match(/\)/g)?.length || 0)) {
+      trailing = ')' + trailing
+      url = url.slice(0, -1)
     }
-    return `${LINK_OPEN(url)}${UNDERLINE_ON}${label || url}${UNDERLINE_OFF}${LINK_CLOSE}${trailing}`
+    return renderLink(url, url) + trailing
   })
+}
+
+function renderEmphasis(text) {
+  return text
+    .replace(/\*\*([^*]+)\*\*/g, `${BOLD_ON}$1${BOLD_OFF}`)
+    .replace(/\*([^*\s][^*]*?)\*/g, `${ITALIC_ON}$1${ITALIC_OFF}`)
+    .replace(/(^|\s)_([^_]+)_(?=\s|$|[.,;:!?])/g, `$1${ITALIC_ON}$2${ITALIC_OFF}`)
 }
 
 export function renderInline(s, { accent = 'cyan' } = {}) {
@@ -178,10 +186,17 @@ export function renderInline(s, { accent = 'cyan' } = {}) {
     if (part.length > 2 && part.startsWith('`') && part.endsWith('`')) {
       out += codeOn + part.slice(1, -1) + FG_RESET
     } else {
-      out += renderLinks(part)
-        .replace(/\*\*([^*]+)\*\*/g, `${BOLD_ON}$1${BOLD_OFF}`)
-        .replace(/\*([^*\s][^*]*?)\*/g, `${ITALIC_ON}$1${ITALIC_OFF}`)
-        .replace(/(^|\s)_([^_]+)_(?=\s|$|[.,;:!?])/g, `$1${ITALIC_ON}$2${ITALIC_OFF}`)
+      // Protect explicit destinations from emphasis parsing. Restore links only
+      // after formatting and autolinking, so neither pass touches OSC 8 payloads.
+      const links = []
+      const text = part.replace(MARKDOWN_LINK_RE, (_, label, url) => {
+        links.push({ label, url })
+        return `\x00${links.length - 1}\x00`
+      })
+      out += renderLinks(renderEmphasis(text)).replace(/\x00(\d+)\x00/g, (_, index) => {
+        const { label, url } = links[index]
+        return renderLink(renderEmphasis(label), url)
+      })
     }
   }
   return out

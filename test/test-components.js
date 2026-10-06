@@ -10,8 +10,9 @@ import { MenuBar } from '../src/menubar.js'
 import { MillerNav } from '../src/miller-nav.js'
 import { ProgressBar } from '../src/progress.js'
 import { ease, linear, animated } from '../src/animation.js'
-import { Markdown, parseBlocks, renderTableLines, splitTableRow } from '../src/markdown.js'
+import { Markdown, parseBlocks, renderInline, renderTableLines, splitTableRow } from '../src/markdown.js'
 import { measureText, stripAnsi } from '../src/wrap.js'
+import { BOLD, UNDERLINE } from '../src/ansi.js'
 import { extractSelectionText, useSelection } from '../src/selection.js'
 import { ScrollBox } from '../src/scroll-box.js'
 import { FieldList, Field } from '../src/field-list.js'
@@ -982,6 +983,52 @@ suite('Markdown links are clickable, hoverable, and preserve drag selection')
   inp.send('\x1b[<0;2;1M\x1b[<32;5;1M\x1b[<0;5;1m')
   await tick()
   assertEq(opened.length, 1, 'dragging over a link does not open it')
+  unmount()
+}
+
+suite('Markdown emphasis keeps URL destinations free of formatting')
+{
+  const cases = [
+    ['Refresh **http://localhost:9400** to load the fix.', 'Refresh http://localhost:9400 to load the fix.', 'http://localhost:9400'],
+    ['**https://example.com**.', 'https://example.com.', 'https://example.com'],
+    ['*https://example.com*', 'https://example.com', 'https://example.com'],
+    ['_https://example.com_', 'https://example.com', 'https://example.com'],
+    ['**See https://example.com now**', 'See https://example.com now', 'https://example.com'],
+    ['**[Example](https://example.com)**', 'Example', 'https://example.com'],
+    ['[**Example**](https://example.com/a**b**)', 'Example', 'https://example.com/a**b**'],
+    ['[Example](https://example.com/a_b_c)', 'Example', 'https://example.com/a_b_c'],
+    ['https://example.com/a_b_c', 'https://example.com/a_b_c', 'https://example.com/a_b_c'],
+    ['https://example.com/wiki/Test_(page).', 'https://example.com/wiki/Test_(page).', 'https://example.com/wiki/Test_(page)'],
+  ]
+  for (const [input, visible, url] of cases) {
+    const rendered = renderInline(input)
+    assertEq(stripAnsi(rendered), visible, `visible text for ${input}`)
+    assertEq(rendered.match(/\x1b\]8;;([^\x1b]+)\x1b\\/)?.[1], url, `link target for ${input}`)
+  }
+}
+
+suite('Markdown bold URLs paint and open without trailing asterisks')
+{
+  const out = new FakeStream(60, 4)
+  const inp = new FakeInput()
+  const opened = []
+  const { getBuffer, unmount } = mount(
+    () => jsx(Markdown, { text: 'Refresh **http://localhost:9400** to load the fix.' }),
+    { stream: out, stdin: inp, altScreen: false, onOpenLink: url => opened.push(url) },
+  )
+  await tick()
+  const cells = getBuffer().cells
+  assertEq(cells.slice(0, 46).map(cell => cell.ch).join('').trim(),
+    'Refresh http://localhost:9400 to load the fix.', 'painted text has no closing markdown markers')
+  for (let i = 8; i < 29; i++) {
+    assertEq(cells[i].link, 'http://localhost:9400', 'URL cells retain a clean destination')
+    assert((cells[i].attrs & (BOLD | UNDERLINE)) === (BOLD | UNDERLINE), 'URL cells are bold and underlined')
+  }
+  assertEq(cells[29].link, null, 'following space is outside the link')
+  assert((cells[29].attrs & (BOLD | UNDERLINE)) === 0, 'formatting ends after the URL')
+  inp.send('\x1b[<0;10;1M\x1b[<0;10;1m')
+  await tick()
+  assertEq(opened[0], 'http://localhost:9400', 'click opens the clean destination')
   unmount()
 }
 
