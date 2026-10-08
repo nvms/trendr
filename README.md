@@ -270,6 +270,16 @@ const layout = useLayout()
 useResize(({ width, height }) => { /* terminal resized */ })
 ```
 
+### useColorScheme
+
+Follows the terminal's light/dark background. While mounted it enables terminal color scheme notifications (mode 2031, supported by kitty, ghostty, foot, contour and others) and confirms each change against the OSC 11 background color. The handler runs with the current scheme once the terminal answers, and again whenever it changes. The returned function asks the terminal again.
+
+```jsx
+const recheck = useColorScheme((scheme) => { /* 'light' or 'dark' */ })
+```
+
+Terminal replies (OSC responses, mode 2031 reports) are never delivered to `useInput` as keypresses.
+
 ### useInterval
 
 Used in [dashboard](examples/dashboard.jsx)

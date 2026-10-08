@@ -1,6 +1,6 @@
 import { EventEmitter } from 'events'
 import { parseKey, splitKeys, parseMouse, createInputHandler } from '../src/input.js'
-import { mount, createSignal, useFocus, useHotkey, useAsync, useInterval, TextInput, TextArea } from '../index.js'
+import { mount, createSignal, useFocus, useHotkey, useAsync, useInterval, useColorScheme, TextInput, TextArea } from '../index.js'
 import { startHookTracking, endHookTracking } from '../src/renderer.js'
 import { createScope, disposeScope } from '../src/signal.js'
 import { jsx } from '../jsx-runtime.js'
@@ -800,6 +800,84 @@ suite('useInterval - restarts when ms changes')
   const after = count
   await new Promise(r => setTimeout(r, 20))
   assertEq(count, after, 'disposed interval stops firing')
+}
+
+suite('splitKeys - osc replies stay whole')
+{
+  assertEq(JSON.stringify(splitKeys('\x1b]11;rgb:ffff/ffff/ffff\x1b\\a')), JSON.stringify(['\x1b]11;rgb:ffff/ffff/ffff\x1b\\', 'a']), 'ST terminated')
+  assertEq(JSON.stringify(splitKeys('\x1b]11;rgb:0/0/0\x07a')), JSON.stringify(['\x1b]11;rgb:0/0/0\x07', 'a']), 'BEL terminated')
+  assertEq(JSON.stringify(splitKeys('\x1b]ab')), JSON.stringify(['\x1b]', 'a', 'b']), 'unterminated is alt+] then typing')
+}
+
+suite('handler - terminal reports are not keys')
+{
+  const stream = new EventEmitter()
+  const timers = []
+  const h = createInputHandler(stream, { setTimer: (fn) => { timers.push(fn); return timers.length }, clearTimer: () => {} })
+  const keys = []
+  const reports = []
+  h.onKey((e) => keys.push(e.key))
+  h.onReport((r) => reports.push(r))
+  stream.emit('data', 'x\x1b]11;rgb:1c1c/1c1c/1c1c\x1b\\y')
+  stream.emit('data', '\x1b[?997;2n')
+  stream.emit('data', '\x1b]10;rgb:ffff/ffff/ffff\x07')
+  assertEq(keys.join(','), 'x,y', 'only real keys reach onKey')
+  assertEq(reports.length, 2, 'two reports')
+  assertEq(reports[0].type, 'background', 'osc 11 reply')
+  assertEq(reports[0].scheme, 'dark', 'dark background')
+  assertEq(reports[1].type, 'color-scheme', 'mode 2031 report')
+  assertEq(reports[1].scheme, 'light', '997;2 is light')
+}
+
+suite('handler - osc reply split across chunks')
+{
+  const stream = new EventEmitter()
+  const h = createInputHandler(stream, { setTimer: () => 1, clearTimer: () => {} })
+  const keys = []
+  const reports = []
+  h.onKey((e) => keys.push(e.key))
+  h.onReport((r) => reports.push(r))
+  stream.emit('data', '\x1b]11;rgb:eeee/ee')
+  stream.emit('data', 'ee/eeee\x1b')
+  stream.emit('data', '\\')
+  assertEq(keys.length, 0, 'no key events')
+  assertEq(reports[0]?.scheme, 'light', 'light background after reassembly')
+}
+
+suite('useColorScheme - mode 2031 confirmed by background')
+{
+  const out = new EventEmitter()
+  out.columns = 20
+  out.rows = 5
+  out.output = ''
+  out.write = (d) => { out.output += d; return true }
+  const inp = new EventEmitter()
+  inp.setRawMode = () => {}
+  const seen = []
+  let recheck
+  function App() {
+    recheck = useColorScheme((s) => seen.push(s))
+    return jsx('text', { children: 'hi' })
+  }
+  const { unmount } = mount(App, { stream: out, stdin: inp })
+  await new Promise(r => setTimeout(r, 30))
+  assert(out.output.includes('\x1b[?2031h'), 'enables mode 2031')
+  assert(out.output.includes('\x1b]11;?'), 'queries background on subscribe')
+  inp.emit('data', '\x1b]11;rgb:0000/0000/0000\x1b\\')
+  assertEq(seen.join(), 'dark', 'initial scheme')
+  out.output = ''
+  inp.emit('data', '\x1b[?997;2n')
+  assert(out.output.includes('\x1b]11;?'), 'change report re-queries background')
+  inp.emit('data', '\x1b]11;rgb:ffff/ffff/ffff\x1b\\')
+  assertEq(seen.join(), 'dark,light', 'background reply wins')
+  inp.emit('data', '\x1b[?997;1n')
+  await new Promise(r => setTimeout(r, 250))
+  assertEq(seen.join(), 'dark,light,dark', 'falls back to the report when osc 11 is unanswered')
+  out.output = ''
+  recheck()
+  assert(out.output.includes('\x1b]11;?'), 'recheck queries background')
+  unmount()
+  assert(out.output.includes('\x1b[?2031l'), 'disables mode 2031 on unmount')
 }
 
 // =========================================================================

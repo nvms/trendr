@@ -22,6 +22,10 @@ export const osc52Copy = (text) => `\x1b]52;c;${Buffer.from(text, 'utf8').toStri
 export const beginSync = `${ESC}?2026h`
 export const endSync = `${ESC}?2026l`
 
+export const enableColorSchemeReports = `${ESC}?2031h`
+export const disableColorSchemeReports = `${ESC}?2031l`
+export const queryBackground = '\x1b]11;?\x1b\\'
+
 export const enableMouse = `${ESC}?1003h${ESC}?1006h`
 export const disableMouse = `${ESC}?1003l${ESC}?1006l`
 

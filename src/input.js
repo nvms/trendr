@@ -179,6 +179,19 @@ function nextToken(s) {
 
   const c = s[i]
 
+  // OSC (terminal replies like the OSC 11 background color): runs to BEL or ST
+  if (c === ']') {
+    for (let j = i + 1; j < s.length; j++) {
+      if (s[j] === '\x07') return s.slice(0, j + 1)
+      if (s[j] === '\x1b') {
+        if (j + 1 >= s.length) return null
+        // an ESC that does not start ST means this was alt+] after all
+        return s[j + 1] === '\\' ? s.slice(0, j + 2) : s.slice(0, i + 1)
+      }
+    }
+    return null
+  }
+
   if (c === '[') {
     let j = i + 1
     if (j < s.length && (s[j] === '<' || s[j] === '?')) j++
@@ -220,11 +233,41 @@ export function splitKeys(data) {
       s = s.slice(1)
       continue
     }
+    // an unterminated OSC that timed out was really alt+] followed by typing
+    if (s.startsWith('\x1b]')) {
+      keys.push('\x1b]')
+      s = s.slice(2)
+      continue
+    }
     keys.push(s)
     break
   }
 
   return keys
+}
+
+const OSC11_RE = /^\x1b\]11;rgba?:([0-9a-f]+)\/([0-9a-f]+)\/([0-9a-f]+)/i
+const SCHEME_REPORT_RE = /^\x1b\[\?997;([12])n$/
+
+// light/dark from an OSC 11 background reply, by perceived luminance
+export function schemeFromOsc11(raw) {
+  const m = OSC11_RE.exec(raw)
+  if (!m) return null
+  const channel = (hex) => parseInt(hex, 16) / (16 ** hex.length - 1)
+  const luminance = 0.2126 * channel(m[1]) + 0.7152 * channel(m[2]) + 0.0722 * channel(m[3])
+  return luminance > 0.5 ? 'light' : 'dark'
+}
+
+// terminal replies that arrive on stdin but are not keypresses. returns a
+// report event, false for an unrecognized OSC (dropped), or null for a key
+export function parseReport(raw) {
+  if (raw.startsWith('\x1b]') && raw.length > 2) {
+    const scheme = schemeFromOsc11(raw)
+    return scheme ? { type: 'background', scheme, raw } : false
+  }
+  const m = SCHEME_REPORT_RE.exec(raw)
+  if (m) return { type: 'color-scheme', scheme: m[1] === '1' ? 'dark' : 'light', raw }
+  return null
 }
 
 const PASTE_START = '\x1b[200~'
@@ -249,6 +292,8 @@ export function createInputHandler(stream, options = {}) {
 
   const keyListeners = new Map()
   const mouseListeners = new Map()
+  const reportListeners = new Set()
+  const listenerCount = () => keyListeners.size + mouseListeners.size + reportListeners.size
 
   let pending = ''
   let inPaste = false
@@ -266,6 +311,12 @@ export function createInputHandler(stream, options = {}) {
   }
 
   function dispatch(keyStr) {
+    const report = parseReport(keyStr)
+    if (report) {
+      for (const fn of [...reportListeners]) fn(report)
+      return
+    }
+    if (report === false) return
     const mouse = parseMouse(keyStr)
     if (mouse) {
       fire(mouse, mouseListeners)
@@ -354,21 +405,30 @@ export function createInputHandler(stream, options = {}) {
 
   function onKey(fn, owner = null) {
     keyListeners.set(fn, owner)
-    if (keyListeners.size + mouseListeners.size === 1) attach()
+    if (listenerCount() === 1) attach()
     return () => {
       keyListeners.delete(fn)
-      if (keyListeners.size + mouseListeners.size === 0) detach()
+      if (listenerCount() === 0) detach()
     }
   }
 
   function onMouse(fn, owner = null) {
     mouseListeners.set(fn, owner)
-    if (keyListeners.size + mouseListeners.size === 1) attach()
+    if (listenerCount() === 1) attach()
     return () => {
       mouseListeners.delete(fn)
-      if (keyListeners.size + mouseListeners.size === 0) detach()
+      if (listenerCount() === 0) detach()
     }
   }
 
-  return { onKey, onMouse, attach, detach }
+  function onReport(fn) {
+    reportListeners.add(fn)
+    if (listenerCount() === 1) attach()
+    return () => {
+      reportListeners.delete(fn)
+      if (listenerCount() === 0) detach()
+    }
+  }
+
+  return { onKey, onMouse, onReport, attach, detach }
 }

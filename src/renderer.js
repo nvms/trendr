@@ -902,6 +902,55 @@ export function mount(rootComponent, { stream, stdin, title, theme, onExit: onEx
     },
   })
   ctx.input = input
+
+  // light/dark tracking for useColorScheme. mode 2031 makes the terminal
+  // announce scheme changes; it stays on while anything is subscribed
+  const schemeListeners = new Set()
+  let schemeReports = false
+  let schemeFallback = null
+  const emitScheme = (scheme) => {
+    for (const fn of [...schemeListeners]) fn(scheme)
+  }
+  const clearSchemeFallback = () => {
+    if (schemeFallback !== null) clearTimeout(schemeFallback)
+    schemeFallback = null
+  }
+  input.onReport((report) => {
+    if (report.type === 'background') {
+      clearSchemeFallback()
+      emitScheme(report.scheme)
+    } else if (report.type === 'color-scheme') {
+      // the notification is the trigger, the background color is the truth:
+      // the reported scheme can follow the OS while the palette stays put.
+      // terminals that do not answer OSC 11 fall back to the report itself
+      clearSchemeFallback()
+      schemeFallback = setTimeout(() => {
+        schemeFallback = null
+        emitScheme(report.scheme)
+      }, 200)
+      out.write(ansi.queryBackground)
+    }
+  })
+  ctx.colorScheme = {
+    subscribe(fn) {
+      schemeListeners.add(fn)
+      if (!schemeReports) {
+        schemeReports = true
+        out.write(ansi.enableColorSchemeReports + ansi.queryBackground)
+      }
+      return () => {
+        schemeListeners.delete(fn)
+        if (schemeListeners.size === 0 && schemeReports && !unmounted) {
+          schemeReports = false
+          clearSchemeFallback()
+          out.write(ansi.disableColorSchemeReports)
+        }
+      }
+    },
+    query() {
+      out.write(ansi.queryBackground)
+    },
+  }
   input.onMouse(event => {
     const link = cellLink(event.x, event.y)
     if (event.action === 'move') {
@@ -1317,6 +1366,7 @@ export function mount(rootComponent, { stream, stdin, title, theme, onExit: onEx
 
     scheduler.destroy()
     input.detach()
+    clearSchemeFallback()
     out.off('resize', onResize)
     process.off('exit', onExit)
     process.off('SIGTERM', onSigterm)
@@ -1328,6 +1378,10 @@ export function mount(rootComponent, { stream, stdin, title, theme, onExit: onEx
     }
     instances.clear()
 
+    if (schemeReports) {
+      schemeReports = false
+      out.write(ansi.disableColorSchemeReports)
+    }
     if (inline) {
       out.write((overlayActive ? ansi.exitAltScreen : '') + ansi.sgrReset + disableBracketedPaste + ansi.showCursor + '\r\n')
     } else {
