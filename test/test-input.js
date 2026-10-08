@@ -825,6 +825,7 @@ suite('handler - terminal reports are not keys')
   assertEq(reports.length, 2, 'two reports')
   assertEq(reports[0].type, 'background', 'osc 11 reply')
   assertEq(reports[0].scheme, 'dark', 'dark background')
+  assertEq(reports[0].background, '#1c1c1c', 'background color as hex')
   assertEq(reports[1].type, 'color-scheme', 'mode 2031 report')
   assertEq(reports[1].scheme, 'light', '997;2 is light')
 }
@@ -854,9 +855,10 @@ suite('useColorScheme - mode 2031 confirmed by background')
   const inp = new EventEmitter()
   inp.setRawMode = () => {}
   const seen = []
+  const backgrounds = []
   let recheck
   function App() {
-    recheck = useColorScheme((s) => seen.push(s))
+    recheck = useColorScheme((s, { background }) => { seen.push(s); backgrounds.push(background) })
     return jsx('text', { children: 'hi' })
   }
   const { unmount } = mount(App, { stream: out, stdin: inp })
@@ -873,6 +875,7 @@ suite('useColorScheme - mode 2031 confirmed by background')
   inp.emit('data', '\x1b[?997;1n')
   await new Promise(r => setTimeout(r, 250))
   assertEq(seen.join(), 'dark,light,dark', 'falls back to the report when osc 11 is unanswered')
+  assertEq(JSON.stringify(backgrounds), JSON.stringify(['#000000', '#ffffff', null]), 'background passed along, null on fallback')
   out.output = ''
   recheck()
   assert(out.output.includes('\x1b]11;?'), 'recheck queries background')

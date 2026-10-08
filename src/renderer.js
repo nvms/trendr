@@ -908,8 +908,8 @@ export function mount(rootComponent, { stream, stdin, title, theme, onExit: onEx
   const schemeListeners = new Set()
   let schemeReports = false
   let schemeFallback = null
-  const emitScheme = (scheme) => {
-    for (const fn of [...schemeListeners]) fn(scheme)
+  const emitScheme = (scheme, background) => {
+    for (const fn of [...schemeListeners]) fn(scheme, { background })
   }
   const clearSchemeFallback = () => {
     if (schemeFallback !== null) clearTimeout(schemeFallback)
@@ -918,7 +918,7 @@ export function mount(rootComponent, { stream, stdin, title, theme, onExit: onEx
   input.onReport((report) => {
     if (report.type === 'background') {
       clearSchemeFallback()
-      emitScheme(report.scheme)
+      emitScheme(report.scheme, report.background)
     } else if (report.type === 'color-scheme') {
       // the notification is the trigger, the background color is the truth:
       // the reported scheme can follow the OS while the palette stays put.
@@ -926,7 +926,7 @@ export function mount(rootComponent, { stream, stdin, title, theme, onExit: onEx
       clearSchemeFallback()
       schemeFallback = setTimeout(() => {
         schemeFallback = null
-        emitScheme(report.scheme)
+        emitScheme(report.scheme, null)
       }, 200)
       out.write(ansi.queryBackground)
     }

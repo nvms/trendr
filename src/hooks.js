@@ -40,15 +40,17 @@ export function useResize(handler) {
   ref.current = handler
 }
 
-// calls handler('light' | 'dark') when the terminal's color scheme is known
-// or changes (mode 2031, confirmed against the OSC 11 background color).
-// returns a query function that asks the terminal again
+// calls handler('light' | 'dark', { background }) when the terminal's color
+// scheme is known or changes (mode 2031, confirmed against the OSC 11
+// background color). background is '#rrggbb', or null when the terminal
+// announced a change without answering OSC 11. returns a query function that
+// asks the terminal again
 export function useColorScheme(handler) {
   const ref = registerHook(() => {
     const ctx = getContext()
     if (!ctx) throw new Error('useColorScheme must be called within a mounted component')
     const state = { current: handler, query: ctx.colorScheme.query }
-    onCleanup(ctx.colorScheme.subscribe((scheme) => state.current(scheme)))
+    onCleanup(ctx.colorScheme.subscribe((scheme, info) => state.current(scheme, info)))
     return state
   })
   ref.current = handler

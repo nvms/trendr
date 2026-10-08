@@ -249,21 +249,28 @@ export function splitKeys(data) {
 const OSC11_RE = /^\x1b\]11;rgba?:([0-9a-f]+)\/([0-9a-f]+)\/([0-9a-f]+)/i
 const SCHEME_REPORT_RE = /^\x1b\[\?997;([12])n$/
 
-// light/dark from an OSC 11 background reply, by perceived luminance
-export function schemeFromOsc11(raw) {
+// the background color of an OSC 11 reply as '#rrggbb', plus light/dark by
+// perceived luminance. channels may be 1-4 hex digits each
+export function parseOsc11(raw) {
   const m = OSC11_RE.exec(raw)
   if (!m) return null
-  const channel = (hex) => parseInt(hex, 16) / (16 ** hex.length - 1)
-  const luminance = 0.2126 * channel(m[1]) + 0.7152 * channel(m[2]) + 0.0722 * channel(m[3])
-  return luminance > 0.5 ? 'light' : 'dark'
+  const channels = [m[1], m[2], m[3]].map((hex) => parseInt(hex, 16) / (16 ** hex.length - 1))
+  const [r, g, b] = channels
+  const luminance = 0.2126 * r + 0.7152 * g + 0.0722 * b
+  const background = '#' + channels.map((c) => Math.round(c * 255).toString(16).padStart(2, '0')).join('')
+  return { scheme: luminance > 0.5 ? 'light' : 'dark', background }
+}
+
+export function schemeFromOsc11(raw) {
+  return parseOsc11(raw)?.scheme ?? null
 }
 
 // terminal replies that arrive on stdin but are not keypresses. returns a
 // report event, false for an unrecognized OSC (dropped), or null for a key
 export function parseReport(raw) {
   if (raw.startsWith('\x1b]') && raw.length > 2) {
-    const scheme = schemeFromOsc11(raw)
-    return scheme ? { type: 'background', scheme, raw } : false
+    const parsed = parseOsc11(raw)
+    return parsed ? { type: 'background', scheme: parsed.scheme, background: parsed.background, raw } : false
   }
   const m = SCHEME_REPORT_RE.exec(raw)
   if (m) return { type: 'color-scheme', scheme: m[1] === '1' ? 'dark' : 'light', raw }
